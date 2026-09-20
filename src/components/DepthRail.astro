@@ -1,0 +1,118 @@
+---
+import { bandForPath } from '../scripts/water/depth';
+
+// Server-rendered starting depth: the current page's band top, so the rail
+// is never blank before the first `water:depth` event, and reads correctly
+// with no JS at all. Text colour is not set here — it inherits the ink
+// tokens from the page's depth class on <html>, exactly as the footer does,
+// because that (not the live, mid-tone depth during the thermocline
+// passage) is the value guaranteed to clear contrast.
+const band = bandForPath(Astro.url.pathname);
+---
+
+<div class="depth-rail" aria-hidden="true">
+  <span class="label">DEPTH</span>
+  <div class="track">
+    <span class="marker"></span>
+  </div>
+  <span class="value"><span class="metres">{band.top}</span><span class="unit">M</span></span>
+</div>
+
+<style>
+  .depth-rail {
+    position: fixed;
+    /* starts below the sticky header (64px row + 1px border) so the label
+       and the 0% end of the track are never hidden underneath it */
+    top: 65px;
+    bottom: 0;
+    left: 0;
+    width: var(--rail);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    padding-block: 24px;
+    pointer-events: none;
+    font-family: var(--mono);
+  }
+
+  .label {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    color: var(--ink-3);
+  }
+
+  .track {
+    position: relative;
+    flex: 1;
+    width: 1px;
+    margin-block: 16px;
+    background: var(--line);
+  }
+
+  .marker {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 7px;
+    height: 7px;
+    margin: -3.5px 0 0 -3.5px;
+    border-radius: 50%;
+    background: var(--mark);
+  }
+
+  .value {
+    display: flex;
+    align-items: baseline;
+    gap: 2px;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-2);
+  }
+
+  .unit {
+    font-size: 9px;
+    color: var(--ink-3);
+  }
+
+  @media (max-width: 860px) {
+    .label {
+      display: none;
+    }
+  }
+</style>
+
+<script>
+  // The rail is not transition:persist'd — it re-renders fresh on every
+  // navigation, unlike the canvas. Its module body, however, only ever runs
+  // once (the bundled script is not re-evaluated on later navigations), so
+  // `astro:page-load` — which fires on the initial load and after every
+  // navigation — is what (re)attaches the listener to that navigation's
+  // rail elements. The previous navigation's listener is removed first so
+  // it doesn't leak.
+  let cleanup: (() => void) | null = null;
+
+  document.addEventListener('astro:page-load', () => {
+    cleanup?.();
+
+    const rail = document.querySelector('.depth-rail');
+    const metresEl = rail?.querySelector('.metres');
+    const markerEl = rail?.querySelector('.marker');
+
+    if (!(metresEl instanceof HTMLElement) || !(markerEl instanceof HTMLElement)) {
+      return;
+    }
+
+    function onDepth(event: Event): void {
+      const { metres, progress } = (event as CustomEvent<{ metres: number; progress: number }>)
+        .detail;
+      metresEl.textContent = String(Math.round(metres));
+      markerEl.style.top = `${progress * 100}%`;
+    }
+
+    window.addEventListener('water:depth', onDepth);
+    cleanup = () => window.removeEventListener('water:depth', onDepth);
+  });
+</script>

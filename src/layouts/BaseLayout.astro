@@ -1,10 +1,13 @@
 ---
+import { ClientRouter } from 'astro:transitions';
 import '@fontsource-variable/archivo';
 import '@fontsource-variable/spline-sans-mono';
 import '../styles/tokens.css';
 import '../styles/base.css';
 import SiteHeader from '../components/SiteHeader.astro';
 import SiteFooter from '../components/SiteFooter.astro';
+import WaterCanvas from '../components/WaterCanvas.astro';
+import DepthRail from '../components/DepthRail.astro';
 
 interface Props {
   title: string;
@@ -18,7 +21,7 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang="en" class={`depth-${depth}`}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -26,9 +29,12 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
     <meta name="description" content={description} />
     <link rel="canonical" href={canonicalURL} />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <ClientRouter />
   </head>
-  <body class={`depth-${depth}`}>
+  <body>
     <a href="#main" class="skip-link">Skip to content</a>
+    <WaterCanvas />
+    <DepthRail />
     <SiteHeader />
     <main id="main">
       <div class="container">
@@ -40,25 +46,29 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
 </html>
 
 <style>
-  body.depth-foam {
+  /* Fallback background per depth, painted on <html> so it is correct
+     before any script runs (and with no script at all). The canvas
+     (fixed, z-index: -1) paints over this once it mounts. Body stays
+     transparent so this shows through. */
+  html.depth-foam {
     --bg: var(--foam);
     background: var(--bg);
     color: var(--ink);
   }
 
-  body.depth-shallow {
+  html.depth-shallow {
     --bg: var(--shallow);
     background: var(--bg);
     color: var(--ink);
   }
 
-  body.depth-mid {
+  html.depth-mid {
     --bg: var(--mid);
     background: var(--bg);
     color: var(--ink);
   }
 
-  body.depth-deep {
+  html.depth-deep {
     --bg: var(--deep);
     background: var(--bg);
     color: var(--on-deep);

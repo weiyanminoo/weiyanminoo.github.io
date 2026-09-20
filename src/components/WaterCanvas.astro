@@ -1,0 +1,22 @@
+---
+---
+
+<canvas id="water-canvas" transition:persist="water-canvas" aria-hidden="true"></canvas>
+
+<style>
+  #water-canvas {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+  }
+</style>
+
+<script>
+  import { mountWater } from '../scripts/water/canvas';
+
+  const canvas = document.getElementById('water-canvas');
+  if (canvas instanceof HTMLCanvasElement) {
+    mountWater(canvas);
+  }
+</script>

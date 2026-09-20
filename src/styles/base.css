@@ -13,8 +13,12 @@ html {
 body {
   margin: 0;
   min-height: 100vh;
-  background: var(--foam);
-  color: var(--ink);
+  /* transparent so the depth fallback background painted on <html> (and,
+     once mounted, the water canvas) shows through */
+  background: transparent;
+  /* no explicit color here: it must inherit from the depth class on
+     <html>, which sets --ink or --on-deep as appropriate. A rule here
+     would override that inheritance and break the dark-page palette. */
   font-family: var(--sans);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;

@@ -1,0 +1,59 @@
+---
+interface Field {
+  label: string;
+  value?: string;
+}
+
+interface Props {
+  fields: Field[];
+}
+
+const { fields } = Astro.props;
+---
+
+<dl class="log-slate">
+  {
+    fields.map((field) => (
+      <div class="row">
+        <dt>{field.label}</dt>
+        <dd class={field.value ? '' : 'unfilled'}>{field.value ?? '[ ADD ]'}</dd>
+      </div>
+    ))
+  }
+</dl>
+
+<style>
+  .log-slate {
+    margin: 0;
+    border-top: 1px solid var(--line-deep);
+  }
+
+  .row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 8px 24px;
+    min-height: 44px;
+    align-items: center;
+    padding-block: 12px;
+    border-bottom: 1px solid var(--line-deep);
+  }
+
+  dt {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+
+  dd {
+    margin: 0;
+    font-size: 14px;
+  }
+
+  dd.unfilled {
+    font-family: var(--mono);
+    color: var(--ink-3);
+  }
+</style>

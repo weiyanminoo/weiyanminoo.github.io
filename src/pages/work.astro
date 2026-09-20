@@ -1,13 +1,47 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import RoleEntry from '../components/RoleEntry.astro';
+import { getCollection, render } from 'astro:content';
 
 const title = 'Work — Wei Yan';
 const description = "Wei Yan's work experience and internships.";
+
+const roles = await getCollection('roles');
+const sorted = [...roles].sort((a, b) => b.data.start.getTime() - a.data.start.getTime());
+const rendered = await Promise.all(sorted.map((entry) => render(entry)));
 ---
 
 <BaseLayout title={title} description={description} depth="shallow">
   <section>
     <h1>Work</h1>
-    <p>This section is being written.</p>
+    <div class="roles">
+      {
+        sorted.map((entry, i) => {
+          const { Content } = rendered[i];
+          return (
+            <RoleEntry
+              org={entry.data.org}
+              role={entry.data.role}
+              team={entry.data.team}
+              discipline={entry.data.discipline}
+              start={entry.data.start}
+              end={entry.data.end}
+              current={entry.data.current}
+              depth={entry.data.depth}
+              tags={entry.data.tags}
+              open={i === 0}
+            >
+              <Content />
+            </RoleEntry>
+          );
+        })
+      }
+    </div>
   </section>
 </BaseLayout>
+
+<style>
+  .roles {
+    border-top: 1px solid var(--line);
+  }
+</style>

@@ -1,9 +1,16 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { getCollection } from 'astro:content';
+import { formatRolePeriod } from '../lib/dates';
 
 const title = 'Wei Yan — Computer Science, NUS';
 const description =
   'Wei Yan, Computer Science at the National University of Singapore. Software engineering, mobile, product and automation.';
+
+const roles = await getCollection('roles');
+const recentRoles = [...roles]
+  .sort((a, b) => b.data.start.getTime() - a.data.start.getTime())
+  .slice(0, 3);
 ---
 
 <BaseLayout title={title} description={description} depth="foam">
@@ -15,6 +22,24 @@ const description =
       whichever one the problem needs.
     </p>
     <p class="meta">SINGAPORE &middot; CLASS OF 2027 &middot; NUS MERIT SCHOLAR</p>
+  </section>
+
+  <section>
+    <h2>Recent roles</h2>
+    <ul class="recent-roles">
+      {
+        recentRoles.map((entry) => (
+          <li>
+            <a href="/work">
+              <span class="org">{entry.data.org}</span>
+              <span class="period">
+                {formatRolePeriod(entry.data.start, entry.data.end, entry.data.current)}
+              </span>
+            </a>
+          </li>
+        ))
+      }
+    </ul>
   </section>
 </BaseLayout>
 
@@ -32,6 +57,44 @@ const description =
     font-size: 12px;
     letter-spacing: 0.14em;
     text-transform: uppercase;
+    color: var(--ink-3);
+  }
+
+  .recent-roles {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid var(--line);
+  }
+
+  .recent-roles li {
+    border-bottom: 1px solid var(--line);
+  }
+
+  .recent-roles a {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px 24px;
+    min-height: 44px;
+    padding-block: 16px;
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .recent-roles a:hover .org {
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+
+  .recent-roles .org {
+    font-weight: 700;
+  }
+
+  .recent-roles .period {
+    font-family: var(--mono);
+    font-size: 13px;
     color: var(--ink-3);
   }
 </style>

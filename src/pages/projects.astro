@@ -1,13 +1,39 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import ProjectCard from '../components/ProjectCard.astro';
+import { getCollection, render } from 'astro:content';
 
 const title = 'Projects — Wei Yan';
 const description = "Wei Yan's personal and side projects.";
+
+const projects = await getCollection('projects');
+const sorted = [...projects].sort((a, b) => b.data.start.getTime() - a.data.start.getTime());
+const rendered = await Promise.all(sorted.map((entry) => render(entry)));
 ---
 
 <BaseLayout title={title} description={description} depth="mid">
   <section>
     <h1>Projects</h1>
-    <p>This section is being written.</p>
+    <div class="projects">
+      {
+        sorted.map((entry, i) => {
+          const { Content } = rendered[i];
+          return (
+            <ProjectCard
+              name={entry.data.name}
+              kind={entry.data.kind}
+              start={entry.data.start}
+              ongoing={entry.data.ongoing}
+              url={entry.data.url}
+              summary={entry.data.summary}
+              outcome={entry.data.outcome}
+              tags={entry.data.tags}
+            >
+              <Content />
+            </ProjectCard>
+          );
+        })
+      }
+    </div>
   </section>
 </BaseLayout>

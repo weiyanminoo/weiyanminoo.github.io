@@ -147,3 +147,17 @@ p {
   margin: 0 0 16px;
   line-height: 1.6;
 }
+
+/* shared list styling for markdown-rendered body content (role and
+   project detail bullets) — the markdown itself outputs plain <ul>/<li>
+   with no class, so this is keyed off the wrapping container instead. */
+.md-body ul {
+  margin: 0 0 20px;
+  padding-left: 1.2em;
+  color: var(--ink-2);
+  line-height: 1.6;
+}
+
+.md-body li {
+  margin-bottom: 8px;
+}

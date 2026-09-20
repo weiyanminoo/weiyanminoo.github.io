@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import LogSlate from '../components/LogSlate.astro';
 
 const title = 'Outside — Wei Yan';
 const description = "What Wei Yan does outside of coursework and internships.";
@@ -8,6 +9,35 @@ const description = "What Wei Yan does outside of coursework and internships.";
 <BaseLayout title={title} description={description} depth="deep">
   <section>
     <h1>Outside</h1>
-    <p>This section is being written.</p>
+  </section>
+
+  <section>
+    <h2>Diving</h2>
+    <p class="line">The reason this site descends as you read it.</p>
+    <p>Slow, quiet, and entirely about paying attention to what is actually in front of you.</p>
+    <LogSlate
+      fields={[{ label: 'Certification' }, { label: 'Logged dives' }, { label: 'Best site so far' }]}
+    />
+  </section>
+
+  <section>
+    <h2>Hiking</h2>
+    <p class="line">The other direction, and the opposite pace.</p>
+    <p>Long routes, early starts, and a real weakness for a good ridge line.</p>
+    <LogSlate fields={[{ label: 'Favourite route' }, { label: 'Next on the list' }]} />
+  </section>
+
+  <section>
+    <h2>Keeping active</h2>
+    <p class="line">I will play most sports, enthusiastically and with mixed results.</p>
+    <p>Training is the constant; the sport rotates.</p>
+    <LogSlate fields={[{ label: 'Sports' }, { label: 'Co-curriculars' }]} />
   </section>
 </BaseLayout>
+
+<style>
+  .line {
+    font-size: 17px;
+    color: var(--on-deep-2);
+  }
+</style>

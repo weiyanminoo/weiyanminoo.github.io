@@ -1,76 +1,37 @@
 ---
-// Phase 1 holding page. Deliberately minimal — it exists to prove the
-// build-and-deploy pipeline works end to end. Phase 2 replaces it with the
-// real layout and design system.
+import BaseLayout from '../layouts/BaseLayout.astro';
+
 const title = 'Wei Yan — Computer Science, NUS';
 const description =
   'Wei Yan, Computer Science at the National University of Singapore. Software engineering, mobile, product and automation.';
 ---
 
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{title}</title>
-    <meta name="description" content={description} />
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-  </head>
-  <body>
-    <main>
-      <h1>Wei Yan</h1>
-      <p class="lede">
-        Computer Science at the National University of Singapore. Software
-        engineering, mobile, product and automation.
-      </p>
-      <p class="note">A fuller site is on its way.</p>
-    </main>
+<BaseLayout title={title} description={description} depth="foam">
+  <section>
+    <h1>Wei Yan</h1>
+    <p class="lede">
+      Computer Science at NUS. Four internships across four disciplines —
+      automation, mobile, product, production support. I go deep in
+      whichever one the problem needs.
+    </p>
+    <p class="meta">SINGAPORE &middot; CLASS OF 2027 &middot; NUS MERIT SCHOLAR</p>
+  </section>
+</BaseLayout>
 
-    <style>
-      :root {
-        color-scheme: light;
-        --ink: #0b2a3a;
-        --ink-2: #31535e;
-        --ink-3: #27454f;
-        --foam: #f4f7f7;
-      }
-      * {
-        box-sizing: border-box;
-      }
-      body {
-        margin: 0;
-        min-height: 100svh;
-        display: grid;
-        place-items: center;
-        padding: 32px 24px;
-        background: var(--foam);
-        color: var(--ink);
-        font-family: system-ui, -apple-system, Segoe UI, sans-serif;
-        -webkit-font-smoothing: antialiased;
-      }
-      main {
-        max-width: 46ch;
-      }
-      h1 {
-        margin: 0;
-        font-size: clamp(48px, 11vw, 96px);
-        font-weight: 800;
-        line-height: 0.9;
-        letter-spacing: -0.04em;
-      }
-      .lede {
-        margin: 24px 0 0;
-        font-size: clamp(17px, 2.4vw, 20px);
-        line-height: 1.55;
-        color: var(--ink-2);
-      }
-      .note {
-        margin: 28px 0 0;
-        font-size: 13px;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
-        color: var(--ink-3);
-      }
-    </style>
-  </body>
-</html>
+<style>
+  .lede {
+    max-width: 60ch;
+    font-size: clamp(17px, 2.2vw, 20px);
+    color: var(--ink-2);
+  }
+
+  .meta {
+    margin-top: 28px;
+    margin-bottom: 0;
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+</style>

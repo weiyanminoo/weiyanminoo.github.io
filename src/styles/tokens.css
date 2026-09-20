@@ -1,0 +1,49 @@
+:root {
+  color-scheme: light;
+
+  /* depth palette — the water column, surface to floor */
+  --foam:    #F6F9F9;
+  --shallow: #E9F1F2;
+  --mid:     #CFE1E4;
+  --thermo:  #96BCC4;
+  --deep:    #1B4A5C;
+  --abyss:   #0B2A3A;
+
+  /* ink, for use on foam / shallow / mid */
+  --ink:   #0B2A3A;
+  --ink-2: #31535E;
+  --ink-3: #27454F;
+
+  /* ink, for use on deep / abyss */
+  --on-deep:   #EAF4F6;
+  --on-deep-2: #B8D6DC;
+  --on-deep-3: #AECDD4;
+
+  /* the single accent — use sparingly, one lit thing per screen */
+  --mark: #F2C230;
+
+  /* focus ring — must hold 3:1 against whatever background it sits on;
+     --mark fails that on foam/shallow/mid, so --ink is the default and
+     the deep-page body class swaps it back to --mark, where it passes */
+  --focus: var(--ink);
+
+  /* hairlines */
+  --line:      rgba(11, 42, 58, 0.14);
+  --line-deep: rgba(255, 255, 255, 0.18);
+
+  /* type */
+  --sans: 'Archivo Variable', system-ui, -apple-system, sans-serif;
+  --mono: 'Spline Sans Mono Variable', ui-monospace, monospace;
+
+  /* motion */
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* the depth rail reserves this gutter; Phase 4 fills it */
+  --rail: 76px;
+}
+
+@media (max-width: 860px) {
+  :root {
+    --rail: 48px;
+  }
+}

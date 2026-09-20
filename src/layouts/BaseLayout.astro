@@ -1,0 +1,80 @@
+---
+import '@fontsource-variable/archivo';
+import '@fontsource-variable/spline-sans-mono';
+import '../styles/tokens.css';
+import '../styles/base.css';
+import SiteHeader from '../components/SiteHeader.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+
+interface Props {
+  title: string;
+  description: string;
+  depth?: 'foam' | 'shallow' | 'mid' | 'deep';
+}
+
+const { title, description, depth = 'foam' } = Astro.props;
+
+const canonicalURL = new URL(Astro.url.pathname, Astro.site);
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonicalURL} />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  </head>
+  <body class={`depth-${depth}`}>
+    <a href="#main" class="skip-link">Skip to content</a>
+    <SiteHeader />
+    <main id="main">
+      <div class="container">
+        <slot />
+      </div>
+    </main>
+    <SiteFooter />
+  </body>
+</html>
+
+<style>
+  body.depth-foam {
+    --bg: var(--foam);
+    background: var(--bg);
+    color: var(--ink);
+  }
+
+  body.depth-shallow {
+    --bg: var(--shallow);
+    background: var(--bg);
+    color: var(--ink);
+  }
+
+  body.depth-mid {
+    --bg: var(--mid);
+    background: var(--bg);
+    color: var(--ink);
+  }
+
+  body.depth-deep {
+    --bg: var(--deep);
+    background: var(--bg);
+    color: var(--on-deep);
+    --ink-2: var(--on-deep-2);
+    --ink-3: var(--on-deep-3);
+    --line: var(--line-deep);
+    /* --ink (the --focus default) is unreadable on deep; --mark passes
+       there instead (~5.75:1), where it fails on the lighter depths */
+    --focus: var(--mark);
+  }
+
+  main {
+    display: block;
+  }
+
+  main .container {
+    padding-block: 64px 96px;
+  }
+</style>

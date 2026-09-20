@@ -1,0 +1,95 @@
+---
+const links = [
+  { href: '/', label: 'Home' },
+  { href: '/work', label: 'Work' },
+  { href: '/projects', label: 'Projects' },
+  { href: '/outside', label: 'Outside' },
+];
+
+const currentPath = Astro.url.pathname.replace(/\/$/, '') || '/';
+
+const isCurrent = (href: string) =>
+  href === '/' ? currentPath === '/' : currentPath === href;
+---
+
+<header class="site-header">
+  <div class="container row">
+    <p class="wordmark">WEI YAN</p>
+    <nav aria-label="Primary">
+      <ul>
+        {
+          links.map((link) => (
+            <li>
+              <a href={link.href} aria-current={isCurrent(link.href) ? 'page' : undefined}>
+                {link.label}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<style>
+  .site-header {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: var(--bg);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 64px;
+  }
+
+  .wordmark {
+    margin: 0;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.2em;
+  }
+
+  nav ul {
+    display: flex;
+    gap: 28px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  nav a {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    color: inherit;
+    text-decoration: none;
+    font-size: 14px;
+  }
+
+  nav a[aria-current='page'] {
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 5px;
+  }
+
+  @media (max-width: 860px) {
+    .wordmark {
+      display: none;
+    }
+
+    nav ul {
+      width: 100%;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    nav a {
+      font-size: 13px;
+    }
+  }
+</style>

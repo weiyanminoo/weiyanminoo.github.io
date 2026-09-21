@@ -50,12 +50,17 @@ const band = bandForPath(Astro.url.pathname);
      with JS disabled — `.is-deep` below overrides it the same way at
      runtime for the column page (Home), which has no single depth class to
      hang it on. Placed first so later siblings (label/track/value) paint
-     over it without needing z-index. Kept partly transparent with a blur so
-     it reads as glass, not a solid panel. */
+     over it without needing z-index. Kept translucent with a blur so it
+     reads as glass, not a solid panel — but 85%, not less: at the moment
+     `.is-deep` flips (~21m) the water behind the scrim is still the
+     mid-tone thermocline colour, and measured contrast showed 70% let
+     enough of that mid-tone through to drop the rail's own text just under
+     4.5:1 right at the flip. 85% keeps the scrim, not the water, as the
+     dominant contributor to its ground everywhere, including that point. */
   .scrim {
     position: absolute;
     inset: 0;
-    background: color-mix(in srgb, var(--rail-scrim-tint, var(--foam)) 70%, transparent);
+    background: color-mix(in srgb, var(--rail-scrim-tint, var(--foam)) 85%, transparent);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
   }

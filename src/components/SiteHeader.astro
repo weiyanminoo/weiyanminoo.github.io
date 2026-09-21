@@ -32,12 +32,42 @@ const isCurrent = (href: string) =>
 </header>
 
 <style>
+  /* Frosted glass, matching the mockup's header.top (rgba(246,249,249,.5) +
+     blur 14px). Opacity is intensity.ts's CARD_OPACITY.header (62%, not
+     the mockup's ~50%) — must match that constant by hand. Raised above
+     the mockup's own number because the header is the one card that must
+     hold contrast across Home's FULL 0-32m column: unlike a page-scoped
+     card, it cannot rely on a fixed --card-tint being the right zone
+     everywhere it renders (see .is-deep below and DepthRail.astro's own
+     `.scrim`, which hit the same problem at 70% and settled on 85% for the
+     rail; the header's own measured floor is lower because — unlike the
+     rail — it now tracks the correct zone tint via .is-deep instead of
+     staying permanently light). */
   .site-header {
     position: sticky;
     top: 0;
     z-index: 50;
-    background: var(--bg);
+    background: color-mix(in srgb, var(--card-tint) 62%, transparent);
+    backdrop-filter: blur(14px) saturate(1.2);
+    -webkit-backdrop-filter: blur(14px) saturate(1.2);
     border-bottom: 1px solid var(--line);
+    transition:
+      background 0.9s var(--ease),
+      border-color 0.9s var(--ease);
+  }
+
+  /* On the `column` page (Home), the header is fixed chrome over water that
+     itself crosses the thermocline, so — exactly like DepthRail.astro's
+     `.scrim` / `.is-deep` — a single inherited --card-tint can't stay
+     correct for the whole scroll range. Toggled by the same water:depth
+     event the rail already listens for. On a `single` (fixed-colour) page
+     this class is never toggled, so the header keeps inheriting its page's
+     depth class as before (see BaseLayout.astro's html.depth-deep, which
+     already sets --card-tint correctly with no JavaScript at all). */
+  .site-header.is-deep {
+    --card-tint: var(--deep);
+    --card-border: rgba(255, 255, 255, 0.18);
+    color: var(--on-deep);
   }
 
   .row {
@@ -93,3 +123,31 @@ const isCurrent = (href: string) =>
     }
   }
 </style>
+
+<script>
+  // Same pattern as DepthRail.astro's water:depth listener, for the same
+  // reason: on the `column` page (Home) this is the only thing that can
+  // keep the header's glass tinted to the correct zone as the water behind
+  // it crosses the thermocline. See that file's script for the fuller
+  // comment on cleanup/re-attachment across navigations.
+  import { isBelowThermocline } from '../scripts/water/depth';
+
+  let cleanup: (() => void) | null = null;
+
+  document.addEventListener('astro:page-load', () => {
+    cleanup?.();
+
+    const header = document.querySelector('.site-header');
+    if (!(header instanceof HTMLElement)) {
+      return;
+    }
+
+    function onDepth(event: Event): void {
+      const { metres } = (event as CustomEvent<{ metres: number; progress: number }>).detail;
+      header.classList.toggle('is-deep', isBelowThermocline(metres));
+    }
+
+    window.addEventListener('water:depth', onDepth);
+    cleanup = () => window.removeEventListener('water:depth', onDepth);
+  });
+</script>

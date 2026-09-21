@@ -165,3 +165,44 @@ p {
 .md-body li {
   margin-bottom: 8px;
 }
+
+/* Phase 7 frosted-glass cards. The flat .content-scrim rectangle this
+   replaced painted one translucent panel behind an entire content column;
+   its straight edges showed as visible seams in its own screenshots and
+   read as the "panel" silhouette the brief warns against. The mockup
+   (mockups/dive-log.html) instead gives each content element — a role
+   entry, a project, a topic block — its own small glass card, with water
+   visible in the gaps between and around them.
+
+   `.glass-card` below holds only what every card shares (blur, saturate,
+   border, radius, shadow, the hover transition). It deliberately does NOT
+   set `background`: the mockup itself uses different opacities for
+   different kinds of card (entries .72, projects .66, header .5-ish), so
+   each component sets its own `background: color-mix(in srgb,
+   var(--card-tint) <N>%, transparent)` in its own scoped style and applies
+   `.glass-card` alongside its own class in markup. Every opacity number
+   used that way is a named constant in
+   src/scripts/water/effects/intensity.ts (CARD_OPACITY), which
+   tests/water/effects.test.ts imports directly, so the contrast model and
+   the shipped CSS cannot silently drift apart — see that constant's
+   comment for why there is no build-time bridge the other direction.
+   --card-tint/--card-border/--card-shadow (tokens.css / BaseLayout.astro)
+   are the same zone-driven mechanism DepthRail.astro's scrim already uses
+   for --rail-scrim-tint, so every card is correct in both the light and
+   deep zone with no JavaScript.
+
+   Never apply a card to a section heading, the hero, or the thermocline
+   label — those stay directly on the water by design (see
+   tests/water/effects.test.ts's "not on a card" bound) — or to the rail
+   gutter or outer page margins. */
+.glass-card {
+  backdrop-filter: blur(12px) saturate(1.15);
+  -webkit-backdrop-filter: blur(12px) saturate(1.15);
+  border: 1px solid var(--card-border);
+  border-radius: 15px;
+  box-shadow: 0 12px 34px var(--card-shadow);
+  transition:
+    background 0.4s var(--ease),
+    transform 0.4s var(--ease),
+    box-shadow 0.4s var(--ease);
+}

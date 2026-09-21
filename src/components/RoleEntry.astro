@@ -36,7 +36,7 @@ const period = formatRolePeriod(start, end, current);
 const meta = [discipline, team, `${depth}m`].filter(Boolean).join(' · ');
 ---
 
-<details class="role" open={open}>
+<details class="role glass-card" open={open}>
   <summary>
     <span class="period">{period}</span>
     <span class="heading">
@@ -53,8 +53,19 @@ const meta = [discipline, team, `${depth}m`].filter(Boolean).join(' · ');
 </details>
 
 <style>
+  /* Card background/hover — see base.css's .glass-card for the shared
+     blur/border/shadow/transition, and intensity.ts's CARD_OPACITY.entry
+     (72%, matching the mockup's .entry) for the opacity this must match by
+     hand. overflow: hidden clips the summary/panel to the card's own
+     rounded corners. */
   .role {
-    border-bottom: 1px solid var(--line);
+    overflow: hidden;
+    background: color-mix(in srgb, var(--card-tint) 72%, transparent);
+  }
+
+  .role:hover {
+    background: color-mix(in srgb, var(--card-tint) 86%, transparent);
+    box-shadow: 0 18px 44px var(--card-shadow-hover);
   }
 
   summary {
@@ -63,7 +74,7 @@ const meta = [discipline, team, `${depth}m`].filter(Boolean).join(' · ');
     align-items: baseline;
     gap: 6px 16px;
     min-height: 44px;
-    padding-block: 20px;
+    padding: 20px 24px;
     cursor: pointer;
     list-style: none;
   }
@@ -114,6 +125,6 @@ const meta = [discipline, team, `${depth}m`].filter(Boolean).join(' · ');
   }
 
   .role-body {
-    padding-bottom: 24px;
+    padding: 0 24px 24px;
   }
 </style>

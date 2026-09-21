@@ -41,7 +41,12 @@ const rendered = await Promise.all(sorted.map((entry) => render(entry)));
 </BaseLayout>
 
 <style>
+  /* Mockup's .log: a gapped stack of cards, water visible between them —
+     see RoleEntry.astro for the card itself. */
   .roles {
-    border-top: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-top: 32px;
   }
 </style>

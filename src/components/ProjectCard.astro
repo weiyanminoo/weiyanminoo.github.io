@@ -18,7 +18,7 @@ const { name, kind, start, ongoing, url, summary, outcome, tags } = Astro.props;
 const period = formatProjectPeriod(start, ongoing);
 ---
 
-<article class="project">
+<article class="project glass-card">
   <header>
     <h2>{name}</h2>
     <p class="meta">{kind} &middot; {period}</p>
@@ -35,13 +35,13 @@ const period = formatProjectPeriod(start, ongoing);
 </article>
 
 <style>
+  /* Card background — see base.css's .glass-card for the shared
+     blur/border/shadow/transition, and intensity.ts's CARD_OPACITY.project
+     (66%, matching the mockup's .proj) for the opacity this must match by
+     hand. */
   .project {
-    padding-block: 32px;
-    border-bottom: 1px solid var(--line);
-  }
-
-  .project:first-of-type {
-    padding-top: 0;
+    padding: 30px;
+    background: color-mix(in srgb, var(--card-tint) 66%, transparent);
   }
 
   h2 {

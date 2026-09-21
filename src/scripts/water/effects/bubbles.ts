@@ -6,7 +6,10 @@ import type { Effect } from './types';
 import { INTENSITY } from './intensity';
 import { ramp, depthAtY } from './gate';
 
-const BUBBLE_COUNT = 10;
+// Phase 7: more and larger, same treatment as shoal.ts — still one path,
+// one stroke (see the comment above `bubbles` below), so more of them costs
+// nothing on the contrast bound. 26, matching the mockup's own bubble count.
+const BUBBLE_COUNT = 26;
 const GOLDEN = 0.6180339887;
 // A second, independent irrational multiplier for the wander phase (see
 // below) — without it, phase is a fixed function of seedX and the whole
@@ -19,8 +22,8 @@ const GOLDEN_2 = 0.7548776662;
 // with 'screen'. Same silhouette colour as the shoal.
 const COLOUR: readonly [number, number, number] = [40, 72, 88];
 
-const RADIUS_MIN = 1.5;
-const RADIUS_MAX = 4;
+const RADIUS_MIN = 2.5;
+const RADIUS_MAX = 7;
 const RISE_SPEED_MIN = 0.03; // viewport heights / second
 const RISE_SPEED_MAX = 0.06;
 const WOBBLE_FREQ = 1.1;
@@ -66,16 +69,31 @@ export function bubbleAlphaAt(d: number): number {
   );
 }
 
+// Mockup draws each bubble as a ring plus a small interior highlight dot
+// (alpha*fade*0.75 and alpha*fade*0.22 respectively) — reproduced here as a
+// SECOND single-path fill, not a per-bubble draw call: the highlight dot
+// sits well inside its own ring (offset and at 0.42x the radius, same
+// fractions the mockup uses), so the two shapes' pixels never overlap, and
+// each is still accumulated into one path and painted once at one alpha —
+// the same guarantee the ring itself relies on (see the comment above
+// `bubbles` below). HIGHLIGHT_ALPHA_RATIO caps the dot's alpha well under
+// maxAlpha (never above it), so it can only ever be a fraction of the
+// already-verified bound, never exceed it.
+const HIGHLIGHT_ALPHA_RATIO = 0.22 / 0.75;
+const HIGHLIGHT_RADIUS_RATIO = 0.42;
+const HIGHLIGHT_OFFSET_RATIO = 0.3;
+
 // Same reasoning as shoal.ts: a separate ctx.stroke() per bubble composites
 // overlapping rings as 1 - (1-a)^n, not the single `a` the contrast budget
 // assumes. Fixed the same way — every bubble's ring goes into ONE path,
 // stroked ONCE at the MAX of this frame's gated alphas (always a value
 // bubbleAlphaAt can genuinely return, so it never exceeds the
-// analytically-verified bound). moveTo to each ring's own start point
-// before its arc() — arc() with a full 0..2*PI sweep returns exactly to
-// its start point, so the next moveTo begins a clean new sub-path with no
-// connecting segment between bubbles (unlike a plain fill, a stray
-// connecting line WOULD render as a visible stroke here).
+// analytically-verified bound); every bubble's highlight dot goes into a
+// SECOND path, filled once at a fraction of that same alpha. moveTo to each
+// ring's own start point before its arc() — arc() with a full 0..2*PI sweep
+// returns exactly to its start point, so the next moveTo begins a clean new
+// sub-path with no connecting segment between bubbles (unlike a plain fill,
+// a stray connecting line WOULD render as a visible stroke here).
 const bubbles: Effect = (frame) => {
   const { ctx, width, height, time } = frame;
 
@@ -83,6 +101,7 @@ const bubbles: Effect = (frame) => {
   let anyVisible = false;
 
   ctx.beginPath();
+  const highlights = new Path2D();
   for (const b of BUBBLES) {
     const y = (1 - wrap01(b.seedY + time * b.riseSpeed)) * height;
     const x = b.seedX * width + Math.sin(time * WOBBLE_FREQ + b.phase) * WOBBLE_AMPLITUDE;
@@ -95,6 +114,12 @@ const bubbles: Effect = (frame) => {
     ctx.moveTo(x + b.radius, y);
     ctx.arc(x, y, b.radius, 0, Math.PI * 2);
 
+    const hx = x - b.radius * HIGHLIGHT_OFFSET_RATIO;
+    const hy = y - b.radius * HIGHLIGHT_OFFSET_RATIO;
+    const hr = b.radius * HIGHLIGHT_RADIUS_RATIO;
+    highlights.moveTo(hx + hr, hy);
+    highlights.arc(hx, hy, hr, 0, Math.PI * 2);
+
     if (alpha > maxAlpha) {
       maxAlpha = alpha;
     }
@@ -105,11 +130,19 @@ const bubbles: Effect = (frame) => {
     return;
   }
 
+  const colour = `rgb(${COLOUR[0]}, ${COLOUR[1]}, ${COLOUR[2]})`;
+
   ctx.save();
   ctx.globalAlpha = maxAlpha;
-  ctx.strokeStyle = `rgb(${COLOUR[0]}, ${COLOUR[1]}, ${COLOUR[2]})`;
+  ctx.strokeStyle = colour;
   ctx.lineWidth = 1;
   ctx.stroke();
+  ctx.restore();
+
+  ctx.save();
+  ctx.globalAlpha = maxAlpha * HIGHLIGHT_ALPHA_RATIO;
+  ctx.fillStyle = colour;
+  ctx.fill(highlights);
   ctx.restore();
 };
 

@@ -71,7 +71,7 @@ const themeColors: Record<NonNullable<Props['depth']>, string> = {
     <WaterCanvas />
     <DepthRail />
     <SiteHeader />
-    <main id="main">
+    <main id="main" tabindex="-1">
       <div class="container">
         <slot />
       </div>
@@ -125,6 +125,14 @@ const themeColors: Record<NonNullable<Props['depth']>, string> = {
        here (not just via the rail's own JS-driven .is-deep toggle) so the
        deep page still gets the right scrim tint with JavaScript disabled. */
     --rail-scrim-tint: var(--deep);
+    /* Phase 7: the same mechanism, for the frosted-glass cards (RoleEntry,
+       ProjectCard, LogSlate's section wrapper, SiteHeader, tokens.css's
+       --card-tint default is foam) — dark glass, correct with no
+       JavaScript, same reasoning as --rail-scrim-tint above. */
+    --card-tint: var(--deep);
+    --card-border: rgba(255, 255, 255, 0.18);
+    --card-shadow: rgba(3, 14, 20, 0.28);
+    --card-shadow-hover: rgba(3, 14, 20, 0.34);
   }
 
   /* Home: no single fixed text colour, since it spans the whole column and
@@ -150,10 +158,26 @@ const themeColors: Record<NonNullable<Props['depth']>, string> = {
     --ink-3: var(--on-deep-3);
     --line: var(--line-deep);
     --focus: var(--mark);
+    /* Phase 7: same mechanism as html.depth-deep above, for Home's own
+       deep-zone section (it has no depth-deep class of its own to hang
+       this off — see that block's comment). */
+    --card-tint: var(--deep);
+    --card-border: rgba(255, 255, 255, 0.18);
+    --card-shadow: rgba(3, 14, 20, 0.28);
+    --card-shadow-hover: rgba(3, 14, 20, 0.34);
   }
 
   main {
     display: block;
+  }
+
+  /* tabindex="-1" makes this focusable only programmatically, enabling the
+     skip link (#main) to move keyboard focus to the main content area (WCAG
+     2.4.1: Bypass Blocks). Outline is suppressed because <main> is a skip
+     target and container, not an interactive control — focus will never
+     reach it via Tab, and a full-page outline would appear as a bug. */
+  main:focus-visible {
+    outline: none;
   }
 
   main .container {

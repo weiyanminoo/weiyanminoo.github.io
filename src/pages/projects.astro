@@ -37,3 +37,14 @@ const rendered = await Promise.all(sorted.map((entry) => render(entry)));
     </div>
   </section>
 </BaseLayout>
+
+<style>
+  /* Mockup's .projects: a gapped card grid, water visible between them —
+     see ProjectCard.astro for the card itself. */
+  .projects {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+    gap: 18px;
+    margin-top: 32px;
+  }
+</style>

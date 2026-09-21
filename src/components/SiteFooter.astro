@@ -3,30 +3,45 @@
 
 <footer class="site-footer">
   <div class="container">
-    <h2>Get in touch</h2>
-    <p class="copy">Open to graduate roles and collaborations.</p>
-    <ul class="contacts">
-      <li><a href="mailto:weiyanminoo1@gmail.com">weiyanminoo1@gmail.com</a></li>
-      <li><a href="https://github.com/weiyanminoo" rel="noopener">github.com/weiyanminoo</a></li>
-      <li>
-        <a href="https://www.linkedin.com/in/wei-yan-min-oo/" rel="noopener"
-          >linkedin.com/in/wei-yan-min-oo</a
-        >
-      </li>
-    </ul>
-    <div class="rule"></div>
-    <p class="sub">WEI YAN &middot; SINGAPORE</p>
+    <div class="card glass-card">
+      <h2>Get in touch</h2>
+      <p class="copy">Open to graduate roles and collaborations.</p>
+      <ul class="contacts">
+        <li><a href="mailto:weiyanminoo1@gmail.com">weiyanminoo1@gmail.com</a></li>
+        <li><a href="https://github.com/weiyanminoo" rel="noopener">github.com/weiyanminoo</a></li>
+        <li>
+          <a href="https://www.linkedin.com/in/wei-yan-min-oo/" rel="noopener"
+            >linkedin.com/in/wei-yan-min-oo</a
+          >
+        </li>
+      </ul>
+      <div class="rule"></div>
+      <p class="sub">WEI YAN &middot; SINGAPORE</p>
+    </div>
   </div>
 </footer>
 
 <style>
   .site-footer {
-    border-top: 1px solid var(--line);
-    margin-top: 120px;
+    margin-top: 88px;
   }
 
   .container {
-    padding-block: 56px 40px;
+    padding-block: 0 40px;
+  }
+
+  /* Card background — see base.css's .glass-card for the shared
+     blur/border/shadow/transition. The mockup's own footer/.contact has no
+     card at all (it sits directly on the deep water), but our footer's own
+     `.copy`/`.sub` render in the secondary --ink-2/--ink-3 tokens rather
+     than the mockup's single light-text colour, and those tokens are not
+     safe uncarded within a real page's particle-effect range (see
+     tests/water/effects.test.ts's "not on a card" bound) — so, unlike the
+     mockup, this stays carded. Reuses CARD_OPACITY.project (66%, must
+     match intensity.ts by hand) rather than a fifth opacity constant. */
+  .card {
+    padding: 32px;
+    background: color-mix(in srgb, var(--card-tint) 66%, transparent);
   }
 
   h2 {

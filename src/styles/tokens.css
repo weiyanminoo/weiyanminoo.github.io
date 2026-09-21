@@ -31,6 +31,24 @@
   --line:      rgba(11, 42, 58, 0.14);
   --line-deep: rgba(255, 255, 255, 0.18);
 
+  /* Phase 7: frosted-glass cards, replacing the flat .content-scrim panel.
+     --card-tint is the same zone-driven mechanism as --rail-scrim-tint
+     (DepthRail.astro) — light (--foam) by default, swapped to dark
+     (--deep) by html.depth-deep / :global(.zone-deep) in BaseLayout.astro.
+     Each component mixes its own opacity into this tint via color-mix();
+     the opacity numbers themselves live in
+     src/scripts/water/effects/intensity.ts's CARD_OPACITY (one named
+     constant per component), which tests/water/effects.test.ts imports
+     directly so the contrast model and these values cannot drift apart —
+     see that file's comment for why there is no build-time bridge the
+     other direction. --card-border/--card-shadow follow the same
+     light/deep split; the border is white in both zones (a glass-edge
+     highlight, not a tint-following line) and only its alpha changes. */
+  --card-tint:         var(--foam);
+  --card-border:       rgba(255, 255, 255, 0.75);
+  --card-shadow:       rgba(11, 42, 58, 0.07);
+  --card-shadow-hover: rgba(11, 42, 58, 0.11);
+
   /* type */
   --sans: 'Archivo Variable', system-ui, -apple-system, sans-serif;
   --mono: 'Spline Sans Mono Variable', ui-monospace, monospace;

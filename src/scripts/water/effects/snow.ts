@@ -13,6 +13,7 @@
 import type { Effect } from './types';
 import { INTENSITY } from './intensity';
 import { ramp, depthAtY } from './gate';
+import { THERMOCLINE } from '../depth';
 
 const PARTICLE_COUNT = 70;
 const LAYER_COUNT = 3;
@@ -39,18 +40,22 @@ const PARALLAX_FACTOR: readonly number[] = [0.5, 1.0, 1.5]; // nearer layers shi
 const LAYER_BRIGHTNESS: readonly number[] = [0.55, 0.78, 1.0];
 const PARALLAX_PER_METRE = 0.015;
 
-// Snow starts exactly at the top of the Outside band (24m) and reaches full
-// strength at 31m — see tests/water/effects.test.ts for the stacked
-// contrast bound this is solved against.
-const GATE_FROM_METRES = 24;
+// Phase 7: starts at the thermocline (21m), not the top of the Outside band
+// (24m) — the old 24m start was forced by the pre-scrim 0.024 ceiling at
+// exactly that depth; with the content scrim buying real headroom (see
+// intensity.ts), the deep can actually fill with snow from the point the
+// page's own zone-deep tokens take over. Reaches full strength at 31m — see
+// tests/water/effects.test.ts for the stacked contrast bound this is solved
+// against.
+const GATE_FROM_METRES = THERMOCLINE;
 const GATE_TO_METRES = 31;
 
 // Below this, the fleck's own alpha rounds to zero at 8-bit precision —
 // "draw nothing when the alpha rounds to zero" per the phase-5b brief. Just
 // checking `alpha <= 0` is not the same test: for a wide gate range like
 // this one, plenty of particles sit at 0 < alpha < 1/255 for a real span of
-// depth just past 24m, where they'd still issue a (invisible but not free)
-// draw call.
+// depth just past the gate's start, where they'd still issue a (invisible
+// but not free) draw call.
 const MIN_VISIBLE_ALPHA = 1 / 255;
 
 // One soft, fully-opaque-at-centre sprite, pre-rendered once at module

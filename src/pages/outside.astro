@@ -11,7 +11,7 @@ const description = "What Wei Yan does outside of coursework and internships.";
     <h1>Outside</h1>
   </section>
 
-  <section>
+  <section class="topic glass-card">
     <h2>Diving</h2>
     <p class="line">The reason this site descends as you read it.</p>
     <p>Slow, quiet, and entirely about paying attention to what is actually in front of you.</p>
@@ -20,14 +20,14 @@ const description = "What Wei Yan does outside of coursework and internships.";
     />
   </section>
 
-  <section>
+  <section class="topic glass-card">
     <h2>Hiking</h2>
     <p class="line">The other direction, and the opposite pace.</p>
     <p>Long routes, early starts, and a real weakness for a good ridge line.</p>
     <LogSlate fields={[{ label: 'Favourite route' }, { label: 'Next on the list' }]} />
   </section>
 
-  <section>
+  <section class="topic glass-card">
     <h2>Keeping active</h2>
     <p class="line">I will play most sports, enthusiastically and with mixed results.</p>
     <p>Training is the constant; the sport rotates.</p>
@@ -36,6 +36,23 @@ const description = "What Wei Yan does outside of coursework and internships.";
 </BaseLayout>
 
 <style>
+  /* Card background — see base.css's .glass-card for the shared
+     blur/border/shadow/transition, and intensity.ts's CARD_OPACITY.deep
+     (62%) for the opacity this must match by hand. No mockup precedent for
+     a deep-zone card (finding 1) — the mockup's own .field__row has no
+     background at all — this exists because our snow effect runs behind
+     this text at a strength the mockup's deep zone never has to survive
+     uncarded; see phase-7-report.md. */
+  .topic {
+    margin-top: 32px;
+    padding: 32px;
+    background: color-mix(in srgb, var(--card-tint) 62%, transparent);
+  }
+
+  .topic + .topic {
+    margin-top: 18px;
+  }
+
   .line {
     font-size: 17px;
     color: var(--on-deep-2);

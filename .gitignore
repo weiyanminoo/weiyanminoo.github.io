@@ -52,3 +52,8 @@ desktop.ini
 npm-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+
+# ---------- design mockup ----------
+# Standalone HTML mockup of the Dive Log direction, kept for local reference.
+# Not part of the built site and deliberately not published.
+mockups/

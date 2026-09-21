@@ -30,7 +30,7 @@ const allProjects = [...projects].sort((a, b) => b.data.start.getTime() - a.data
     <ul class="role-list">
       {
         allRoles.map((entry) => (
-          <li>
+          <li class="glass-card">
             <span class="period">
               {formatRolePeriod(entry.data.start, entry.data.end, entry.data.current)}
             </span>
@@ -48,7 +48,7 @@ const allProjects = [...projects].sort((a, b) => b.data.start.getTime() - a.data
     <ul class="project-list">
       {
         allProjects.map((entry) => (
-          <li>
+          <li class="glass-card">
             <span class="name">{entry.data.name}</span>
             <span class="summary">{entry.data.summary}</span>
           </li>
@@ -69,15 +69,15 @@ const allProjects = [...projects].sort((a, b) => b.data.start.getTime() - a.data
   <section class="zone-deep">
     <h2>Outside the work</h2>
     <div class="interests">
-      <div class="interest">
+      <div class="interest glass-card">
         <h3>Diving</h3>
         <p>The reason this site descends as you read it.</p>
       </div>
-      <div class="interest">
+      <div class="interest glass-card">
         <h3>Hiking</h3>
         <p>The other direction, and the opposite pace.</p>
       </div>
-      <div class="interest">
+      <div class="interest glass-card">
         <h3>Keeping active</h3>
         <p>I will play most sports, enthusiastically and with mixed results.</p>
       </div>
@@ -107,12 +107,18 @@ const allProjects = [...projects].sort((a, b) => b.data.start.getTime() - a.data
     font-size: clamp(22px, 3vw, 28px);
   }
 
+  /* Gapped card stacks, water visible between them — same language as
+     RoleEntry/ProjectCard's own cards, at CARD_OPACITY.project (66%, must
+     match intensity.ts by hand) since these rows are the condensed,
+     lighter-weight equivalent of those full-detail cards. */
   .role-list,
   .project-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
     margin: 24px 0 0;
     padding: 0;
     list-style: none;
-    border-top: 1px solid var(--line);
   }
 
   .role-list li {
@@ -121,8 +127,8 @@ const allProjects = [...projects].sort((a, b) => b.data.start.getTime() - a.data
     align-items: baseline;
     gap: 6px 20px;
     min-height: 44px;
-    padding-block: 14px;
-    border-bottom: 1px solid var(--line);
+    padding: 12px 20px;
+    background: color-mix(in srgb, var(--card-tint) 66%, transparent);
   }
 
   .role-list .period {
@@ -142,8 +148,8 @@ const allProjects = [...projects].sort((a, b) => b.data.start.getTime() - a.data
   }
 
   .project-list li {
-    padding-block: 20px;
-    border-bottom: 1px solid var(--line);
+    padding: 18px 20px;
+    background: color-mix(in srgb, var(--card-tint) 66%, transparent);
   }
 
   .project-list .name {
@@ -211,12 +217,20 @@ const allProjects = [...projects].sort((a, b) => b.data.start.getTime() - a.data
 
   /* Stacked, not a row of three: each interest gets real room to breathe,
      which is also what gives the deep zone enough height to be scrolled
-     through rather than glimpsed in one viewport. */
+     through rather than glimpsed in one viewport. Each is its own deep
+     glass card — see outside.astro's .topic for the matching treatment and
+     CARD_OPACITY.deep (62%, must match intensity.ts by hand); no mockup
+     precedent below the thermocline (finding 1). */
   .interests {
     display: flex;
     flex-direction: column;
-    gap: 48px;
+    gap: 18px;
     margin-top: 32px;
+  }
+
+  .interest {
+    padding: 28px;
+    background: color-mix(in srgb, var(--card-tint) 62%, transparent);
   }
 
   .interest h3 {

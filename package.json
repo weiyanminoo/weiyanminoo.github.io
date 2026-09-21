@@ -11,7 +11,8 @@
     "preview": "astro preview",
     "astro": "astro",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "audit": "npm run build && node scripts/audit/index.mjs"
   },
   "dependencies": {
     "@fontsource-variable/archivo": "^5.3.0",
@@ -22,6 +23,8 @@
     "esbuild": true
   },
   "devDependencies": {
+    "playwright": "^1.63.0",
+    "pngjs": "^7.0.0",
     "vitest": "^5.0.1"
   }
 }

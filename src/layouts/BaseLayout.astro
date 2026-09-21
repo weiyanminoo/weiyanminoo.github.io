@@ -12,7 +12,7 @@ import DepthRail from '../components/DepthRail.astro';
 interface Props {
   title: string;
   description: string;
-  depth?: 'foam' | 'shallow' | 'mid' | 'deep';
+  depth?: 'foam' | 'shallow' | 'mid' | 'deep' | 'column';
 }
 
 const { title, description, depth = 'foam' } = Astro.props;
@@ -41,7 +41,15 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
         <slot />
       </div>
     </main>
-    <SiteFooter />
+    {
+      depth === 'column' ? (
+        <div class="zone-deep">
+          <SiteFooter />
+        </div>
+      ) : (
+        <SiteFooter />
+      )
+    }
   </body>
 </html>
 
@@ -77,6 +85,35 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
     --line: var(--line-deep);
     /* --ink (the --focus default) is unreadable on deep; --mark passes
        there instead (~5.75:1), where it fails on the lighter depths */
+    --focus: var(--mark);
+    /* DepthRail.astro's scrim reads this; defaults to foam otherwise. Set
+       here (not just via the rail's own JS-driven .is-deep toggle) so the
+       deep page still gets the right scrim tint with JavaScript disabled. */
+    --rail-scrim-tint: var(--deep);
+  }
+
+  /* Home: no single fixed text colour, since it spans the whole column and
+     crosses the thermocline. Background falls back to the surface colour —
+     what the top of the page shows before the canvas (or with no JS at
+     all) — and Home's own sections declare a light or deep zone (below). */
+  html.depth-column {
+    --bg: var(--foam);
+    background: var(--bg);
+    color: var(--ink);
+  }
+
+  /* Reusable per-section zone classes for the `column` page. :global so
+     they also apply to the slotted sections in index.astro, which are
+     scoped to that file, not this one. */
+  :global(.zone-light) {
+    color: var(--ink);
+  }
+
+  :global(.zone-deep) {
+    color: var(--on-deep);
+    --ink-2: var(--on-deep-2);
+    --ink-3: var(--on-deep-3);
+    --line: var(--line-deep);
     --focus: var(--mark);
   }
 

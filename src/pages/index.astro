@@ -8,13 +8,14 @@ const description =
   'Wei Yan, Computer Science at the National University of Singapore. Software engineering, mobile, product and automation.';
 
 const roles = await getCollection('roles');
-const recentRoles = [...roles]
-  .sort((a, b) => b.data.start.getTime() - a.data.start.getTime())
-  .slice(0, 3);
+const allRoles = [...roles].sort((a, b) => b.data.start.getTime() - a.data.start.getTime());
+
+const projects = await getCollection('projects');
+const allProjects = [...projects].sort((a, b) => b.data.start.getTime() - a.data.start.getTime());
 ---
 
-<BaseLayout title={title} description={description} depth="foam">
-  <section>
+<BaseLayout title={title} description={description} depth="column">
+  <section class="zone-light">
     <h1>Wei Yan</h1>
     <p class="lede">
       Computer Science at NUS. Four internships across four disciplines —
@@ -24,22 +25,64 @@ const recentRoles = [...roles]
     <p class="meta">SINGAPORE &middot; CLASS OF 2027 &middot; NUS MERIT SCHOLAR</p>
   </section>
 
-  <section>
-    <h2>Recent roles</h2>
-    <ul class="recent-roles">
+  <section class="zone-light">
+    <h2>The work</h2>
+    <ul class="role-list">
       {
-        recentRoles.map((entry) => (
+        allRoles.map((entry) => (
           <li>
-            <a href="/work">
-              <span class="org">{entry.data.org}</span>
-              <span class="period">
-                {formatRolePeriod(entry.data.start, entry.data.end, entry.data.current)}
-              </span>
-            </a>
+            <span class="period">
+              {formatRolePeriod(entry.data.start, entry.data.end, entry.data.current)}
+            </span>
+            <span class="org">{entry.data.org}</span>
+            <span class="discipline">{entry.data.discipline}</span>
           </li>
         ))
       }
     </ul>
+    <p class="more"><a href="/work">All five roles in detail</a></p>
+  </section>
+
+  <section class="zone-light">
+    <h2>Built on my own time</h2>
+    <ul class="project-list">
+      {
+        allProjects.map((entry) => (
+          <li>
+            <span class="name">{entry.data.name}</span>
+            <span class="summary">{entry.data.summary}</span>
+          </li>
+        ))
+      }
+    </ul>
+    <p class="more"><a href="/projects">Both projects in detail</a></p>
+  </section>
+
+  <section class="thermocline-section">
+    <div id="thermocline" class="thermocline">
+      <span class="thermocline-rule" aria-hidden="true"></span>
+      <span class="thermocline-label">21M &middot; THERMOCLINE</span>
+      <span class="thermocline-rule" aria-hidden="true"></span>
+    </div>
+  </section>
+
+  <section class="zone-deep">
+    <h2>Outside the work</h2>
+    <div class="interests">
+      <div class="interest">
+        <h3>Diving</h3>
+        <p>The reason this site descends as you read it.</p>
+      </div>
+      <div class="interest">
+        <h3>Hiking</h3>
+        <p>The other direction, and the opposite pace.</p>
+      </div>
+      <div class="interest">
+        <h3>Keeping active</h3>
+        <p>I will play most sports, enthusiastically and with mixed results.</p>
+      </div>
+    </div>
+    <p class="more"><a href="/outside">More outside the work</a></p>
   </section>
 </BaseLayout>
 
@@ -60,41 +103,130 @@ const recentRoles = [...roles]
     color: var(--ink-3);
   }
 
-  .recent-roles {
-    margin: 0;
+  h2 {
+    font-size: clamp(22px, 3vw, 28px);
+  }
+
+  .role-list,
+  .project-list {
+    margin: 24px 0 0;
     padding: 0;
     list-style: none;
     border-top: 1px solid var(--line);
   }
 
-  .recent-roles li {
-    border-bottom: 1px solid var(--line);
-  }
-
-  .recent-roles a {
+  .role-list li {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
-    justify-content: space-between;
-    gap: 8px 24px;
+    gap: 6px 20px;
     min-height: 44px;
-    padding-block: 16px;
-    color: inherit;
-    text-decoration: none;
+    padding-block: 14px;
+    border-bottom: 1px solid var(--line);
   }
 
-  .recent-roles a:hover .org {
-    text-decoration: underline;
-    text-underline-offset: 4px;
-  }
-
-  .recent-roles .org {
-    font-weight: 700;
-  }
-
-  .recent-roles .period {
+  .role-list .period {
+    flex: 0 0 auto;
+    width: 13ch;
     font-family: var(--mono);
     font-size: 13px;
     color: var(--ink-3);
+  }
+
+  .role-list .org {
+    font-weight: 700;
+  }
+
+  .role-list .discipline {
+    color: var(--ink-2);
+  }
+
+  .project-list li {
+    padding-block: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .project-list .name {
+    display: block;
+    margin-bottom: 4px;
+    font-weight: 700;
+  }
+
+  .project-list .summary {
+    display: block;
+    max-width: 60ch;
+    color: var(--ink-2);
+  }
+
+  .more {
+    margin: 20px 0 0;
+  }
+
+  .more a {
+    color: inherit;
+    font-family: var(--mono);
+    font-size: 13px;
+  }
+
+  .more a:hover {
+    text-decoration-thickness: 1px;
+    text-underline-offset: 4px;
+  }
+
+  /* The thermocline section is the passage itself, not a heading with
+     margin around it: genuine top and bottom padding stand in for the
+     distance actually swum through, so the divider sits inside real
+     content space rather than being positioned by a pixel constant. The
+     measured contrast floor for light text on deep water sits only a
+     couple of metres past the thermocline (see depth.ts), and the actual
+     canvas — dither, caustics and light shafts included — cuts it closer
+     still, so the bottom padding is generous: it keeps the first deep-zone
+     heading (Outside the work, which follows at ordinary section spacing)
+     well clear of that margin rather than right at the boundary. */
+  .thermocline-section {
+    padding-block: 160px 260px;
+  }
+
+  .thermocline {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .thermocline-rule {
+    flex: 1;
+    height: 1px;
+    background: var(--line);
+  }
+
+  .thermocline-label {
+    flex: 0 0 auto;
+    font-family: var(--mono);
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+    color: var(--ink);
+  }
+
+  /* Stacked, not a row of three: each interest gets real room to breathe,
+     which is also what gives the deep zone enough height to be scrolled
+     through rather than glimpsed in one viewport. */
+  .interests {
+    display: flex;
+    flex-direction: column;
+    gap: 48px;
+    margin-top: 32px;
+  }
+
+  .interest h3 {
+    margin: 0 0 8px;
+    font-size: 20px;
+  }
+
+  .interest p {
+    margin: 0;
+    max-width: 55ch;
+    color: var(--ink-2);
   }
 </style>

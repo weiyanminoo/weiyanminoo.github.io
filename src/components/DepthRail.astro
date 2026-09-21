@@ -11,6 +11,7 @@ const band = bandForPath(Astro.url.pathname);
 ---
 
 <div class="depth-rail" aria-hidden="true">
+  <span class="scrim"></span>
   <span class="label">DEPTH</span>
   <div class="track">
     <span class="marker"></span>
@@ -34,6 +35,29 @@ const band = bandForPath(Astro.url.pathname);
     padding-block: 24px;
     pointer-events: none;
     font-family: var(--mono);
+  }
+
+  /* The rail is fixed chrome over a canvas that ranges from foam to abyss,
+     so no single text colour can stay legible against it everywhere — the
+     19-24m thermocline passage in particular is mid-tone enough that
+     neither the ink nor on-deep tokens clear 4.5:1 there (see depth.ts).
+     Rather than chase a threshold, give the rail its own backing so its
+     contrast never depends on the water colour behind it: a translucent,
+     blurred scrim tinted toward the same ground the rail's own text tokens
+     assume. `--rail-scrim-tint` defaults to foam (the light-zone ground);
+     `html.depth-deep` (BaseLayout.astro) overrides it to deep for the three
+     single-band pages, so the deep page (Outside) gets the right scrim even
+     with JS disabled — `.is-deep` below overrides it the same way at
+     runtime for the column page (Home), which has no single depth class to
+     hang it on. Placed first so later siblings (label/track/value) paint
+     over it without needing z-index. Kept partly transparent with a blur so
+     it reads as glass, not a solid panel. */
+  .scrim {
+    position: absolute;
+    inset: 0;
+    background: color-mix(in srgb, var(--rail-scrim-tint, var(--foam)) 70%, transparent);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
   }
 
   .label {
@@ -82,9 +106,25 @@ const band = bandForPath(Astro.url.pathname);
       display: none;
     }
   }
+
+  /* On the `column` page (Home), the rail is fixed over water that itself
+     crosses the thermocline, so a single inherited ink colour can't stay
+     correct for the whole scroll range — it must track the current depth
+     (toggled below in the water:depth listener). Reuses the same on-deep
+     token overrides depth-deep applies, rather than a second set of
+     deep-zone colours. On a `single` (fixed-colour) page this class is
+     never toggled, so the rail keeps inheriting its page's depth class as
+     before. */
+  .depth-rail.is-deep {
+    --ink-2: var(--on-deep-2);
+    --ink-3: var(--on-deep-3);
+    --rail-scrim-tint: var(--deep);
+  }
 </style>
 
 <script>
+  import { isBelowThermocline } from '../scripts/water/depth';
+
   // The rail is not transition:persist'd — it re-renders fresh on every
   // navigation, unlike the canvas. Its module body, however, only ever runs
   // once (the bundled script is not re-evaluated on later navigations), so
@@ -101,7 +141,11 @@ const band = bandForPath(Astro.url.pathname);
     const metresEl = rail?.querySelector('.metres');
     const markerEl = rail?.querySelector('.marker');
 
-    if (!(metresEl instanceof HTMLElement) || !(markerEl instanceof HTMLElement)) {
+    if (
+      !(rail instanceof HTMLElement) ||
+      !(metresEl instanceof HTMLElement) ||
+      !(markerEl instanceof HTMLElement)
+    ) {
       return;
     }
 
@@ -110,6 +154,13 @@ const band = bandForPath(Astro.url.pathname);
         .detail;
       metresEl.textContent = String(Math.round(metres));
       markerEl.style.top = `${progress * 100}%`;
+      // On a `single` (fixed-colour) page this is a no-op: every metres
+      // value for that page already sits on the same side of the
+      // thermocline, so the depth class on <html> already has the right
+      // ink tokens. On the `column` page (Home) the rail is fixed over
+      // water that itself crosses the thermocline as you scroll, so it
+      // needs to track which side it is currently on.
+      rail.classList.toggle('is-deep', isBelowThermocline(metres));
     }
 
     window.addEventListener('water:depth', onDepth);

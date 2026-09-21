@@ -191,10 +191,14 @@ p {
    for --rail-scrim-tint, so every card is correct in both the light and
    deep zone with no JavaScript.
 
-   Never apply a card to a section heading, the hero, or the thermocline
-   label — those stay directly on the water by design (see
-   tests/water/effects.test.ts's "not on a card" bound) — or to the rail
-   gutter or outer page margins. */
+   Never apply a card to a section heading, the hero's own <h1>, or the
+   thermocline label — those stay directly on the water by design, and they
+   can, because they are all LARGE text (3:1, not 4.5:1). That is exactly
+   what tests/water/effects.test.ts's "not on a card" bound now assumes, so
+   the rule runs the other way too: any NORMAL-size text must be on a card.
+   Fix round 3 carded the last two that weren't — the hero's .lede/.meta
+   (index.astro's .hero-note) and Home's three .more links. Never card the
+   rail gutter or the outer page margins. */
 .glass-card {
   backdrop-filter: blur(12px) saturate(1.15);
   -webkit-backdrop-filter: blur(12px) saturate(1.15);

@@ -22,20 +22,24 @@ export const INTENSITY = {
   // lowering this let the caustics multiplier above be raised instead, so
   // the ripples read as rippling light rather than being washed out.
   shafts: 0.15,
-  // Mockup's effective value is 0.5*dark ≈ 0.5. The "not on a card" bound
-  // (tests/water/effects.test.ts) is the actual ceiling here, not the
-  // mockup: snow is the only particle effect visible in the deep zone
-  // (24-32m), which is exactly where the Outside/Home <h1> and section
-  // headings render with no card. Measured max before that bound breaks is
-  // ~0.330; this keeps a margin under it rather than shipping right at the
-  // edge of an analytical (not rendered-pixel) model. See phase-7-report.md.
-  snow: 0.31,
+  // Mockup's effective value is 0.5*dark ≈ 0.5. Still short of it, and the
+  // reason changed in fix round 3: the "not on a card" bound is no longer
+  // what stops snow (every remaining uncarded element is LARGE text at
+  // 3:1 — see tests/water/effects.test.ts), the deep CONTENT-CARD bound is.
+  // The binding element is the faintest on-deep token (--on-deep-3) on a
+  // deep card in the deepest water: LogSlate's <dt>/<dd class="unfilled">
+  // inside /outside's .topic cards, and the footer's .contacts/.sub, all
+  // at 31-32m. Measured ceiling with CARD_OPACITY.deep at 0.72 is ~0.395;
+  // this keeps a margin under it rather than shipping right at the edge of
+  // an analytical (not rendered-pixel) model. See phase-7-report.md.
+  snow: 0.37,
   shoal: 0.35,
-  // Mockup's effective value is 0.5*bub ≈ 0.5. Same ceiling reasoning as
-  // snow: bubbles (5-17m) overlaps the shoal's own gate in the light zone,
-  // where Work/Projects' uncarded <h1> render — measured max ~0.269 with
-  // shoal held at 0.35. See phase-7-report.md.
-  bubbles: 0.26,
+  // The mockup's own effective value (0.5*bub), reached in fix round 3:
+  // carding the hero copy and Home's three "more" links left no uncarded
+  // NORMAL-size text anywhere on the site, so the bound over bubbles'
+  // 5-17m range is the 3:1 large-text one (Projects' uncarded <h1> at
+  // ~13m, 80px/800) rather than 4.5:1. Measured ceiling ~0.560.
+  bubbles: 0.5,
 } as const;
 
 // Frosted-glass card opacities — one named constant per component, each
@@ -53,5 +57,5 @@ export const CARD_OPACITY = {
   entry: 0.72, // RoleEntry.astro .role — mockup's .entry
   project: 0.66, // ProjectCard.astro .project — mockup's .proj
   header: 0.62, // SiteHeader.astro — no mockup precedent for the header actually holding contrast across a full-column page (see that file's comment); tuned to clear both bounds
-  deep: 0.62, // deep-zone card equivalent (LogSlate's section wrapper, Home's zone-deep section) — no mockup precedent below the thermocline at all (finding 1); tuned to clear the deep bound
+  deep: 0.72, // deep-zone card equivalent (LogSlate's section wrapper, Home's zone-deep section) — no mockup precedent below the thermocline at all (finding 1); raised 0.62 -> 0.72 in fix round 3 (the mockup's own densest card, .entry) because this, not the uncarded bound, is what caps `snow` above
 } as const;

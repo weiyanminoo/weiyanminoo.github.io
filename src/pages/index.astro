@@ -17,12 +17,14 @@ const allProjects = [...projects].sort((a, b) => b.data.start.getTime() - a.data
 <BaseLayout title={title} description={description} depth="column">
   <section class="zone-light">
     <h1>Wei Yan</h1>
-    <p class="lede">
-      Computer Science at NUS. Four internships across four disciplines —
-      automation, mobile, product, production support. I go deep in
-      whichever one the problem needs.
-    </p>
-    <p class="meta">SINGAPORE &middot; CLASS OF 2027 &middot; NUS MERIT SCHOLAR</p>
+    <div class="hero-note glass-card">
+      <p class="lede">
+        Computer Science at NUS. Four internships across four disciplines —
+        automation, mobile, product, production support. I go deep in
+        whichever one the problem needs.
+      </p>
+      <p class="meta">SINGAPORE &middot; CLASS OF 2027 &middot; NUS MERIT SCHOLAR</p>
+    </div>
   </section>
 
   <section class="zone-light">
@@ -40,7 +42,7 @@ const allProjects = [...projects].sort((a, b) => b.data.start.getTime() - a.data
         ))
       }
     </ul>
-    <p class="more"><a href="/work">All five roles in detail</a></p>
+    <p class="more glass-card"><a href="/work">All five roles in detail</a></p>
   </section>
 
   <section class="zone-light">
@@ -55,7 +57,7 @@ const allProjects = [...projects].sort((a, b) => b.data.start.getTime() - a.data
         ))
       }
     </ul>
-    <p class="more"><a href="/projects">Both projects in detail</a></p>
+    <p class="more glass-card"><a href="/projects">Both projects in detail</a></p>
   </section>
 
   <section class="thermocline-section">
@@ -82,19 +84,39 @@ const allProjects = [...projects].sort((a, b) => b.data.start.getTime() - a.data
         <p>I will play most sports, enthusiastically and with mixed results.</p>
       </div>
     </div>
-    <p class="more"><a href="/outside">More outside the work</a></p>
+    <p class="more glass-card"><a href="/outside">More outside the work</a></p>
   </section>
 </BaseLayout>
 
 <style>
+  /* The hero's body copy is the one place on the site where uncarded text
+     was a binding contrast constraint: .lede/.meta are the softer
+     --ink-2/--ink-3 tokens, they sit at 0-4m where the caustics multiply is
+     at full strength (measured: this paragraph reads 4.64:1 with
+     INTENSITY.caustics at 2.4 and 7.40:1 with it at 0 — see
+     phase-7-report.md), and unlike every other body block on the site they
+     had no card to sit on. Carded here at CARD_OPACITY.project (66%, must
+     match intensity.ts by hand), the same treatment Home's own condensed
+     list rows use. The <h1> above deliberately stays on bare water — it is
+     large text (3:1, with ~3x headroom) and the mockup leaves its own hero
+     heading floating free. Deviates from the mockup, whose .lede has no
+     card: the mockup's caustics never run this strong. */
+  .hero-note {
+    max-width: 64ch;
+    margin-top: 24px;
+    padding: 24px 28px;
+    background: color-mix(in srgb, var(--card-tint) 66%, transparent);
+  }
+
   .lede {
+    margin: 0;
     max-width: 60ch;
     font-size: clamp(17px, 2.2vw, 20px);
     color: var(--ink-2);
   }
 
   .meta {
-    margin-top: 28px;
+    margin-top: 24px;
     margin-bottom: 0;
     font-family: var(--mono);
     font-size: 12px;
@@ -164,8 +186,19 @@ const allProjects = [...projects].sort((a, b) => b.data.start.getTime() - a.data
     color: var(--ink-2);
   }
 
+  /* Carded for the same reason as .hero-note above: a 13px link is body
+     text (4.5:1, not the 3:1 its neighbouring headings get), and these
+     three sit at exactly the depths where bubbles, the shoal and — for the
+     last one — snow are at full strength. Shrink-wrapped to the link rather
+     than spanning the column, so the water still reads around it and the
+     link keeps its existing underlined appearance. CARD_OPACITY.project
+     (66%, must match intensity.ts by hand); the deep one inherits
+     .zone-deep's own --card-tint, no JavaScript involved. */
   .more {
+    width: fit-content;
     margin: 20px 0 0;
+    padding: 10px 18px;
+    background: color-mix(in srgb, var(--card-tint) 66%, transparent);
   }
 
   .more a {
@@ -219,7 +252,7 @@ const allProjects = [...projects].sort((a, b) => b.data.start.getTime() - a.data
      which is also what gives the deep zone enough height to be scrolled
      through rather than glimpsed in one viewport. Each is its own deep
      glass card — see outside.astro's .topic for the matching treatment and
-     CARD_OPACITY.deep (62%, must match intensity.ts by hand); no mockup
+     CARD_OPACITY.deep (72%, must match intensity.ts by hand); no mockup
      precedent below the thermocline (finding 1). */
   .interests {
     display: flex;
@@ -230,7 +263,7 @@ const allProjects = [...projects].sort((a, b) => b.data.start.getTime() - a.data
 
   .interest {
     padding: 28px;
-    background: color-mix(in srgb, var(--card-tint) 62%, transparent);
+    background: color-mix(in srgb, var(--card-tint) 72%, transparent);
   }
 
   .interest h3 {

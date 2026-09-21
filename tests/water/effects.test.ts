@@ -168,23 +168,40 @@ describe('particle gate coverage', () => {
 //
 // Phase 7 fix round 1 introduced one flat `.content-scrim` panel behind
 // every text-bearing block, so there used to be exactly one ground: scrim
-// over (water + effects). Round 2 replaces that panel with per-element
+// over (water + effects). Round 2 replaced that panel with per-element
 // glass cards (base.css's comment, and the mockup, finding 1) that cover
-// only SOME of the page's text — a role entry, a project, a topic block —
-// while section headings, the hero and the thermocline label sit directly
-// on the water by design (finding 4). That is now two grounds, not one,
-// checked separately below:
-//   - "on a card": water + effects, composited with the WORST (most
-//     transparent, i.e. least protective) card opacity actually shipped in
-//     that zone — CARD_OPACITY from intensity.ts. Bounding against the
-//     worst rather than each component's own number means every actual
-//     card (which is that number or higher) is only ever MORE protected
-//     than what this proves.
-//   - "not on a card": bare water + effects, no compositing at all — the
-//     same pre-scrim ground and the same 4.5:1 bound this file checked
-//     before fix round 1 existed. INTENSITY's raised effect values are
-//     bound by THIS check, not the on-card one, since a heading or the
-//     hero gets no card to hide behind.
+// only SOME of the page's text, and round 3 finished the job: every piece
+// of NORMAL-size body text on the site is now on a card, and the only
+// things left on bare water are LARGE text — each page's <h1>, Home's own
+// <h2> section heads, and the thermocline label. Three grounds, checked
+// separately below:
+//   - "content card": water + effects composited with the worst (most
+//     transparent, least protective) CONTENT card opacity shipped in that
+//     zone — CARD_OPACITY.entry/.project in the light zone, .deep below
+//     the thermocline. Every actual card is that number or higher, so it
+//     is only ever MORE protected than this proves. Checked against all
+//     three ink tokens at 4.5:1, since content cards carry body copy in
+//     the softer --ink-2/--ink-3 (and --on-deep-2/--on-deep-3) tokens.
+//   - "header": the same ground at CARD_OPACITY.header, which is lower
+//     than either content card and is the one card that renders at every
+//     depth on Home's full column. Checked against the PRIMARY token only,
+//     and that is a claim about the markup, not an assumption:
+//     SiteHeader.astro's .wordmark sets no colour and its `nav a` sets
+//     `color: inherit`, so both inherit the zone's --ink/--on-deep. If a
+//     softer token is ever introduced into the header, this test must move
+//     to the full token list (and the header opacity will have to rise).
+//   - "not on a card": bare water + effects, no compositing at all, at the
+//     3:1 LARGE-text threshold rather than 4.5:1 — because after round 3
+//     every uncarded element genuinely is large text. That is also a claim
+//     about the markup: base.css gives h1 clamp(40px, 8vw, 80px)/800 and
+//     h2 700 (index.astro floors its own h2s at 22px), and index.astro's
+//     .thermocline-label is 20px/700; 20px at weight 700 clears WCAG's
+//     >=18.66px-and-bold rule at every viewport, and the audit
+//     (scripts/audit/checks/contrast.mjs) independently classifies each
+//     element and applies the same two thresholds against real pixels. Put
+//     a normal-size element on bare water and BOTH this bound and the
+//     audit become wrong together — card it instead (see index.astro's
+//     .hero-note and .more).
 describe('stacked particle contrast bound', () => {
   const SNOW_RGB: Rgb = [255, 255, 255];
   const DARK_PARTICLE_RGB: Rgb = [40, 72, 88];
@@ -198,12 +215,13 @@ describe('stacked particle contrast bound', () => {
   const FOAM_RGB: Rgb = [246, 249, 249]; // --foam
   const DEEP_RGB: Rgb = [27, 74, 92]; // --deep
 
-  // The worst (most transparent) card opacity actually shipped in each
-  // zone — see CARD_OPACITY in intensity.ts for what each component uses.
-  // Light zone: entries, projects and the header all render here.
-  // Deep zone: the header and the deep-card equivalent both render here.
-  const CARD_OPACITY_LIGHT_WORST = Math.min(CARD_OPACITY.entry, CARD_OPACITY.project, CARD_OPACITY.header);
-  const CARD_OPACITY_DEEP_WORST = Math.min(CARD_OPACITY.header, CARD_OPACITY.deep);
+  // The worst (most transparent) CONTENT card opacity actually shipped in
+  // each zone — see CARD_OPACITY in intensity.ts for what each component
+  // uses. Light zone: role entries and projects (plus Home's condensed
+  // rows, its .hero-note and its .more links, all at .project). Deep zone:
+  // /outside's topics and Home's interests, both at .deep.
+  const CONTENT_CARD_LIGHT_WORST = Math.min(CARD_OPACITY.entry, CARD_OPACITY.project);
+  const CONTENT_CARD_DEEP_WORST = CARD_OPACITY.deep;
 
   const INK_TOKENS: readonly Rgb[] = [
     hexToRgb('#0B2A3A'), // --ink
@@ -286,62 +304,79 @@ describe('stacked particle contrast bound', () => {
     return { worst, worstDepth, worstToken };
   }
 
-  it('on a card: clears 4.5:1 against every --ink token from 0m to 19m', () => {
+  it('on a content card: clears 4.5:1 against every --ink token from 0m to 19m', () => {
     const { worst, worstDepth, worstToken } = sweepWorst(0, 19, INK_TOKENS, TOKEN_NAMES_INK, (d) =>
-      cardColourAt(d, FOAM_RGB, CARD_OPACITY_LIGHT_WORST)
+      cardColourAt(d, FOAM_RGB, CONTENT_CARD_LIGHT_WORST)
     );
     expect(
       worst,
-      `worst ratio ${worst.toFixed(3)} at ${worstDepth}m against ${worstToken} (card opacity ${CARD_OPACITY_LIGHT_WORST})`
+      `worst ratio ${worst.toFixed(3)} at ${worstDepth}m against ${worstToken} (card opacity ${CONTENT_CARD_LIGHT_WORST})`
     ).toBeGreaterThanOrEqual(4.5);
   });
 
-  it('on a card: clears 4.5:1 against every --on-deep token from 24m to 32m', () => {
+  // This is the bound that caps INTENSITY.snow — not the uncarded one. The
+  // real element behind it is the faintest on-deep token on a deep card in
+  // the deepest water: LogSlate's <dt>/<dd class="unfilled"> inside
+  // /outside's .topic cards, and SiteFooter's .contacts/.sub.
+  it('on a content card: clears 4.5:1 against every --on-deep token from 24m to 32m', () => {
     const { worst, worstDepth, worstToken } = sweepWorst(24, 32, ON_DEEP_TOKENS, TOKEN_NAMES_ON_DEEP, (d) =>
-      cardColourAt(d, DEEP_RGB, CARD_OPACITY_DEEP_WORST)
+      cardColourAt(d, DEEP_RGB, CONTENT_CARD_DEEP_WORST)
     );
     expect(
       worst,
-      `worst ratio ${worst.toFixed(3)} at ${worstDepth}m against ${worstToken} (card opacity ${CARD_OPACITY_DEEP_WORST})`
+      `worst ratio ${worst.toFixed(3)} at ${worstDepth}m against ${worstToken} (card opacity ${CONTENT_CARD_DEEP_WORST})`
+    ).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('on the header card: clears 4.5:1 against the primary token in both zones', () => {
+    const light = sweepWorst(0, 19, [INK_TOKENS[0]], ['--ink'], (d) =>
+      cardColourAt(d, FOAM_RGB, CARD_OPACITY.header)
+    );
+    expect(
+      light.worst,
+      `light zone: worst ratio ${light.worst.toFixed(3)} at ${light.worstDepth}m (header opacity ${CARD_OPACITY.header})`
+    ).toBeGreaterThanOrEqual(4.5);
+
+    const deep = sweepWorst(24, 32, [ON_DEEP_TOKENS[0]], ['--on-deep'], (d) =>
+      cardColourAt(d, DEEP_RGB, CARD_OPACITY.header)
+    );
+    expect(
+      deep.worst,
+      `deep zone: worst ratio ${deep.worst.toFixed(3)} at ${deep.worstDepth}m (header opacity ${CARD_OPACITY.header})`
     ).toBeGreaterThanOrEqual(4.5);
   });
 
   // Not-on-card text is a closed, checked list, not "any text anywhere":
-  // Home's <h1>/hero, every page's own <h1>, Home's own <h2> section
-  // headings, and the thermocline label. Every one of those renders in the
-  // PRIMARY ink/on-deep token — base.css's `h1`/`h2` rules set no colour of
-  // their own (they inherit the zone's --ink/--on-deep), and the
-  // thermocline label sets `color: var(--ink)` explicitly
-  // (src/pages/index.astro) — never the softer --ink-2/--ink-3 tokens, which
-  // only appear on text that (per finding 1) now always sits on a card. The
-  // one exception is the hero's own .lede/.meta lines (index.astro), which
-  // DO use --ink-2/--ink-3 and are NOT on a card — but they render within
-  // the first ~4m of Home (the hero is the first thing on the page), well
-  // above where shoal/bubbles ever gate on (8m/5m), so they are checked
-  // separately below rather than folded into the full-column sweep.
-  it('not on a card: clears 4.5:1 against the primary --ink token from 0m to 19m', () => {
+  // every page's own <h1>, Home's own <h2> section headings, and the
+  // thermocline label. Every one of those renders in the PRIMARY
+  // ink/on-deep token — base.css's `h1`/`h2` rules set no colour of their
+  // own (they inherit the zone's --ink/--on-deep), and the thermocline
+  // label sets `color: var(--ink)` explicitly (src/pages/index.astro) —
+  // never the softer --ink-2/--ink-3 tokens, which only appear on text that
+  // always sits on a card. The list used to have one more entry: the hero's
+  // own .lede/.meta lines, which DO use --ink-2/--ink-3. Fix round 3 carded
+  // them (index.astro's .hero-note) along with Home's three .more links,
+  // which is what let LARGE_TEXT_RATIO below replace 4.5:1 here — and that
+  // in turn is what let INTENSITY.bubbles reach the mockup's own 0.5.
+  //
+  // One normal-size element is still outside every card: base.css's
+  // .skip-link. It is not an exception to the rule above, because it never
+  // sits on water — it is parked off-screen at top: -48px and, when
+  // focused, paints its own opaque `background: var(--ink)` under
+  // `color: var(--foam)`. No effect can reach it, so no bound here applies.
+  const LARGE_TEXT_RATIO = 3;
+
+  it('not on a card: clears 3:1 (large text) against the primary --ink token from 0m to 19m', () => {
     const { worst, worstDepth } = sweepWorst(0, 19, [INK_TOKENS[0]], ['--ink'], waterPlusEffectsAt);
-    expect(worst, `worst ratio ${worst.toFixed(3)} at ${worstDepth}m against --ink`).toBeGreaterThanOrEqual(4.5);
+    expect(worst, `worst ratio ${worst.toFixed(3)} at ${worstDepth}m against --ink`).toBeGreaterThanOrEqual(
+      LARGE_TEXT_RATIO
+    );
   });
 
-  it('not on a card: clears 4.5:1 against the primary --on-deep token from 24m to 32m', () => {
+  it('not on a card: clears 3:1 (large text) against the primary --on-deep token from 24m to 32m', () => {
     const { worst, worstDepth } = sweepWorst(24, 32, [ON_DEEP_TOKENS[0]], ['--on-deep'], waterPlusEffectsAt);
     expect(worst, `worst ratio ${worst.toFixed(3)} at ${worstDepth}m against --on-deep`).toBeGreaterThanOrEqual(
-      4.5
+      LARGE_TEXT_RATIO
     );
-  });
-
-  it('not on a card: the hero (.lede/.meta, --ink-2/--ink-3, 0-4m) clears 4.5:1', () => {
-    const { worst, worstDepth, worstToken } = sweepWorst(
-      0,
-      4,
-      [INK_TOKENS[1], INK_TOKENS[2]],
-      ['--ink-2', '--ink-3'],
-      waterPlusEffectsAt
-    );
-    expect(
-      worst,
-      `worst ratio ${worst.toFixed(3)} at ${worstDepth}m against ${worstToken}`
-    ).toBeGreaterThanOrEqual(4.5);
   });
 });

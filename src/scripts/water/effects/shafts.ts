@@ -2,6 +2,18 @@
 // caustics: drawn at full size the quads are hard-edged polygons that read
 // as sharp wedges rather than light. The upscale feathers their edges for
 // free.
+//
+// Phase 7 fix round 3: the beams read as hard-edged uniform diagonal bands
+// rather than god-rays. Rebuilt against the mockup's own `shafts()`
+// (mockups/dive-log.html) — same technique and the same 180x110 buffer, so
+// this is geometry and falloff, not strength (INTENSITY.shafts is
+// unchanged). Four concrete differences, all fixed below: the three-stop
+// gradient (a surface flare that attenuates, not a full-height ramp), the
+// per-beam widths (five identical beams read as a repeating pattern), the
+// FIXED lean (our bottom sway was animated independently of the top, so
+// every beam's ANGLE changed over time — real god-rays track a fixed sun
+// and only shimmer laterally), and the edge overdraw (beams used to
+// terminate hard at the viewport sides and top).
 
 import { clamp } from '../depth';
 import type { Effect } from './types';
@@ -13,6 +25,38 @@ const SHAFT_COUNT = 5;
 
 // Shafts persist slightly deeper than caustics before fading out entirely.
 const GATE_END_METRES = 14;
+
+// Beam geometry, all as fractions of BUFFER_WIDTH so the shape is
+// resolution-independent (the buffer is upscaled to the viewport). Mockup's
+// own numbers.
+const SWAY_AMPLITUDE = BUFFER_WIDTH * 0.055;
+const SWAY_SPEED = 0.13;
+const SWAY_PHASE_STEP = 1.7;
+const START_OFFSET = BUFFER_WIDTH * 0.05;
+const TOP_WIDTH_BASE = BUFFER_WIDTH * 0.026;
+const TOP_WIDTH_STEP = BUFFER_WIDTH * 0.007;
+const BOTTOM_WIDTH_BASE = BUFFER_WIDTH * 0.1;
+const BOTTOM_WIDTH_STEP = BUFFER_WIDTH * 0.018;
+// Constant, not a function of time: this is the sun's direction, and it
+// does not move. The sway above shifts the WHOLE beam sideways, so the
+// angle is the same every frame.
+const LEAN = BUFFER_WIDTH * 0.085;
+// Above the buffer's own top edge, so the beams have no hard top cut once
+// the buffer is upscaled.
+const QUAD_TOP_Y = -2;
+
+// Three stops, not two. The middle one is what makes a shaft read as a
+// surface flare that falls off fast rather than a solid band running the
+// full height of the viewport: the mockup's own .24 -> .08 -> 0 at 0/.55/1,
+// expressed here as fractions of INTENSITY.shafts so that constant stays
+// the single peak-alpha dial.
+const MID_STOP_POSITION = 0.55;
+const MID_STOP_FRACTION = 0.08 / 0.24;
+
+// Destination overdraw: the buffer is painted slightly wider and taller
+// than the viewport so beam edges run off-screen instead of ending at it.
+const OVERDRAW_X_PX = 24;
+const OVERDRAW_Y_SCALE = 1.02;
 
 let buffer: HTMLCanvasElement | null = null;
 let bufferCtx: CanvasRenderingContext2D | null = null;
@@ -40,24 +84,26 @@ const shafts: Effect = (frame) => {
 
   bufferCtx.clearRect(0, 0, BUFFER_WIDTH, BUFFER_HEIGHT);
 
+  const peak = INTENSITY.shafts * gate;
+  const gradient = bufferCtx.createLinearGradient(0, 0, 0, BUFFER_HEIGHT);
+  gradient.addColorStop(0, `rgba(255, 255, 255, ${peak})`);
+  gradient.addColorStop(MID_STOP_POSITION, `rgba(255, 255, 255, ${peak * MID_STOP_FRACTION})`);
+  gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+  bufferCtx.fillStyle = gradient;
+
   for (let i = 0; i < SHAFT_COUNT; i++) {
-    const seed = (i + 0.5) / SHAFT_COUNT;
-    const sway = Math.sin(frame.time * 0.15 + i * 1.7) * 10;
-    const topX = seed * BUFFER_WIDTH + sway;
-    const bottomX = topX + Math.sin(frame.time * 0.1 + i) * 20 + 14;
-    const topWidth = 4;
-    const bottomWidth = 26;
+    const base =
+      (i / SHAFT_COUNT) * BUFFER_WIDTH +
+      Math.sin(frame.time * SWAY_SPEED + i * SWAY_PHASE_STEP) * SWAY_AMPLITUDE +
+      START_OFFSET;
+    const topWidth = TOP_WIDTH_BASE + i * TOP_WIDTH_STEP;
+    const bottomWidth = BOTTOM_WIDTH_BASE + i * BOTTOM_WIDTH_STEP;
 
-    const gradient = bufferCtx.createLinearGradient(0, 0, 0, BUFFER_HEIGHT);
-    gradient.addColorStop(0, `rgba(255, 255, 255, ${INTENSITY.shafts * gate})`);
-    gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
-
-    bufferCtx.fillStyle = gradient;
     bufferCtx.beginPath();
-    bufferCtx.moveTo(topX - topWidth / 2, 0);
-    bufferCtx.lineTo(topX + topWidth / 2, 0);
-    bufferCtx.lineTo(bottomX + bottomWidth / 2, BUFFER_HEIGHT);
-    bufferCtx.lineTo(bottomX - bottomWidth / 2, BUFFER_HEIGHT);
+    bufferCtx.moveTo(base - topWidth / 2, QUAD_TOP_Y);
+    bufferCtx.lineTo(base + topWidth / 2, QUAD_TOP_Y);
+    bufferCtx.lineTo(base + bottomWidth / 2 + LEAN, BUFFER_HEIGHT);
+    bufferCtx.lineTo(base - bottomWidth / 2 + LEAN, BUFFER_HEIGHT);
     bufferCtx.closePath();
     bufferCtx.fill();
   }
@@ -67,7 +113,17 @@ const shafts: Effect = (frame) => {
   ctx.globalCompositeOperation = 'screen';
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(buffer, 0, 0, BUFFER_WIDTH, BUFFER_HEIGHT, 0, 0, width, height);
+  ctx.drawImage(
+    buffer,
+    0,
+    0,
+    BUFFER_WIDTH,
+    BUFFER_HEIGHT,
+    -OVERDRAW_X_PX,
+    0,
+    width + OVERDRAW_X_PX * 2,
+    height * OVERDRAW_Y_SCALE
+  );
   ctx.restore();
 };
 

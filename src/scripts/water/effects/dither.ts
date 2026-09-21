@@ -5,11 +5,11 @@
 // applies everywhere, at every depth.
 
 import type { Effect } from './types';
+import { INTENSITY } from './intensity';
 
 const PATTERN_SIZE = 128;
 const MID_GREY = 128;
 const SPREAD = 12; // +/- range around mid-grey
-const ALPHA = 0.05;
 
 let pattern: CanvasPattern | null = null;
 
@@ -47,7 +47,7 @@ const dither: Effect = (frame) => {
   }
 
   ctx.save();
-  ctx.globalAlpha = ALPHA;
+  ctx.globalAlpha = INTENSITY.dither;
   ctx.globalCompositeOperation = 'overlay';
   ctx.fillStyle = pattern;
   ctx.fillRect(0, 0, width, height);

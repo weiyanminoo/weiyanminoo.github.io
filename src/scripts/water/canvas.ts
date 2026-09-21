@@ -10,6 +10,9 @@ import type { Effect, WaterFrame } from './effects/types';
 import dither from './effects/dither';
 import caustics from './effects/caustics';
 import shafts from './effects/shafts';
+import snow from './effects/snow';
+import shoal from './effects/shoal';
+import bubbles from './effects/bubbles';
 
 const GRADIENT_STOPS = 12;
 const MAX_DEVICE_PIXEL_RATIO = 2;
@@ -19,7 +22,13 @@ const MAX_DEVICE_PIXEL_RATIO = 2;
 const THERMOCLINE_ELEMENT_ID = 'thermocline';
 
 // Ordered: each is drawn on top of the last, over the base gradient.
-const EFFECTS: readonly Effect[] = [dither, caustics, shafts];
+const EFFECTS: readonly Effect[] = [dither, caustics, shafts, snow, shoal, bubbles];
+
+// The depth rail only needs a new `water:depth` event when what it would
+// render actually changes — its listener writes textContent, style.top and
+// toggles a class on every dispatch, a forced style recalculation the loop
+// must not trigger at 60Hz for a readout that only changes on scroll.
+const DEPTH_DISPATCH_PROGRESS_EPSILON = 0.001;
 
 // Guards against mounting the same canvas twice (e.g. a stray re-run of its
 // script) — returns the existing teardown instead of attaching a second set
@@ -68,6 +77,14 @@ export function mountWater(canvas: HTMLCanvasElement): () => void {
   let looping = false;
   let rafId: number | undefined;
   let lastTimestamp: number | null = null;
+
+  // water:depth dispatch de-duplication state — see paint() below.
+  let lastDispatchedMetres: number | null = null;
+  let lastDispatchedProgress: number | null = null;
+  // Always dispatch the first paint, and always again right after
+  // astro:after-swap (the rail is re-rendered fresh on navigation and needs
+  // a value even if it happens to match the last one this module sent).
+  let forceDepthDispatch = true;
 
   function resize(): void {
     const dpr = Math.min(window.devicePixelRatio || 1, MAX_DEVICE_PIXEL_RATIO);
@@ -133,11 +150,22 @@ export function mountWater(canvas: HTMLCanvasElement): () => void {
       effect(frame);
     }
 
-    window.dispatchEvent(
-      new CustomEvent('water:depth', {
-        detail: { metres: readoutMetres, progress: progressTop },
-      })
-    );
+    const roundedMetres = Math.round(readoutMetres);
+    const metresUnchanged = lastDispatchedMetres !== null && roundedMetres === lastDispatchedMetres;
+    const progressUnchanged =
+      lastDispatchedProgress !== null &&
+      Math.abs(progressTop - lastDispatchedProgress) < DEPTH_DISPATCH_PROGRESS_EPSILON;
+
+    if (forceDepthDispatch || !metresUnchanged || !progressUnchanged) {
+      lastDispatchedMetres = roundedMetres;
+      lastDispatchedProgress = progressTop;
+      forceDepthDispatch = false;
+      window.dispatchEvent(
+        new CustomEvent('water:depth', {
+          detail: { metres: readoutMetres, progress: progressTop },
+        })
+      );
+    }
   }
 
   // The animation loop. Stops when the tab is hidden and never starts at all
@@ -222,6 +250,7 @@ export function mountWater(canvas: HTMLCanvasElement): () => void {
   function onAfterSwap(): void {
     band = bandForPath(location.pathname);
     updateThermoclineY();
+    forceDepthDispatch = true;
     paint();
   }
 

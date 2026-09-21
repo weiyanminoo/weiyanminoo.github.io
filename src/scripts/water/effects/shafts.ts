@@ -5,11 +5,11 @@
 
 import { clamp } from '../depth';
 import type { Effect } from './types';
+import { INTENSITY } from './intensity';
 
 const BUFFER_WIDTH = 180;
 const BUFFER_HEIGHT = 110;
 const SHAFT_COUNT = 5;
-const PEAK_ALPHA = 0.5;
 
 // Shafts persist slightly deeper than caustics before fading out entirely.
 const GATE_END_METRES = 14;
@@ -49,7 +49,7 @@ const shafts: Effect = (frame) => {
     const bottomWidth = 26;
 
     const gradient = bufferCtx.createLinearGradient(0, 0, 0, BUFFER_HEIGHT);
-    gradient.addColorStop(0, `rgba(255, 255, 255, ${PEAK_ALPHA * gate})`);
+    gradient.addColorStop(0, `rgba(255, 255, 255, ${INTENSITY.shafts * gate})`);
     gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
 
     bufferCtx.fillStyle = gradient;

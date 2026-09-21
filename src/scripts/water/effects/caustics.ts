@@ -7,6 +7,7 @@
 
 import { clamp } from '../depth';
 import type { Effect } from './types';
+import { INTENSITY } from './intensity';
 
 const BUFFER_WIDTH = 170;
 const BUFFER_HEIGHT = 104;
@@ -67,7 +68,7 @@ const caustics: Effect = (frame) => {
     const falloff = 1 - y / (BUFFER_HEIGHT - 1);
     for (let x = 0; x < BUFFER_WIDTH; x++) {
       const highlight = highlightAt(x, y, frame.time);
-      const strength = (1 - highlight) * falloff * gate;
+      const strength = (1 - highlight) * falloff * gate * INTENSITY.caustics;
       const i = (y * BUFFER_WIDTH + x) * 4;
       data[i] = 255 - strength * TROUGH_DEPTH[0];
       data[i + 1] = 255 - strength * TROUGH_DEPTH[1];

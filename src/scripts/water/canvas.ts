@@ -13,6 +13,7 @@ import shafts from './effects/shafts';
 import snow from './effects/snow';
 import shoal from './effects/shoal';
 import bubbles from './effects/bubbles';
+import fauna from './effects/fauna';
 
 const GRADIENT_STOPS = 12;
 const MAX_DEVICE_PIXEL_RATIO = 2;
@@ -22,7 +23,9 @@ const MAX_DEVICE_PIXEL_RATIO = 2;
 const THERMOCLINE_ELEMENT_ID = 'thermocline';
 
 // Ordered: each is drawn on top of the last, over the base gradient.
-const EFFECTS: readonly Effect[] = [dither, caustics, shafts, snow, shoal, bubbles];
+// fauna after the particles: a creature passes in FRONT of drifting snow
+// and bubbles, never behind them.
+const EFFECTS: readonly Effect[] = [dither, caustics, shafts, snow, shoal, bubbles, fauna];
 
 // The depth rail only needs a new `water:depth` event when what it would
 // render actually changes — its listener writes textContent, style.top and

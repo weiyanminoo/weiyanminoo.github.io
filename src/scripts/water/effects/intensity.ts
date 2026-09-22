@@ -66,6 +66,21 @@ export const INTENSITY = {
   // bubble. Measured ceiling at deep card 0.72 with snow at 0.24 is ~0.20;
   // 0.15 keeps margin under an analytical (not rendered-pixel) bound.
   bubblesDeep: 0.15,
+  // Marine life in the light half of the column (turtles and dolphins at
+  // the surface, an eagle ray in mid-water) — see fauna.ts. The surface
+  // band has by far the most contrast headroom on the site, because
+  // near-white water against dark ink starts at 7.84:1: measured ceiling
+  // for a dark silhouette there is ~0.83 behind an entry card and ~0.49
+  // behind uncarded LARGE text. This sits well under both, because these
+  // shapes are 30-45px rather than the shoal's 4-12px and a big shape at
+  // high alpha stops being a presence and becomes a graphic.
+  fauna: 0.28,
+  // The same life below the thermocline (reef sharks). Higher, and still
+  // free: down there a creature is DARKER than the water, and darkening
+  // dark water RAISES contrast for the on-deep tokens. Unlike every other
+  // deep effect this one spends no headroom, so it does not compete with
+  // snow or the bright bubbles.
+  faunaDeep: 0.55,
 } as const;
 
 // Frosted-glass card opacities — one named constant per component, each

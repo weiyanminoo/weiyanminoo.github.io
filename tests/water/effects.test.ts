@@ -8,6 +8,11 @@ import {
   bubbleLightAlphaAt,
   bubbleDeepAlphaAt,
 } from '../../src/scripts/water/effects/bubbles';
+import {
+  faunaAlphaAt,
+  faunaLightAlphaAt,
+  faunaDeepAlphaAt,
+} from '../../src/scripts/water/effects/fauna';
 import { CARD_OPACITY } from '../../src/scripts/water/effects/intensity';
 import { colourAtDepth, type Rgb } from '../../src/scripts/water/palette';
 import { bandForPath } from '../../src/scripts/water/depth';
@@ -155,7 +160,12 @@ describe('particle gate coverage', () => {
     for (const band of bands) {
       let covered = false;
       for (let m = band.top; m <= band.bottom; m += 0.1) {
-        if (snowAlphaAt(m) > 0 || shoalAlphaAt(m) > 0 || bubbleAlphaAt(m) > 0) {
+        if (
+          snowAlphaAt(m) > 0 ||
+          shoalAlphaAt(m) > 0 ||
+          bubbleAlphaAt(m) > 0 ||
+          faunaAlphaAt(m) > 0
+        ) {
           covered = true;
           break;
         }
@@ -224,6 +234,8 @@ describe('stacked particle contrast bound', () => {
   const DARK_PARTICLE_RGB: Rgb = [40, 72, 88];
   // bubbles.ts's GLINT_COLOUR — the dark-water bubble treatment.
   const BUBBLE_GLINT_RGB: Rgb = [242, 251, 253];
+  // fauna.ts's DEEP_SILHOUETTE — palette.ts's own 32m stop.
+  const FAUNA_DEEP_RGB: Rgb = [11, 42, 58];
 
   // The card tint per zone — must match tokens.css's --card-tint default
   // and BaseLayout.astro's html.depth-deep / :global(.zone-deep) override
@@ -286,6 +298,20 @@ describe('stacked particle contrast bound', () => {
     const ringA = bubbleDeepAlphaAt(d);
     if (ringA > 0) {
       colour = compositeOver(colour, BUBBLE_GLINT_RGB, ringA);
+    }
+    // Marine life. The light-water treatment darkens near-white water and
+    // so genuinely spends headroom; the dark-water one darkens water that
+    // is already dark, which RAISES contrast for the on-deep tokens. The
+    // second is modelled anyway rather than skipped as "free" — an effect
+    // left out of the model because it currently helps is an effect nobody
+    // re-checks when its colour changes.
+    const faunaLightA = faunaLightAlphaAt(d);
+    if (faunaLightA > 0) {
+      colour = compositeOver(colour, DARK_PARTICLE_RGB, faunaLightA);
+    }
+    const faunaDeepA = faunaDeepAlphaAt(d);
+    if (faunaDeepA > 0) {
+      colour = compositeOver(colour, FAUNA_DEEP_RGB, faunaDeepA);
     }
     return colour;
   }

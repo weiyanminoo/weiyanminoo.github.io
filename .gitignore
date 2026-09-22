@@ -57,3 +57,7 @@ pnpm-debug.log*
 # Standalone HTML mockup of the Dive Log direction, kept for local reference.
 # Not part of the built site and deliberately not published.
 mockups/
+
+# ---------- scratch ----------
+# Local measurement scripts and backups from design/verification work.
+.scratch/

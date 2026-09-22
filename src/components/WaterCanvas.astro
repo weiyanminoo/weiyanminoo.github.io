@@ -4,10 +4,13 @@
 <canvas id="water-canvas" transition:persist="water-canvas" aria-hidden="true"></canvas>
 
 <style>
+  /* z-index -2, not -1: BaseLayout.astro's `.grain` (the mockup's own
+     surface wash) sits at -1, directly above this and below all content —
+     the same two-layer order the mockup uses (#water -2, .grain -1). */
   #water-canvas {
     position: fixed;
     inset: 0;
-    z-index: -1;
+    z-index: -2;
     pointer-events: none;
   }
 </style>

@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import RoleEntry from '../components/RoleEntry.astro';
+import SectionHead from '../components/SectionHead.astro';
 import { getCollection, render } from 'astro:content';
 
 const title = 'Work — Wei Yan';
@@ -14,6 +15,7 @@ const rendered = await Promise.all(sorted.map((entry) => render(entry)));
 <BaseLayout title={title} description={description} depth="shallow">
   <section>
     <h1>Work</h1>
+    <SectionHead label="DIVE LOG — WORK" depth="5 M" />
     <div class="roles">
       {
         sorted.map((entry, i) => {

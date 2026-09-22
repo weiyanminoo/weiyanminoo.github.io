@@ -5,7 +5,10 @@ interface Field {
 }
 
 interface Props {
-  fields: Field[];
+  // readonly: the shared INTERESTS table (src/lib/interests.ts) is a
+  // `readonly` literal, and a readonly array is not assignable to a
+  // mutable one under strict TypeScript.
+  fields: readonly Field[];
 }
 
 const { fields } = Astro.props;

@@ -1,6 +1,8 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import LogSlate from '../components/LogSlate.astro';
+import SectionHead from '../components/SectionHead.astro';
+import { INTERESTS } from '../lib/interests';
 
 const title = 'Outside — Wei Yan';
 const description = "What Wei Yan does outside of coursework and internships.";
@@ -9,30 +11,22 @@ const description = "What Wei Yan does outside of coursework and internships.";
 <BaseLayout title={title} description={description} depth="deep">
   <section>
     <h1>Outside</h1>
+    <SectionHead label="OUTSIDE THE WORK" depth="24 M" />
   </section>
 
-  <section class="topic glass-card">
-    <h2>Diving</h2>
-    <p class="line">The reason this site descends as you read it.</p>
-    <p>Slow, quiet, and entirely about paying attention to what is actually in front of you.</p>
-    <LogSlate
-      fields={[{ label: 'Certification' }, { label: 'Logged dives' }, { label: 'Best site so far' }]}
-    />
-  </section>
-
-  <section class="topic glass-card">
-    <h2>Hiking</h2>
-    <p class="line">The other direction, and the opposite pace.</p>
-    <p>Long routes, early starts, and a real weakness for a good ridge line.</p>
-    <LogSlate fields={[{ label: 'Favourite route' }, { label: 'Next on the list' }]} />
-  </section>
-
-  <section class="topic glass-card">
-    <h2>Keeping active</h2>
-    <p class="line">I will play most sports, enthusiastically and with mixed results.</p>
-    <p>Training is the constant; the sport rotates.</p>
-    <LogSlate fields={[{ label: 'Sports' }, { label: 'Co-curriculars' }]} />
-  </section>
+  {/* Copy lives in src/lib/interests.ts — Home's own Outside section
+      renders the same three topics (phase-7-9-brief.md 8.2), so it is one
+      table rather than two hand-kept copies of the same prose. */}
+  {
+    INTERESTS.map((interest) => (
+      <section class="topic glass-card">
+        <h2>{interest.title}</h2>
+        <p class="line">{interest.line}</p>
+        <p>{interest.body}</p>
+        <LogSlate fields={interest.fields} />
+      </section>
+    ))
+  }
 </BaseLayout>
 
 <style>

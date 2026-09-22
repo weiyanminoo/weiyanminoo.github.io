@@ -69,6 +69,7 @@ const themeColors: Record<NonNullable<Props['depth']>, string> = {
   <body>
     <a href="#main" class="skip-link">Skip to content</a>
     <WaterCanvas />
+    <div class="grain" aria-hidden="true"></div>
     <DepthRail />
     <SiteHeader />
     <main id="main" tabindex="-1">
@@ -167,6 +168,29 @@ const themeColors: Record<NonNullable<Props['depth']>, string> = {
     --card-shadow-hover: rgba(3, 14, 20, 0.34);
   }
 
+  /* Mockup's `.grain`, verbatim: one fixed radial wash of white at the top
+     of every viewport, above the canvas (z-index -2) and below all content.
+     Part of why the mockup's surface water reads brighter than ours at the
+     same nominal caustics strength — see phase-7-9-report.md. Static, so it
+     needs no reduced-motion handling, and purely decorative, so aria-hidden.
+     Its vertical radius is 70% of the viewport and it is fully transparent
+     by 60% of that, i.e. it has no effect below ~42% of viewport height;
+     that is why it does not reach the deep-zone body text that sits lower
+     in the frame, and the contrast sweep was re-run to confirm rather than
+     assume it. */
+  .grain {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: 0.5;
+    background: radial-gradient(
+      ellipse 120% 70% at 50% 0%,
+      rgba(255, 255, 255, 0.28),
+      transparent 60%
+    );
+  }
+
   main {
     display: block;
   }
@@ -180,7 +204,12 @@ const themeColors: Record<NonNullable<Props['depth']>, string> = {
     outline: none;
   }
 
+  /* No block padding of its own: as of Phase 8 the vertical rhythm lives
+     entirely on `section` (base.css, the mockup's `section{padding:112px 0}`)
+     and on the hero/thermocline overrides that replace it, so the container
+     adding its own 64/96 on top would double-count the space between the
+     header and the first section. */
   main .container {
-    padding-block: 64px 96px;
+    padding-block: 0;
   }
 </style>

@@ -22,11 +22,29 @@ const band = bandForPath(Astro.url.pathname);
 <style>
   .depth-rail {
     position: fixed;
-    /* starts below the sticky header (64px row + 1px border) so the label
-       and the 0% end of the track are never hidden underneath it */
-    top: 65px;
+    /* Full viewport height (mockup: top:0), not stopping below the header.
+       z-index 60 puts it ABOVE SiteHeader.astro's 50, which is what the
+       mockup actually does: its .rail is z-index 40 and its header.top is
+       z-index 30, and that header additionally lives inside .shell
+       (margin-left: var(--rail)) so its glass never reaches the rail at
+       all. phase-7-9-brief.md change 6 describes the rail as running
+       "behind the sticky header"; read against mockups/dive-log.html that
+       is not what the file does, and the difference is measurable, not
+       cosmetic. Ours is full-width, so when the header painted over the
+       rail's top 65px the rail's ground became header-glass-over-rail-scrim
+       — two translucent layers, one of which cross-fades over 0.9s
+       (SiteHeader's `transition: background .9s`) while the rail's own text
+       colour flips instantly at the thermocline. Measured on Home at 22m,
+       ~50ms after the flip: the "DEPTH" label read 1.60:1 against
+       --on-deep-3 for the duration of that cross-fade. With the rail on top
+       its ground is its own scrim alone, which flips in the same instant
+       its text does: worst case over a 25-stop sweep of the whole column is
+       now 5.32:1, and the strip behind the header is no longer a special
+       case. */
+    top: 0;
     bottom: 0;
     left: 0;
+    z-index: 60;
     width: var(--rail);
     display: flex;
     flex-direction: column;
@@ -49,20 +67,58 @@ const band = bandForPath(Astro.url.pathname);
      single-band pages, so the deep page (Outside) gets the right scrim even
      with JS disabled — `.is-deep` below overrides it the same way at
      runtime for the column page (Home), which has no single depth class to
-     hang it on. Placed first so later siblings (label/track/value) paint
-     over it without needing z-index. Kept translucent with a blur so it
+     hang it on. `z-index: -1` is load-bearing, not decoration: source
+     order alone does NOT put this behind its siblings. An absolutely
+     positioned box paints in the positioned-descendants layer, which is
+     above every non-positioned in-flow sibling regardless of source order,
+     so as a plain `position: absolute` this scrim painted OVER the rail's
+     own content. `.label` and `.track` happened to survive it — the first
+     because `transform` gives it a stacking context, the second because it
+     is `position: relative` — but `.value`, which is neither, did not:
+     the metre readout, the one thing the rail exists to show, was painted
+     underneath the scrim and was invisible on every page. Measured over
+     the readout's own rect: per-channel range 1/1/1 as shipped (flat
+     scrim, no glyphs) vs 173/172/162 with the scrim hidden. The rail
+     itself has no background of its own, so a negative index costs
+     nothing and makes the intended order actually true for any future
+     child too. Kept translucent with a blur so it
      reads as glass, not a solid panel — but 85%, not less: at the moment
      `.is-deep` flips (~21m) the water behind the scrim is still the
      mid-tone thermocline colour, and measured contrast showed 70% let
      enough of that mid-tone through to drop the rail's own text just under
      4.5:1 right at the flip. 85% keeps the scrim, not the water, as the
-     dominant contributor to its ground everywhere, including that point. */
+     dominant contributor to its ground everywhere, including that point.
+
+     Phase 7 re-checked this against the mockup's own 0.34: analytically,
+     0.34 measured 3.25:1 (light, worst at 12.9m) and 1.96:1 (deep, worst at
+     21m) — both far below 4.5:1, and strictly worse than 70% (which was
+     already known to fail) since a lower scrim opacity always lets more of
+     the unprotected water through. The mockup's value is not adoptable.
+
+     Phase 9 raised it 85% -> 92%, which is the narrow ~21m dip Phase 7
+     recorded (~4.43:1) and left alone, now measured on rendered pixels
+     rather than analytically and confirmed real: 4.49:1 on the "DEPTH"
+     label at scrollY=3146 on Home, settled, over a 41-stop x 4-time-sample
+     sweep. The cause is that `isBelowThermocline` flips the rail's text to
+     --on-deep-3 the moment metres passes 21, while the palette's own water
+     is still light there (its 21m stop is rgb(150,186,196) and it does not
+     reach the dark rgb(38,88,105) until 23m). For those two metres the
+     scrim is the only thing standing between light text and light water,
+     and at 85% the 15% of water it let through lifted the composite to
+     rgb(44,90,106). 92% is the same lever the scrim already exists to
+     pull — it cannot hurt the light zone either, where a lighter ground is
+     strictly better for --ink-3 — and it measures 5.0:1+ at the same
+     point. Do not lower it again without re-measuring that stop
+     specifically. */
   .scrim {
     position: absolute;
     inset: 0;
-    background: color-mix(in srgb, var(--rail-scrim-tint, var(--foam)) 85%, transparent);
+    z-index: -1;
+    background: color-mix(in srgb, var(--rail-scrim-tint, var(--foam)) 92%, transparent);
+    /* Unprefixed only — see base.css's .glass-card for why the hand-written
+       -webkit- companion had to go (the minifier collapsed the pair to the
+       prefixed form alone, which current Chromium drops). */
     backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
   }
 
   .label {

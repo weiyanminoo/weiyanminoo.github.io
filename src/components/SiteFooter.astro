@@ -1,12 +1,31 @@
 ---
+// Phase 9 — the close. The mockup (mockups/dive-log.html, section.contact)
+// ends on a large statement in deep water rather than a small footer
+// heading; the statement, the paragraph, the pill-shaped contact row, the
+// hairline and the two mono lines below it are all reused verbatim from it.
+//
+// ONE DELIBERATE DEPARTURE, flagged rather than silently taken. The brief
+// (phase-7-9-brief.md, Phase 9) says the live site's contact links "are the
+// same honest placeholders the live site already has" and must stay plain
+// non-link elements reading [ADD EMAIL] / [ADD GITHUB] / [ADD LINKEDIN].
+// That premise is not true of this codebase: the footer carries three real,
+// working destinations (verified in dist/index.html at the time of writing).
+// Replacing real contact details with placeholders would delete content,
+// not preserve it, so the anchors stay anchors. Nothing here was invented:
+// the three destinations are the ones that were already shipped, unchanged.
+// If Wei Yan wants the mockup's placeholders instead, that is a content
+// decision for him, not one to take by inference from a brief.
 ---
 
 <footer class="site-footer">
   <div class="container">
     <div class="card glass-card">
-      <h2>Get in touch</h2>
-      <p class="copy">Open to graduate roles and collaborations.</p>
-      <ul class="contacts">
+      <h2 class="big">Surfacing.<br />Say hello.</h2>
+      <p class="copy">
+        Looking for 2027 graduate roles, and always happy to talk to people building
+        something. Dive plans also welcome.
+      </p>
+      <ul class="links">
         <li><a href="mailto:weiyanminoo1@gmail.com">weiyanminoo1@gmail.com</a></li>
         <li><a href="https://github.com/weiyanminoo" rel="noopener">github.com/weiyanminoo</a></li>
         <li>
@@ -15,82 +34,114 @@
           >
         </li>
       </ul>
-      <div class="rule"></div>
-      <p class="sub">WEI YAN &middot; SINGAPORE</p>
+      <div class="foot">
+        <span>WEI YAN &middot; SINGAPORE</span>
+        <span>MAX DEPTH 32 M &middot; NO DECOMPRESSION LIMIT NOT EXCEEDED</span>
+      </div>
     </div>
   </div>
 </footer>
 
 <style>
-  .site-footer {
-    margin-top: 88px;
-  }
-
+  /* The footer is the mockup's closing section, so it carries a section's
+     own rhythm (base.css's `section{padding-block:112px}`) rather than the
+     88px margin it used before Phase 8 — it is a <footer>, so that rule
+     does not reach it and the padding is set here instead. */
   .container {
-    padding-block: 0 40px;
+    padding-block: 112px;
   }
 
   /* Card background — see base.css's .glass-card for the shared
-     blur/border/shadow/transition. The mockup's own footer/.contact has no
-     card at all (it sits directly on the deep water), but our footer's own
-     `.copy`/`.sub` render in the secondary --ink-2/--ink-3 tokens rather
-     than the mockup's single light-text colour, and those tokens are not
-     safe uncarded within a real page's particle-effect range (see
-     tests/water/effects.test.ts's "not on a card" bound) — so, unlike the
-     mockup, this stays carded. Reuses CARD_OPACITY.project (66%, must
-     match intensity.ts by hand) rather than a fifth opacity constant. */
+     blur/border/shadow/transition. The mockup's own .contact has no card at
+     all (it sits directly on the deep water), but our .copy/.links/.foot
+     render in the secondary --ink-2/--ink-3 tokens rather than the mockup's
+     single light-text colour, and those tokens are not safe uncarded within
+     a real page's particle-effect range (see tests/water/effects.test.ts's
+     "not on a card" bound) — so, unlike the mockup, this stays carded.
+     Reuses CARD_OPACITY.project (66%, must match intensity.ts by hand)
+     rather than a fifth opacity constant. */
   .card {
-    padding: 32px;
+    padding: 40px;
     background: color-mix(in srgb, var(--card-tint) 66%, transparent);
   }
 
-  h2 {
-    margin: 0 0 12px;
-    font-size: 13px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
+  /* Mockup's .contact h2.big. Large text at every viewport width (the clamp
+     floor is 38px), so 3:1, not 4.5:1. */
+  .big {
+    margin: 0;
+    font-size: clamp(38px, 6.2vw, 76px);
+    font-weight: 800;
+    letter-spacing: -0.038em;
+    line-height: 0.95;
   }
 
+  /* Mockup's .contact p. */
   .copy {
-    margin: 0 0 28px;
-    max-width: 46ch;
+    margin: 22px 0 0;
+    max-width: 44ch;
+    font-size: 18px;
+    line-height: 1.55;
     color: var(--ink-2);
-    line-height: 1.6;
   }
 
-  .contacts {
+  /* Mockup's .links: a row of pills. The mockup's own are inert <span>s
+     because it has no destinations to point at; ours are real links (see
+     the frontmatter note), so they keep the 44px target and an underline
+     on hover rather than relying on the pill shape alone. */
+  .links {
     display: flex;
     flex-wrap: wrap;
-    gap: 12px 24px;
-    margin: 0 0 40px;
+    gap: 12px;
+    margin: 34px 0 0;
     padding: 0;
     list-style: none;
-    font-family: var(--mono);
-    font-size: 13px;
-    color: var(--ink-3);
   }
 
-  .contacts a {
-    display: flex;
+  .links a {
+    display: inline-flex;
     align-items: center;
-    min-height: 44px;
+    min-height: 46px;
+    padding: 0 20px;
+    border: 1px solid var(--line);
+    border-radius: 24px;
     color: inherit;
+    font-family: var(--mono);
+    font-size: 13px;
+    text-decoration: none;
+  }
+
+  .links a:hover {
     text-decoration: underline;
     text-underline-offset: 4px;
   }
 
-  .rule {
-    height: 1px;
-    background: var(--line);
-    margin: 0 0 20px;
-  }
-
-  .sub {
-    margin: 0;
+  /* Mockup's .foot: a hairline, then two mono lines pushed to the edges. */
+  .foot {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 14px;
+    margin-top: 70px;
+    padding-top: 26px;
+    border-top: 1px solid var(--line);
     font-family: var(--mono);
-    font-size: 11px;
+    font-size: 10px;
     letter-spacing: 0.14em;
     color: var(--ink-3);
+  }
+
+  @media (max-width: 860px) {
+    .container {
+      padding-block: 72px;
+    }
+
+    .card {
+      padding: 28px;
+    }
+
+    .links a {
+      width: 100%;
+      justify-content: center;
+    }
   }
 </style>

@@ -39,12 +39,37 @@ const meta = [discipline, team, `${depth}m`].filter(Boolean).join(' · ');
 <details class="role glass-card" open={open}>
   <summary>
     <span class="period">{period}</span>
-    <span class="heading">
-      <span class="org">{org}</span>
-      {current && <span class="current-mark">Current</span>}
+    <span class="title">
+      <span class="heading">
+        <span class="org">{org}</span>
+        {
+          current && (
+            <span class="current-mark">
+              <span class="dot dot--now" aria-hidden="true" />
+              Current
+            </span>
+          )
+        }
+      </span>
+      <span class="role-title">{role}</span>
     </span>
-    <span class="role-title">{role}</span>
-    <span class="meta">{meta}</span>
+    <span class="right">
+      <span class="meta">{meta}</span>
+      {/* Mockup's .chev — the only thing signalling that the card opens.
+          Decorative: it sits beside the meta text and duplicates state the
+          <details> element already exposes to assistive tech, so it is
+          aria-hidden. */}
+      <svg
+        class="chev"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        aria-hidden="true"
+      >
+        <path d="M3 6l5 5 5-5" />
+      </svg>
+    </span>
   </summary>
   <div class="role-body md-body">
     <slot />
@@ -65,16 +90,22 @@ const meta = [discipline, team, `${depth}m`].filter(Boolean).join(' · ');
 
   .role:hover {
     background: color-mix(in srgb, var(--card-tint) 86%, transparent);
+    transform: translateY(-2px);
     box-shadow: 0 18px 44px var(--card-shadow-hover);
   }
 
+  /* Mockup's .entry__btn: a three-column log row — when (fixed 150px, so
+     the period column lines up across every card, which is what makes a
+     stack of these read as a log), org/role, then the meta on the right.
+     Was a wrapping flex row, which put the meta on its own third line and
+     left the periods ragged. */
   summary {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 6px 16px;
+    display: grid;
+    grid-template-columns: 150px 1fr auto;
+    gap: 22px;
+    align-items: center;
     min-height: 44px;
-    padding: 20px 24px;
+    padding: 24px 26px;
     cursor: pointer;
     list-style: none;
   }
@@ -87,29 +118,59 @@ const meta = [discipline, team, `${depth}m`].filter(Boolean).join(' · ');
     font-family: var(--mono);
     font-size: 13px;
     color: var(--ink-3);
-    min-width: 13ch;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Column 2 — the mockup stacks .entry__org and .entry__role, with the
+     role 4px under the org. */
+  .title {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
   }
 
   .heading {
     display: inline-flex;
     align-items: baseline;
+    flex-wrap: wrap;
     gap: 10px;
   }
 
+  /* Mockup's .entry__org size. Large text at every viewport width — 28px at
+     the clamp ceiling, and the 21px floor is still large text at weight 700
+     (WCAG's >=18.66px bold), so 3:1 applies throughout rather than 4.5:1.
+     Re-swept after the change rather than assumed. */
   .org {
     font-weight: 700;
-    font-size: 17px;
+    font-size: clamp(21px, 2.4vw, 28px);
   }
 
+  /* Mockup's current-role signal is a dot (.dot--now), not this pill — but
+     colour alone (a lit dot among unlit ones) is not a signal a colourblind
+     reader can use, so the text label stays alongside it rather than being
+     replaced by the dot outright (phase-7-brief.md change 2). */
   .current-mark {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     font-family: var(--mono);
     font-size: 11px;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: var(--ink);
+    color: var(--ink-2);
+  }
+
+  .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex: none;
+  }
+
+  .dot--now {
     background: var(--mark);
-    padding: 2px 8px;
-    border-radius: 999px;
+    box-shadow: 0 0 0 4px rgba(242, 194, 48, 0.2);
   }
 
   .role-title {
@@ -117,14 +178,108 @@ const meta = [discipline, team, `${depth}m`].filter(Boolean).join(' · ');
     font-size: 15px;
   }
 
+  /* Column 3 — the mockup's .entry__right: the depth/meta text and the
+     chevron on one row. */
+  .right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
   .meta {
-    width: 100%;
     font-family: var(--mono);
     font-size: 12px;
     color: var(--ink-3);
+    text-align: right;
   }
 
+  /* Mockup's .chev. Without it a <details> with its marker hidden gives no
+     signal at all that the card opens. No prefers-reduced-motion rule of
+     its own: base.css's global reduce block already collapses every
+     transition-duration to 0.01ms, so the rotation becomes instant there. */
+  .chev {
+    width: 15px;
+    height: 15px;
+    flex: none;
+    color: var(--ink-3);
+    transition: transform 0.4s var(--ease);
+  }
+
+  .role[open] .chev {
+    transform: rotate(180deg);
+  }
+
+  /* Mockup's .entry__body: indented to 198px (150px column + the 22px gap
+     + the 26px padding) so the bullets start under the org, not under the
+     period column. */
   .role-body {
-    padding: 0 24px 24px;
+    padding: 0 26px 28px 198px;
+  }
+
+  /* Mockup's .entry__body ul/li: a drawn dash instead of a list marker.
+     Scoped here (not base.css's shared .md-body ul/li, which ProjectCard's
+     own slotted markdown also uses and which the mockup gives no bullet
+     treatment for) — see phase-7-brief.md change 2. :global() reaches the
+     plain <ul>/<li> markdown output inside this component's own .role-body,
+     which carries no scoping of its own.
+
+     `:not(.tags)` because <Tags> renders a <ul class="tags"> inside this
+     same .role-body, and these selectors outrank Tags.astro's own scoped
+     ones — without it the tag pills were stacked into a full-width column
+     and each given a dash, which is not what either component means. The
+     mockup has no equivalent conflict: its .tags is a sibling <div>, not a
+     list inside .entry__body. */
+  .role-body :global(ul:not(.tags)) {
+    display: flex;
+    flex-direction: column;
+    gap: 11px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .role-body :global(ul:not(.tags) > li) {
+    position: relative;
+    padding-left: 18px;
+    font-size: 15.5px;
+    line-height: 1.55;
+  }
+
+  .role-body :global(ul:not(.tags) > li)::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 9px;
+    width: 6px;
+    height: 1.5px;
+    background: var(--ink-3);
+  }
+
+  .role-body :global(.tags) {
+    margin-top: 18px;
+  }
+
+  /* Mockup's own narrow-viewport entry rules: the three columns collapse to
+     one and the body loses its indent along with the column it aligned to. */
+  @media (max-width: 860px) {
+    summary {
+      grid-template-columns: 1fr;
+      gap: 10px;
+      padding: 20px;
+    }
+
+    /* Mockup's `.entry__right{justify-content:space-between}` — with one
+       column, the meta and the chevron take the row's full width. */
+    .right {
+      justify-content: space-between;
+    }
+
+    .meta {
+      text-align: left;
+    }
+
+    .role-body {
+      padding: 0 20px 22px;
+    }
   }
 </style>

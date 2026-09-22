@@ -1,7 +1,11 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-import { getCollection } from 'astro:content';
-import { formatRolePeriod } from '../lib/dates';
+import SectionHead from '../components/SectionHead.astro';
+import RoleEntry from '../components/RoleEntry.astro';
+import ProjectCard from '../components/ProjectCard.astro';
+import LogSlate from '../components/LogSlate.astro';
+import { INTERESTS } from '../lib/interests';
+import { getCollection, render } from 'astro:content';
 
 const title = 'Wei Yan — Computer Science, NUS';
 const description =
@@ -9,14 +13,16 @@ const description =
 
 const roles = await getCollection('roles');
 const allRoles = [...roles].sort((a, b) => b.data.start.getTime() - a.data.start.getTime());
+const renderedRoles = await Promise.all(allRoles.map((entry) => render(entry)));
 
 const projects = await getCollection('projects');
 const allProjects = [...projects].sort((a, b) => b.data.start.getTime() - a.data.start.getTime());
+const renderedProjects = await Promise.all(allProjects.map((entry) => render(entry)));
 ---
 
 <BaseLayout title={title} description={description} depth="column">
-  <section class="zone-light">
-    <h1>Wei Yan</h1>
+  <section class="hero zone-light">
+    <h1 class="hero-h1">Wei Yan</h1>
     <div class="hero-note glass-card">
       <p class="lede">
         Computer Science at NUS. Four internships across four disciplines —
@@ -28,61 +34,80 @@ const allProjects = [...projects].sort((a, b) => b.data.start.getTime() - a.data
   </section>
 
   <section class="zone-light">
-    <h2>The work</h2>
-    <ul class="role-list">
+    <SectionHead label="DIVE LOG — WORK" depth="5 M" />
+    <div class="roles">
       {
-        allRoles.map((entry) => (
-          <li class="glass-card">
-            <span class="period">
-              {formatRolePeriod(entry.data.start, entry.data.end, entry.data.current)}
-            </span>
-            <span class="org">{entry.data.org}</span>
-            <span class="discipline">{entry.data.discipline}</span>
-          </li>
-        ))
+        allRoles.map((entry, i) => {
+          const { Content } = renderedRoles[i];
+          return (
+            <RoleEntry
+              org={entry.data.org}
+              role={entry.data.role}
+              team={entry.data.team}
+              discipline={entry.data.discipline}
+              start={entry.data.start}
+              end={entry.data.end}
+              current={entry.data.current}
+              depth={entry.data.depth}
+              tags={entry.data.tags}
+              open={i === 0}
+            >
+              <Content />
+            </RoleEntry>
+          );
+        })
       }
-    </ul>
+    </div>
     <p class="more glass-card"><a href="/work">All five roles in detail</a></p>
   </section>
 
   <section class="zone-light">
-    <h2>Built on my own time</h2>
-    <ul class="project-list">
+    <SectionHead label="BUILT ON MY OWN TIME" depth="14 M" />
+    <div class="projects">
       {
-        allProjects.map((entry) => (
-          <li class="glass-card">
-            <span class="name">{entry.data.name}</span>
-            <span class="summary">{entry.data.summary}</span>
-          </li>
-        ))
+        allProjects.map((entry, i) => {
+          const { Content } = renderedProjects[i];
+          return (
+            <ProjectCard
+              name={entry.data.name}
+              kind={entry.data.kind}
+              start={entry.data.start}
+              ongoing={entry.data.ongoing}
+              url={entry.data.url}
+              summary={entry.data.summary}
+              outcome={entry.data.outcome}
+              tags={entry.data.tags}
+            >
+              <Content />
+            </ProjectCard>
+          );
+        })
       }
-    </ul>
+    </div>
     <p class="more glass-card"><a href="/projects">Both projects in detail</a></p>
   </section>
 
-  <section class="thermocline-section">
+  <div class="thermocline-section">
     <div id="thermocline" class="thermocline">
       <span class="thermocline-rule" aria-hidden="true"></span>
       <span class="thermocline-label">21M &middot; THERMOCLINE</span>
       <span class="thermocline-rule" aria-hidden="true"></span>
     </div>
-  </section>
+  </div>
 
   <section class="zone-deep">
-    <h2>Outside the work</h2>
+    <SectionHead label="OUTSIDE THE WORK" depth="24 M" />
     <div class="interests">
-      <div class="interest glass-card">
-        <h3>Diving</h3>
-        <p>The reason this site descends as you read it.</p>
-      </div>
-      <div class="interest glass-card">
-        <h3>Hiking</h3>
-        <p>The other direction, and the opposite pace.</p>
-      </div>
-      <div class="interest glass-card">
-        <h3>Keeping active</h3>
-        <p>I will play most sports, enthusiastically and with mixed results.</p>
-      </div>
+      {
+        INTERESTS.map((interest) => (
+          <div class="interest glass-card">
+            <h3>{interest.title}</h3>
+            <p class="line">{interest.line}</p>
+            <p>{interest.body}</p>
+            <LogSlate fields={interest.fields} />
+          </div>
+        ))
+      }
     </div>
     <p class="more glass-card"><a href="/outside">More outside the work</a></p>
   </section>
@@ -101,6 +126,24 @@ const allProjects = [...projects].sort((a, b) => b.data.start.getTime() - a.data
      large text (3:1, with ~3x headroom) and the mockup leaves its own hero
      heading floating free. Deviates from the mockup, whose .lede has no
      card: the mockup's caustics never run this strong. */
+  /* Mockup's .hero: padding-top 124px / padding-bottom 128px, overriding
+     base.css's shared `section{padding-block:112px}` exactly as the
+     mockup's own .hero rule overrides its `section` rule. */
+  .hero {
+    padding-top: 124px;
+    padding-bottom: 128px;
+  }
+
+  /* Mockup's .hero h1: clamp(58px,9.2vw,132px)/800/.88/-.04em, scoped to
+     just this page's own h1 (base.css's shared h1 rule stays the smaller
+     site-wide default that Work/Projects/Outside's plain page-title h1s
+     still use — the mockup only ever has the one hero heading). */
+  .hero-h1 {
+    font-size: clamp(58px, 9.2vw, 132px);
+    line-height: 0.88;
+    letter-spacing: -0.04em;
+  }
+
   .hero-note {
     max-width: 64ch;
     margin-top: 24px;
@@ -110,8 +153,9 @@ const allProjects = [...projects].sort((a, b) => b.data.start.getTime() - a.data
 
   .lede {
     margin: 0;
-    max-width: 60ch;
-    font-size: clamp(17px, 2.2vw, 20px);
+    max-width: 46ch;
+    font-size: clamp(17px, 2.1vw, 23px);
+    line-height: 1.5;
     color: var(--ink-2);
   }
 
@@ -119,71 +163,29 @@ const allProjects = [...projects].sort((a, b) => b.data.start.getTime() - a.data
     margin-top: 24px;
     margin-bottom: 0;
     font-family: var(--mono);
-    font-size: 12px;
-    letter-spacing: 0.14em;
+    font-size: 11px;
+    letter-spacing: 0.15em;
     text-transform: uppercase;
     color: var(--ink-3);
   }
 
-  h2 {
-    font-size: clamp(22px, 3vw, 28px);
-  }
-
-  /* Gapped card stacks, water visible between them — same language as
-     RoleEntry/ProjectCard's own cards, at CARD_OPACITY.project (66%, must
-     match intensity.ts by hand) since these rows are the condensed,
-     lighter-weight equivalent of those full-detail cards. */
-  .role-list,
-  .project-list {
+  /* Phase 8: Home carries the full log and the full projects, not the
+     condensed period/org/discipline rows it used to — same components,
+     same card language and same gaps as /work's .roles and /projects'
+     .projects, which is the point (phase-7-9-brief.md 8.2: reuse the
+     components, do not fork a second copy for Home). */
+  .roles {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    margin: 24px 0 0;
-    padding: 0;
-    list-style: none;
+    gap: 14px;
+    margin-top: 32px;
   }
 
-  .role-list li {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 6px 20px;
-    min-height: 44px;
-    padding: 12px 20px;
-    background: color-mix(in srgb, var(--card-tint) 66%, transparent);
-  }
-
-  .role-list .period {
-    flex: 0 0 auto;
-    width: 13ch;
-    font-family: var(--mono);
-    font-size: 13px;
-    color: var(--ink-3);
-  }
-
-  .role-list .org {
-    font-weight: 700;
-  }
-
-  .role-list .discipline {
-    color: var(--ink-2);
-  }
-
-  .project-list li {
-    padding: 18px 20px;
-    background: color-mix(in srgb, var(--card-tint) 66%, transparent);
-  }
-
-  .project-list .name {
-    display: block;
-    margin-bottom: 4px;
-    font-weight: 700;
-  }
-
-  .project-list .summary {
-    display: block;
-    max-width: 60ch;
-    color: var(--ink-2);
+  .projects {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+    gap: 18px;
+    margin-top: 32px;
   }
 
   /* Carded for the same reason as .hero-note above: a 13px link is body
@@ -197,11 +199,17 @@ const allProjects = [...projects].sort((a, b) => b.data.start.getTime() - a.data
   .more {
     width: fit-content;
     margin: 20px 0 0;
-    padding: 10px 18px;
+    padding: 0 18px;
     background: color-mix(in srgb, var(--card-tint) 66%, transparent);
   }
 
+  /* The link, not the paragraph, carries the height: measured at 16.0px
+     tall before this — the pill's own 10px block padding is not part of
+     the target, so the hit area was the bare line box. */
   .more a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
     color: inherit;
     font-family: var(--mono);
     font-size: 13px;
@@ -212,18 +220,19 @@ const allProjects = [...projects].sort((a, b) => b.data.start.getTime() - a.data
     text-underline-offset: 4px;
   }
 
-  /* The thermocline section is the passage itself, not a heading with
-     margin around it: genuine top and bottom padding stand in for the
-     distance actually swum through, so the divider sits inside real
-     content space rather than being positioned by a pixel constant. The
-     measured contrast floor for light text on deep water sits only a
-     couple of metres past the thermocline (see depth.ts), and the actual
-     canvas — dither, caustics and light shafts included — cuts it closer
-     still, so the bottom padding is generous: it keeps the first deep-zone
-     heading (Outside the work, which follows at ordinary section spacing)
-     well clear of that margin rather than right at the boundary. */
+  /* The thermocline is a passage, not a rule: genuine top and bottom
+     padding stand in for the distance actually swum through. A plain <div>,
+     not a <section>, so base.css's `section{padding-block:112px}` does not
+     stack on top of its own padding — the mockup's .thermo is likewise not
+     a section, and its .thermo__in carries the whole passage. Padding is
+     the mockup's clamp(130px,19vh,210px), replacing the asymmetric
+     160/260 that predated the Phase 8 rhythm: the page is now ~1.6x taller
+     for the same 0-32m range, so a metre of depth costs far more scrolling
+     and the extra bottom margin that used to keep the first deep-zone
+     heading clear of the contrast boundary is no longer doing that work —
+     verified by the contrast sweep, not assumed. */
   .thermocline-section {
-    padding-block: 160px 260px;
+    padding-block: clamp(130px, 19vh, 210px);
   }
 
   .thermocline {
@@ -272,8 +281,12 @@ const allProjects = [...projects].sort((a, b) => b.data.start.getTime() - a.data
   }
 
   .interest p {
-    margin: 0;
     max-width: 55ch;
     color: var(--ink-2);
+  }
+
+  .interest .line {
+    font-size: 17px;
+    color: var(--on-deep-2);
   }
 </style>

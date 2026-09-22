@@ -109,28 +109,64 @@ svg {
 
 /* shared page container: horizontal rhythm + the reserved rail gutter.
    Kept on the container, not the body, so a sticky header's background
-   can still span the full viewport width. */
+   can still span the full viewport width (SiteHeader.astro/SiteFooter.astro
+   both nest this inside their own full-width element).
+
+   Mockup's equivalent is two nested elements — .shell (margin-left: rail,
+   no width of its own, so it fills the remaining viewport) containing .wrap
+   (max-width: 1180px, margin: 0 auto, padding: 0 56px), which centres the
+   symmetric column WITHIN that rail-reduced remainder, not within the full
+   viewport. The bug this replaces put the rail's gutter into this same
+   element's own padding-left (padding-left: rail + 24px) while still
+   centring it with margin-inline: auto against the FULL viewport width —
+   correct at neither: the box was centred as if the rail didn't exist, then
+   the extra left padding pushed the text off that centre.
+
+   Reproduces the shell+wrap maths in one element rather than adding nested
+   markup in three call sites (header/main/footer all reuse this class):
+   margin-left carries the rail offset PLUS half of whatever space is left
+   over after the rail and the 1180px column (mirrors .shell's margin-left
+   + .wrap's own centring margin); margin-right carries just the latter
+   (the rail never reserves space on the right). Padding is symmetric on
+   both sides, matching .wrap's own padding — no rail-only asymmetry left
+   in it. max() collapses to 0 once the available width (100% - rail) can
+   no longer fit 1180px, matching .wrap's own fill-available narrow-viewport
+   behaviour; verified at 1440px, 1280px and 375px (phase-7-report.md). */
 .container {
   max-width: 1180px;
-  margin-inline: auto;
-  padding-inline: 24px;
-  padding-left: calc(var(--rail) + 24px);
+  margin-left: calc(var(--rail) + max(0px, (100% - var(--rail) - 1180px) / 2));
+  margin-right: max(0px, (100% - var(--rail) - 1180px) / 2);
+  padding-inline: 56px;
 }
 
 @media (max-width: 860px) {
   .container {
-    padding-left: calc(var(--rail) + 16px);
-    padding-right: 16px;
+    padding-inline: 16px;
   }
 }
 
-/* section rhythm: more space above a heading than below it */
+/* Section rhythm — the mockup's `section{padding:112px 0}`
+   (mockups/dive-log.html). Padding, not the margin this replaces, and not
+   only for the extra height: adjacent sections' margins collapse into one
+   88px gap, whereas two paddings stack into 224px, and on a page whose
+   background colour is a function of vertical position that difference is
+   the whole descent. At 88px collapsed margins Home was 2990px tall and
+   the water at the hero already read mid-blue; the mockup's rhythm is what
+   makes scroll 0 read as foam (phase-7-9-brief.md 8.1). BaseLayout.astro's
+   `main .container` correspondingly carries no block padding of its own —
+   the sections own all of the vertical rhythm now. */
 section {
-  margin-top: 88px;
+  padding-block: 112px;
 }
 
-section:first-of-type {
-  margin-top: 0;
+/* Mockup's narrow-viewport section rhythm (`section{padding:72px 0}`).
+   Must come after the rule above, not in the earlier `.container` media
+   block: both selectors are a single type selector, so the later one in
+   source order wins regardless of the media query. */
+@media (max-width: 860px) {
+  section {
+    padding-block: 72px;
+  }
 }
 
 h1 {
@@ -199,9 +235,18 @@ p {
    Fix round 3 carded the last two that weren't — the hero's .lede/.meta
    (index.astro's .hero-note) and Home's three .more links. Never card the
    rail gutter or the outer page margins. */
+/* No hand-written `-webkit-backdrop-filter` companion here (or on
+   DepthRail's .scrim / SiteHeader). Writing both made the build's CSS
+   minifier collapse the pair down to the PREFIXED one alone —
+   `.glass-card{-webkit-backdrop-filter:blur(12px)saturate(1.15)}` was what
+   actually shipped in dist/ — and current Chromium does not recognise that
+   prefixed property (CSS.supports('-webkit-backdrop-filter','blur(10px)')
+   is false), so the declaration was dropped and NO card on the built site
+   was ever blurred: `getComputedStyle(document.querySelector('.role'))
+   .backdropFilter` read `none` against a served build. Unprefixed only, and
+   the minifier re-adds whatever prefix its own targets need. */
 .glass-card {
   backdrop-filter: blur(12px) saturate(1.15);
-  -webkit-backdrop-filter: blur(12px) saturate(1.15);
   border: 1px solid var(--card-border);
   border-radius: 15px;
   box-shadow: 0 12px 34px var(--card-shadow);

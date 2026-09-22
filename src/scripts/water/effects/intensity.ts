@@ -15,12 +15,21 @@
 // phase-7-report.md for the measurements behind every number below.
 export const INTENSITY = {
   dither: 0.05, // overlay alpha of the noise tile — unchanged, already doing its job
-  caustics: 2.4, // multiplier on the trough depth — raised now shafts no longer flatten it (see `shafts` below)
+  // Multiplier on the trough depth, and the mockup's own value: its
+  // caustics layer is `255 - m*58/26/15` drawn at `globalAlpha = 0.55*lit`
+  // (mockups/dive-log.html), while ours draws at alpha 1 and folds that
+  // 0.55 into the trough instead — same arithmetic, since TROUGH_DEPTH
+  // (caustics.ts) is 55/25/15. Phase 8 lowered this from 2.4, which was
+  // ~4.4x the mockup's strength and was the single reason the water at
+  // scroll 0 on Home read rgb(130,195,217) rather than foam: at 2.4 the
+  // multiply took the 0m stop rgb(246,249,249) down by ~120 on red.
+  caustics: 0.55,
   // 'screen'-composited white over near-white surface water was flattening
   // the caustics ripples beneath it (measured ~27/255 scanline variation at
-  // the old 0.5, most of it the shafts' own beam shape, not the ripple) —
-  // lowering this let the caustics multiplier above be raised instead, so
-  // the ripples read as rippling light rather than being washed out.
+  // the old 0.5, most of it the shafts' own beam shape, not the ripple).
+  // The mockup's own peak alpha is 0.5 x its 0.24 first gradient stop, i.e.
+  // ~0.12; this is the same dial (see shafts.ts's MID_STOP_FRACTION, which
+  // expresses the rest of its gradient as fractions of this).
   shafts: 0.15,
   // Mockup's effective value is 0.5*dark ≈ 0.5. Still short of it, and the
   // reason changed in fix round 3: the "not on a card" bound is no longer

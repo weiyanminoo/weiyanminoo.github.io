@@ -1,0 +1,69 @@
+---
+// Mockup's .sec-head (mockups/dive-log.html): a mono label, a hairline
+// rule, and a depth marker. Used by Home (three sections) and by each
+// sub-page, matching that page's own section (phase-7-brief.md change 1).
+interface Props {
+  label: string;
+  depth: string;
+}
+
+const { label, depth } = Astro.props;
+---
+
+<div class="sec-head">
+  <h2>{label}</h2>
+  <span class="rule" aria-hidden="true"></span>
+  <span class="depth">{depth}</span>
+</div>
+
+<style>
+  .sec-head {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    margin-bottom: 44px;
+  }
+
+  /* Mockup's h2/.depth sit directly on the water (color: var(--ink), no
+     background) — but they are 10px, normal-size text, not the large text
+     (>=18.66px bold or >=24px) every other uncarded element on this site is
+     verified against (see tests/water/effects.test.ts's "not on a card"
+     bound). Measured uncarded here (phase-7-report.md): --ink only reaches
+     ~3.28:1 at 12.9m and --on-deep ~3.97:1 at 31m, both well under the
+     4.5:1 normal-text floor — the site's real particle effects run far
+     stronger than this static mockup file's own. So, like every other
+     piece of real body text on the site, the label and depth marker (not
+     the rule, which carries no text) get a background — tight to the text,
+     not the full .glass-card treatment (no blur/border/shadow), just
+     enough tint to hold contrast. Uses CARD_OPACITY.entry/.deep's own 72%
+     (intensity.ts; must match by hand, same as every other card) rather
+     than a new constant, so this stays inside the range
+     tests/water/effects.test.ts's "content card" bounds already verify. No
+     colour is set explicitly: inherits the zone's --ink/--on-deep, same as
+     every other uncarded heading on the site. */
+  h2,
+  .depth {
+    margin: 0;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 500;
+    padding: 3px 7px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--card-tint) 72%, transparent);
+  }
+
+  h2 {
+    letter-spacing: 0.24em;
+  }
+
+  .depth {
+    letter-spacing: 0.14em;
+    font-weight: 400;
+  }
+
+  .rule {
+    flex: 1;
+    height: 1px;
+    background: var(--line);
+  }
+</style>

@@ -43,13 +43,27 @@ const isCurrent = (href: string) =>
      rail; the header's own measured floor is lower because — unlike the
      rail — it now tracks the correct zone tint via .is-deep instead of
      staying permanently light). */
+  /* margin-left is the mockup's `.shell{margin-left:var(--rail)}`, which its
+     header.top lives inside — so the mockup's header glass starts at the
+     rail's right edge and never covers it. Ours spanned the full viewport,
+     which put a second translucent layer over the rail's top 65px; because
+     this element cross-fades its background over 0.9s at the thermocline
+     while the rail's text colour flips in one frame, that layer dropped the
+     rail's "DEPTH" label to a measured 1.60:1 mid-cross-fade, and still to
+     4.41:1 once the rail was raised above it (the rail's own scrim is 85%,
+     so 15% of this header's backdrop still reached it through the blur).
+     Clear of the rail entirely, the worst mid-cross-fade reading is the
+     settled one. */
   .site-header {
     position: sticky;
     top: 0;
     z-index: 50;
+    margin-left: var(--rail);
     background: color-mix(in srgb, var(--card-tint) 62%, transparent);
+    /* Unprefixed only — see base.css's .glass-card for why the hand-written
+       -webkit- companion had to go (the minifier collapsed the pair to the
+       prefixed form alone, which current Chromium drops). */
     backdrop-filter: blur(14px) saturate(1.2);
-    -webkit-backdrop-filter: blur(14px) saturate(1.2);
     border-bottom: 1px solid var(--line);
     transition:
       background 0.9s var(--ease),
@@ -68,6 +82,19 @@ const isCurrent = (href: string) =>
     --card-tint: var(--deep);
     --card-border: rgba(255, 255, 255, 0.18);
     color: var(--on-deep);
+  }
+
+  /* base.css's .container folds the mockup's .shell offset and .wrap's own
+     centring into one element, because main/footer have no .shell to sit
+     in. This header now DOES carry that offset itself (above), so its
+     container must contribute only the .wrap half of the maths or the rail
+     width is counted twice. `100%` here is the header's content box —
+     viewport minus the rail — exactly what the mockup's .wrap is centred
+     in. Measured: content box left edge 168px at 1440, identical to
+     `main .container`. */
+  .site-header .container {
+    margin-left: max(0px, (100% - 1180px) / 2);
+    margin-right: max(0px, (100% - 1180px) / 2);
   }
 
   .row {

@@ -3,7 +3,11 @@ import { ramp, depthAtY } from '../../src/scripts/water/effects/gate';
 import type { WaterFrame } from '../../src/scripts/water/effects/types';
 import { snowAlphaAt } from '../../src/scripts/water/effects/snow';
 import { shoalAlphaAt } from '../../src/scripts/water/effects/shoal';
-import { bubbleAlphaAt } from '../../src/scripts/water/effects/bubbles';
+import {
+  bubbleAlphaAt,
+  bubbleLightAlphaAt,
+  bubbleDeepAlphaAt,
+} from '../../src/scripts/water/effects/bubbles';
 import { CARD_OPACITY } from '../../src/scripts/water/effects/intensity';
 import { colourAtDepth, type Rgb } from '../../src/scripts/water/palette';
 import { bandForPath } from '../../src/scripts/water/depth';
@@ -123,14 +127,27 @@ describe('particle gate coverage', () => {
     expect(shoalAlphaAt(18)).toBeGreaterThan(0);
   });
 
-  it('bubbles is 0 outside (5, 17) and non-zero inside', () => {
+  it('bubbles fade in from 5m and then run to the floor of the column', () => {
     expect(bubbleAlphaAt(0)).toBe(0);
     expect(bubbleAlphaAt(5)).toBe(0);
-    expect(bubbleAlphaAt(17)).toBe(0);
-    expect(bubbleAlphaAt(18)).toBe(0);
     expect(bubbleAlphaAt(6)).toBeGreaterThan(0);
     expect(bubbleAlphaAt(10)).toBeGreaterThan(0);
-    expect(bubbleAlphaAt(16)).toBeGreaterThan(0);
+    // Phase 9: they used to stop at 17m, which is why they never looked
+    // real — a bubble only reads as one against DARK water, and they never
+    // reached any.
+    expect(bubbleAlphaAt(24)).toBeGreaterThan(0);
+    expect(bubbleAlphaAt(32)).toBeGreaterThan(0);
+  });
+
+  it('hands bubbles from the dark-rim to the bright treatment inside the textless 19-24m passage', () => {
+    // The two treatments composite OPPOSITE directions (toward rgb(40,72,88)
+    // and toward near-white), so they must never both be behind the same
+    // glyph. They overlap only across 19-24m, which no page renders text in
+    // — see depth.ts's band table.
+    expect(bubbleDeepAlphaAt(19)).toBe(0);
+    expect(bubbleLightAlphaAt(24)).toBe(0);
+    expect(bubbleLightAlphaAt(14)).toBeGreaterThan(0);
+    expect(bubbleDeepAlphaAt(28)).toBeGreaterThan(0);
   });
 
   it('gives every one of the four page bands at least one non-zero particle effect somewhere within it', () => {
@@ -205,6 +222,8 @@ describe('particle gate coverage', () => {
 describe('stacked particle contrast bound', () => {
   const SNOW_RGB: Rgb = [255, 255, 255];
   const DARK_PARTICLE_RGB: Rgb = [40, 72, 88];
+  // bubbles.ts's GLINT_COLOUR — the dark-water bubble treatment.
+  const BUBBLE_GLINT_RGB: Rgb = [242, 251, 253];
 
   // The card tint per zone — must match tokens.css's --card-tint default
   // and BaseLayout.astro's html.depth-deep / :global(.zone-deep) override
@@ -254,9 +273,19 @@ describe('stacked particle contrast bound', () => {
     if (shoalA > 0) {
       colour = compositeOver(colour, DARK_PARTICLE_RGB, shoalA);
     }
-    const bubbleA = bubbleAlphaAt(d);
-    if (bubbleA > 0) {
-      colour = compositeOver(colour, DARK_PARTICLE_RGB, bubbleA);
+    // Bubbles composite in OPPOSITE directions by zone — a dark rim on
+    // bright water, a bright ring on dark water — so each treatment is
+    // modelled against its own colour. Using one colour for both (as this
+    // did before Phase 9) would have understated the deep-zone cost
+    // entirely, since a near-white ring on deep water is exactly what eats
+    // the on-deep tokens' headroom.
+    const rimA = bubbleLightAlphaAt(d);
+    if (rimA > 0) {
+      colour = compositeOver(colour, DARK_PARTICLE_RGB, rimA);
+    }
+    const ringA = bubbleDeepAlphaAt(d);
+    if (ringA > 0) {
+      colour = compositeOver(colour, BUBBLE_GLINT_RGB, ringA);
     }
     return colour;
   }

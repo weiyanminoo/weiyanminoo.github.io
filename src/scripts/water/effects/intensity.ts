@@ -31,24 +31,41 @@ export const INTENSITY = {
   // ~0.12; this is the same dial (see shafts.ts's MID_STOP_FRACTION, which
   // expresses the rest of its gradient as fractions of this).
   shafts: 0.15,
-  // Mockup's effective value is 0.5*dark ≈ 0.5. Still short of it, and the
-  // reason changed in fix round 3: the "not on a card" bound is no longer
-  // what stops snow (every remaining uncarded element is LARGE text at
-  // 3:1 — see tests/water/effects.test.ts), the deep CONTENT-CARD bound is.
   // The binding element is the faintest on-deep token (--on-deep-3) on a
   // deep card in the deepest water: LogSlate's <dt>/<dd class="unfilled">
   // inside /outside's .topic cards, and the footer's .contacts/.sub, all
-  // at 31-32m. Measured ceiling with CARD_OPACITY.deep at 0.72 is ~0.395;
-  // this keeps a margin under it rather than shipping right at the edge of
-  // an analytical (not rendered-pixel) model. See phase-7-report.md.
-  snow: 0.37,
+  // at 31-32m. Snow and CARD_OPACITY.deep trade directly against each
+  // other there, so this number cannot be read without that one.
+  //
+  // Phase 9 lowered this from 0.37 to buy the translucency the user asked
+  // for: at deep 0.72 the analytical worst case was already 4.61, barely
+  // over the floor, so making the deep cards more transparent required
+  // giving snow back. Measured pairs (analytical worst vs --on-deep-3):
+  // deep 0.72/snow 0.37 -> 4.61, deep 0.60/snow 0.37 -> ~4.35 (FAILS),
+  // deep 0.60/snow 0.26 -> 4.82. This is the visible cost of the more
+  // translucent deep cards, and it is a deliberate trade, not a drift.
+  // Phase 9 final: 0.24, sharing the deep zone's headroom with the bright
+  // bubbles that now reach the floor of the column. Measured at deep card
+  // 0.72: snow 0.24 + deep bubbles 0.15 -> 4.66 worst vs --on-deep-3.
+  snow: 0.24,
   shoal: 0.35,
-  // The mockup's own effective value (0.5*bub), reached in fix round 3:
-  // carding the hero copy and Home's three "more" links left no uncarded
-  // NORMAL-size text anywhere on the site, so the bound over bubbles'
-  // 5-17m range is the 3:1 large-text one (Projects' uncarded <h1> at
-  // ~13m, 80px/800) rather than 4.5:1. Measured ceiling ~0.560.
-  bubbles: 0.5,
+  // Phase 9 lowered this from 0.5 (the mockup's own effective value) for
+  // two reasons at once. It buys the light-zone card translucency below —
+  // at entry 0.62 the analytical worst goes 4.89 (bubbles 0.5) -> 5.19
+  // (bubbles 0.35) — and it is not what made the bubbles read as fake.
+  // That was their shape and colour, fixed in bubbles.ts: a dark rim with
+  // a dark interior dot reads as a drawn ring, not a bubble. A lighter,
+  // smaller bubble with a real specular glint reads better at LESS alpha,
+  // so this reduction costs nothing visually.
+  bubbles: 0.35,
+  // The dark-water treatment, gated below the thermocline. Far lower than
+  // `bubbles` above and still far more visible: a bright ring on deep water
+  // has vastly more contrast to work with than a dark rim on near-white
+  // water, which is why the mockup's bubbles read and ours did not — ours
+  // stopped at 17m and never reached the water where a bubble looks like a
+  // bubble. Measured ceiling at deep card 0.72 with snow at 0.24 is ~0.20;
+  // 0.15 keeps margin under an analytical (not rendered-pixel) bound.
+  bubblesDeep: 0.15,
 } as const;
 
 // Frosted-glass card opacities — one named constant per component, each
@@ -62,9 +79,15 @@ export const INTENSITY = {
 // comment. tests/water/effects.test.ts imports this object directly
 // (rather than a second, independently-typed copy) so the analytical
 // contrast guarantee and the shipped CSS cannot silently drift apart.
+// Phase 9: every value here dropped, because the user judged the cards too
+// opaque against the mockup. These are no longer the mockup's numbers — they
+// are deliberately BELOW them, and the analytical worst case each one lands
+// at (vs the binding token, floor 4.5) is recorded beside it. Lowering any
+// of these further without re-running that sweep will breach the floor;
+// entry at 0.54 already measures 4.38.
 export const CARD_OPACITY = {
-  entry: 0.72, // RoleEntry.astro .role — mockup's .entry
-  project: 0.66, // ProjectCard.astro .project — mockup's .proj
-  header: 0.62, // SiteHeader.astro — no mockup precedent for the header actually holding contrast across a full-column page (see that file's comment); tuned to clear both bounds
-  deep: 0.72, // deep-zone card equivalent (LogSlate's section wrapper, Home's zone-deep section) — no mockup precedent below the thermocline at all (finding 1); raised 0.62 -> 0.72 in fix round 3 (the mockup's own densest card, .entry) because this, not the uncarded bound, is what caps `snow` above
+  entry: 0.62, // RoleEntry.astro .role — mockup's .entry is 0.72; worst 5.19 @13m vs --ink-2
+  project: 0.58, // ProjectCard.astro .project, SiteFooter, Home's hero note + "more" links — mockup's .proj is 0.66; worst 4.95 @13m
+  header: 0.5, // SiteHeader.astro — the mockup's own header value, reached now the light-zone bound has room
+  deep: 0.72, // deep-zone equivalent (LogSlate's .topic, Home's .interest) — no mockup precedent below the thermocline. Phase 9 tried 0.60 for translucency and put it BACK: the deep zone cannot afford both a translucent card and bright bubbles, and the user chose the bubbles. At 0.60 even 0.10 of deep bubbles measured 4.39, under the floor. Worst here is 4.66 @~31m vs --on-deep-3 with snow 0.24 + deep bubbles 0.15
 } as const;

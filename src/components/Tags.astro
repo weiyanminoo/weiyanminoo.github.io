@@ -17,6 +17,20 @@ const { tags } = Astro.props;
 }
 
 <style>
+  /* Tag text sits on a translucent card over water that moving fauna and
+     bubbles keep changing, so --ink-2 was not stable: the same pill measured
+     4.40:1, 4.45:1 and 4.86:1 across runs, straddling the floor. --ink has
+     real margin, but is NOT remapped by the deep zone the way --ink-2 is, so
+     this switches it the same way SiteFooter does. */
+  .tags {
+    --tag-ink: var(--ink);
+  }
+
+  :global(html.depth-deep) .tags,
+  :global(.zone-deep) .tags {
+    --tag-ink: var(--on-deep-2);
+  }
+
   .tags {
     display: flex;
     flex-wrap: wrap;
@@ -30,7 +44,7 @@ const { tags } = Astro.props;
     font-family: var(--mono);
     font-size: 10px;
     letter-spacing: 0.08em;
-    color: var(--ink-2);
+    color: var(--tag-ink);
     border: 1px solid var(--line);
     border-radius: 5px;
     padding: 4px 8px;

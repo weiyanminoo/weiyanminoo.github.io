@@ -24,6 +24,23 @@ import { FAUNA_ART, type FaunaSpecies } from './faunaArt';
 
 // Light-water silhouette: the same blue-grey the shoal uses. Against
 // near-white water a creature reads as a dark shape, which is what it is.
+// The turtle artwork is a set of separate shell plates and the rays carry
+// interior detail shapes (two eyes on the stingray, four on the manta). Under
+// canvas's default nonzero fill those gaps render as holes, so the creature
+// reads as a stencil with light gaps rather than a silhouette — which is why
+// the shark, a single closed path, always looked right and they did not.
+// Stroking the same path with a round join dilates every subpath just enough
+// to close the gaps. Device pixels, so it is a constant dilation regardless of
+// how large a given creature is drawn.
+const SILHOUETTE_DILATE = 1.6;
+
+// Only the turtle. Its artwork is separate shell plates with real gaps between
+// them, so no fill-rule change closes them — the geometry has to be dilated.
+// The rays' holes were interior subpaths and were removed from the path data
+// instead (see faunaArt.ts), which is free; stroking all three cost ~15fps
+// while scrolling and darkened the water enough to fail a tag on Home.
+const NEEDS_DILATE = new Set<FaunaSpecies>(['turtle']);
+
 const LIGHT_SILHOUETTE: readonly [number, number, number] = [40, 72, 88];
 
 // Dark-water silhouette: palette.ts's own deepest stop (32m). Below the
@@ -244,6 +261,8 @@ const fauna: Effect = (frame) => {
   const art = ensureUnitPaths();
   const lightPath = new Path2D();
   const deepPath = new Path2D();
+  const lightDilate = new Path2D();
+  const deepDilate = new Path2D();
   let maxLightAlpha = 0;
   let maxDeepAlpha = 0;
 
@@ -257,14 +276,15 @@ const fauna: Effect = (frame) => {
       continue;
     }
 
-    const target = band.deep ? deepPath : lightPath;
-    target.addPath(
-      art[c.species],
-      new DOMMatrix()
-        .translate(x, y)
-        .rotate((heading * 180) / Math.PI)
-        .scale(length)
-    );
+    const matrix = new DOMMatrix()
+      .translate(x, y)
+      .rotate((heading * 180) / Math.PI)
+      .scale(length);
+
+    (band.deep ? deepPath : lightPath).addPath(art[c.species], matrix);
+    if (NEEDS_DILATE.has(c.species)) {
+      (band.deep ? deepDilate : lightDilate).addPath(art[c.species], matrix);
+    }
 
     if (band.deep) {
       maxDeepAlpha = Math.max(maxDeepAlpha, alpha);
@@ -278,15 +298,22 @@ const fauna: Effect = (frame) => {
   }
 
   ctx.save();
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.lineWidth = SILHOUETTE_DILATE;
   if (maxLightAlpha > 0) {
     ctx.globalAlpha = maxLightAlpha;
     ctx.fillStyle = `rgb(${LIGHT_SILHOUETTE[0]}, ${LIGHT_SILHOUETTE[1]}, ${LIGHT_SILHOUETTE[2]})`;
+    ctx.strokeStyle = ctx.fillStyle;
     ctx.fill(lightPath);
+    ctx.stroke(lightDilate);
   }
   if (maxDeepAlpha > 0) {
     ctx.globalAlpha = maxDeepAlpha;
     ctx.fillStyle = `rgb(${DEEP_SILHOUETTE[0]}, ${DEEP_SILHOUETTE[1]}, ${DEEP_SILHOUETTE[2]})`;
+    ctx.strokeStyle = ctx.fillStyle;
     ctx.fill(deepPath);
+    ctx.stroke(deepDilate);
   }
   ctx.restore();
 };

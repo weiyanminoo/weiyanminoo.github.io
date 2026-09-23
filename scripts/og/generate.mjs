@@ -34,7 +34,7 @@ const tokens = {
 // line and the hero's meta line. Nothing invented here.
 const name = 'Wei Yan';
 const roleLine = 'Computer Science, NUS';
-const metaLine = 'SINGAPORE · CLASS OF 2027 · NUS MERIT SCHOLAR';
+const metaLine = 'SINGAPORE · NATIONAL UNIVERSITY OF SINGAPORE · COMPUTER SCIENCE';
 
 const html = `<!doctype html>
 <html>

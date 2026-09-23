@@ -19,11 +19,11 @@
 
 <footer class="site-footer">
   <div class="container">
-    <div class="card glass-card">
-      <h2 class="big">Surfacing.<br />Say hello.</h2>
+    <div class="card">
+      <h2 class="big">Enjoyed the dive?<br />Do reach out!</h2>
       <p class="copy">
         Looking for 2027 graduate roles, and always happy to talk to people building
-        something. Dive plans also welcome.
+        something awesome! Dive recommendations are also welcome :)
       </p>
       <ul class="links">
         <li><a href="mailto:weiyanminoo1@gmail.com">weiyanminoo1@gmail.com</a></li>
@@ -47,22 +47,30 @@
      own rhythm (base.css's `section{padding-block:112px}`) rather than the
      88px margin it used before Phase 8 — it is a <footer>, so that rule
      does not reach it and the padding is set here instead. */
+  /* Uncarded, this text sits straight on the water, so it cannot use the
+     shared secondary tokens: on the light pages --ink-2 measured 3.54:1
+     against mid-depth water. --ink is dark enough there but is NOT remapped
+     by the deep zone (only --ink-2/--ink-3 are), so the footer carries its
+     own pair and switches them itself. */
+  .site-footer {
+    --footer-2: var(--ink);
+    --footer-3: var(--ink);
+  }
+
+  :global(html.depth-deep) .site-footer,
+  :global(.zone-deep) .site-footer {
+    --footer-2: var(--on-deep-2);
+    --footer-3: var(--on-deep-3);
+  }
+
   .container {
     padding-block: 112px;
   }
 
-  /* Card background — see base.css's .glass-card for the shared
-     blur/border/shadow/transition. The mockup's own .contact has no card at
-     all (it sits directly on the deep water), but our .copy/.links/.foot
-     render in the secondary --ink-2/--ink-3 tokens rather than the mockup's
-     single light-text colour, and those tokens are not safe uncarded within
-     a real page's particle-effect range (see tests/water/effects.test.ts's
-     "not on a card" bound) — so, unlike the mockup, this stays carded.
-     Reuses CARD_OPACITY.project (66%, must match intensity.ts by hand)
-     rather than a fifth opacity constant. */
+  /* No card here. The mockup's closing section sits directly on the water so
+     the bubbles and fauna read through it; a tinted panel hid both. */
   .card {
-    padding: 40px;
-    background: color-mix(in srgb, var(--card-tint) 58%, transparent);
+    padding: 0;
   }
 
   /* Mockup's .contact h2.big. Large text at every viewport width (the clamp
@@ -81,7 +89,7 @@
     max-width: 44ch;
     font-size: 18px;
     line-height: 1.55;
-    color: var(--ink-2);
+    color: var(--footer-2);
   }
 
   /* Mockup's .links: a row of pills. The mockup's own are inert <span>s
@@ -127,7 +135,7 @@
     font-family: var(--mono);
     font-size: 10px;
     letter-spacing: 0.14em;
-    color: var(--ink-3);
+    color: var(--footer-3);
   }
 
   @media (max-width: 860px) {
@@ -136,7 +144,7 @@
     }
 
     .card {
-      padding: 28px;
+      padding: 0;
     }
 
     .links a {

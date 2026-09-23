@@ -24,22 +24,26 @@ const renderedProjects = await Promise.all(allProjects.map((entry) => render(ent
 
 <BaseLayout title={title} description={description} depth="column">
   <section class="hero zone-light">
-    <h1 class="hero-h1">Wei Yan</h1>
     <div class="hero-row">
-      <div class="hero-note glass-card">
-        <p class="lede">
-          Driven by curiousity and a growth mindset, I love tackling complex problems and working on innovative solutions.
-        </p>
-        <p class="meta">SINGAPORE &middot; NATIONAL UNIVERSITY OF SINGAPORE &middot; COMPUTER SCIENCE</p>
+      <div class="hero-left">
+        <h1 class="hero-h1">Wei Yan</h1>
+        <div class="hero-note glass-card">
+          <p class="lede">
+            Driven by curiousity and a growth mindset, I love tackling complex problems and working on innovative solutions.
+          </p>
+          <p class="meta">SINGAPORE &middot; NATIONAL UNIVERSITY OF SINGAPORE &middot; COMPUTER SCIENCE</p>
+        </div>
       </div>
-      <Image
-        class="portrait"
-        src={portrait}
-        alt="Wei Yan underwater in scuba gear, giving a shaka sign to the camera"
-        widths={[320, 480, 715]}
-        sizes="(max-width: 860px) 62vw, 340px"
-        loading="eager"
-      />
+      <div class="portrait-wrap">
+        <Image
+          class="portrait"
+          src={portrait}
+          alt="Wei Yan underwater in scuba gear, giving a shaka sign to the camera"
+          widths={[380, 560, 1011]}
+          sizes="(max-width: 860px) 70vw, 380px"
+          loading="eager"
+        />
+      </div>
     </div>
   </section>
 
@@ -303,21 +307,48 @@ const renderedProjects = await Promise.all(allProjects.map((entry) => render(ent
   /* The portrait floats in the water beside the intro rather than sitting in a
      card — it is a cut-out, so the water is its background. No border or
      surface: anything drawn round it would read as a frame and break that. */
+  /* The portrait stands the full height of the heading plus the intro card
+     beside it, so the two columns end level. The left column sets the row's
+     height; the image stretches to it and takes whatever width its aspect
+     ratio then asks for. */
   .hero-row {
-    display: flex;
-    align-items: flex-start;
-    gap: 40px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: stretch;
+    gap: 44px;
   }
 
-  .hero-row .hero-note {
+  .hero-left {
     flex: 1 1 auto;
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
   }
 
+  /* A grid item gets a definite height from the row, which a percentage height
+     on the image can actually resolve against — inside a flex item with auto
+     height it collapsed to zero. aspect-ratio then derives the width, so the
+     image is exactly as tall as the heading plus the card and no wider than
+     its own proportions allow. */
+  .portrait-wrap {
+    position: relative;
+    width: clamp(210px, 26vw, 360px);
+  }
+
+  /* No card or frame — it is a cut-out, so the water is its background. */
+  /* Absolutely positioned so the image contributes NO intrinsic height: the
+     heading and card decide how tall the row is, and the image is sized to
+     them. Laid out in flow it did the opposite, driving the row 142px taller
+     than the text and leaving dead space under the card. */
   .portrait {
-    flex: 0 0 auto;
-    width: 340px;
-    height: auto;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: center bottom;
+    display: block;
     filter: drop-shadow(0 18px 40px rgba(11, 42, 58, 0.28));
   }
 
@@ -328,8 +359,19 @@ const renderedProjects = await Promise.all(allProjects.map((entry) => render(ent
       gap: 28px;
     }
 
+    .hero-row {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .portrait-wrap {
+      position: static;
+      width: min(70vw, 320px);
+      justify-self: center;
+    }
+
     .portrait {
-      width: min(62vw, 300px);
+      position: static;
+      height: auto;
     }
   }
 </style>

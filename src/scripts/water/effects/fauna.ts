@@ -24,23 +24,17 @@ import { FAUNA_ART, type FaunaSpecies } from './faunaArt';
 
 // Light-water silhouette: the same blue-grey the shoal uses. Against
 // near-white water a creature reads as a dark shape, which is what it is.
-// The turtle artwork is a set of separate shell plates and the rays carry
-// interior detail shapes (two eyes on the stingray, four on the manta). Under
-// canvas's default nonzero fill those gaps render as holes, so the creature
-// reads as a stencil with light gaps rather than a silhouette — which is why
-// the shark, a single closed path, always looked right and they did not.
-// Stroking the same path with a round join dilates every subpath just enough
-// to close the gaps. Device pixels, so it is a constant dilation regardless of
-// how large a given creature is drawn.
-const SILHOUETTE_DILATE = 1.6;
-
-// Only the turtle. Its artwork is separate shell plates with real gaps between
-// them, so no fill-rule change closes them — the geometry has to be dilated.
-// The rays' holes were interior subpaths and were removed from the path data
-// instead (see faunaArt.ts), which is free; stroking all three cost ~15fps
-// while scrolling and darkened the water enough to fail a tag on Home.
-const NEEDS_DILATE = new Set<FaunaSpecies>(['turtle']);
-
+//
+// Every species is now a single closed contour, so a plain fill is a solid
+// silhouette and there is no dilation step. There used to be one: the old
+// turtle artwork was a set of separate shell plates with real gaps between
+// them, which no fill rule closes, so that path was additionally STROKED with
+// a round join to swell the geometry until the gaps shut. Replacing that
+// artwork with a single-contour turtle removed the only thing that needed it
+// (the rays' and tuna's holes were interior subpaths, deleted from the path
+// data in faunaArt.ts instead, which costs nothing). Dropping the stroke also
+// returns the ~15fps it cost while scrolling, and stops it darkening the
+// water — it once pushed a tag on Home below contrast.
 const LIGHT_SILHOUETTE: readonly [number, number, number] = [40, 72, 88];
 
 // Dark-water silhouette: palette.ts's own deepest stop (32m). Below the
@@ -169,15 +163,17 @@ function ensureUnitPaths(): Record<FaunaSpecies, Path2D> {
     const art = FAUNA_ART[key];
     const unit = new Path2D();
     // Read outermost-first: shrink to unit length, centre the ink, turn the
-    // artwork to face +x, then bring the viewBox's own centre to the origin.
-    unit.addPath(
-      new Path2D(art.d),
-      new DOMMatrix()
-        .scale(1 / art.extent)
-        .translate(-art.centre[0], -art.centre[1])
-        .rotate(art.rotation)
-        .translate(-art.viewBox[0] / 2, -art.viewBox[1] / 2)
-    );
+    // artwork to face +x, flip it if it was drawn nose-left, then bring the
+    // viewBox's own centre to the origin.
+    const matrix = new DOMMatrix()
+      .scale(1 / art.extent)
+      .translate(-art.centre[0], -art.centre[1])
+      .rotate(art.rotation);
+    if (art.mirror) {
+      matrix.scaleSelf(-1, 1);
+    }
+    matrix.translateSelf(-art.viewBox[0] / 2, -art.viewBox[1] / 2);
+    unit.addPath(new Path2D(art.d), matrix);
     paths[key] = unit;
   }
   unitPaths = paths;
@@ -261,8 +257,6 @@ const fauna: Effect = (frame) => {
   const art = ensureUnitPaths();
   const lightPath = new Path2D();
   const deepPath = new Path2D();
-  const lightDilate = new Path2D();
-  const deepDilate = new Path2D();
   let maxLightAlpha = 0;
   let maxDeepAlpha = 0;
 
@@ -282,9 +276,6 @@ const fauna: Effect = (frame) => {
       .scale(length);
 
     (band.deep ? deepPath : lightPath).addPath(art[c.species], matrix);
-    if (NEEDS_DILATE.has(c.species)) {
-      (band.deep ? deepDilate : lightDilate).addPath(art[c.species], matrix);
-    }
 
     if (band.deep) {
       maxDeepAlpha = Math.max(maxDeepAlpha, alpha);
@@ -298,22 +289,15 @@ const fauna: Effect = (frame) => {
   }
 
   ctx.save();
-  ctx.lineJoin = 'round';
-  ctx.lineCap = 'round';
-  ctx.lineWidth = SILHOUETTE_DILATE;
   if (maxLightAlpha > 0) {
     ctx.globalAlpha = maxLightAlpha;
     ctx.fillStyle = `rgb(${LIGHT_SILHOUETTE[0]}, ${LIGHT_SILHOUETTE[1]}, ${LIGHT_SILHOUETTE[2]})`;
-    ctx.strokeStyle = ctx.fillStyle;
     ctx.fill(lightPath);
-    ctx.stroke(lightDilate);
   }
   if (maxDeepAlpha > 0) {
     ctx.globalAlpha = maxDeepAlpha;
     ctx.fillStyle = `rgb(${DEEP_SILHOUETTE[0]}, ${DEEP_SILHOUETTE[1]}, ${DEEP_SILHOUETTE[2]})`;
-    ctx.strokeStyle = ctx.fillStyle;
     ctx.fill(deepPath);
-    ctx.stroke(deepDilate);
   }
   ctx.restore();
 };

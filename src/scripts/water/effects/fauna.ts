@@ -157,6 +157,50 @@ const CREATURES: readonly Creature[] = [
 // first written and exactly what the test suite caught.
 let unitPaths: Record<FaunaSpecies, Path2D> | null = null;
 
+/**
+ * The transform that normalises one artwork to a centred, +x-facing path of
+ * unit length, as a plain [a, b, c, d, e, f] affine matrix.
+ *
+ * Read the composition outermost-first: shrink to unit length, centre the
+ * ink, turn the artwork to face +x, then bring the viewBox's own centre to
+ * the origin. Written out by hand rather than chained through `DOMMatrix` so
+ * it is pure arithmetic with no browser API, which is the only reason
+ * tests/water/effects.test.ts can assert anything about it at all — the
+ * chained version could only ever be checked by rendering it, and a check
+ * that rebuilds the chain itself rather than calling this proves nothing.
+ *
+ * THE INVARIANT THIS EXISTS TO PIN: the result is a rotation and a uniform
+ * scale, never a reflection, so `a === d`, `b === -c`, and the determinant
+ * is `1 / extent²` — strictly positive. A reflection here would flip the
+ * artwork end-for-end, and because `orient` separately mirrors each creature
+ * at draw time to face the way it is swimming, the two mirrors cancel: every
+ * creature then swims permanently TAIL-FIRST, in every direction, which is
+ * exactly the bug this shipped with twice. Every source SVG is authored
+ * nose-right, or is turned nose-right by `rotation` alone. Nothing here may
+ * mirror.
+ */
+export function unitMatrix(art: {
+  readonly viewBox: readonly [number, number];
+  readonly rotation: number;
+  readonly extent: number;
+  readonly centre: readonly [number, number];
+}): [number, number, number, number, number, number] {
+  const theta = (art.rotation * Math.PI) / 180;
+  const cos = Math.cos(theta);
+  const sin = Math.sin(theta);
+  const e = art.extent;
+  const hw = art.viewBox[0] / 2;
+  const hh = art.viewBox[1] / 2;
+  return [
+    cos / e,
+    sin / e,
+    -sin / e,
+    cos / e,
+    (-hw * cos + hh * sin - art.centre[0]) / e,
+    (-hw * sin - hh * cos - art.centre[1]) / e,
+  ];
+}
+
 function ensureUnitPaths(): Record<FaunaSpecies, Path2D> {
   if (unitPaths) {
     return unitPaths;
@@ -165,18 +209,7 @@ function ensureUnitPaths(): Record<FaunaSpecies, Path2D> {
   for (const key of Object.keys(FAUNA_ART) as FaunaSpecies[]) {
     const art = FAUNA_ART[key];
     const unit = new Path2D();
-    // Read outermost-first: shrink to unit length, centre the ink, turn the
-    // artwork to face +x, flip it if it was drawn nose-left, then bring the
-    // viewBox's own centre to the origin.
-    const matrix = new DOMMatrix()
-      .scale(1 / art.extent)
-      .translate(-art.centre[0], -art.centre[1])
-      .rotate(art.rotation);
-    if (art.mirror) {
-      matrix.scaleSelf(-1, 1);
-    }
-    matrix.translateSelf(-art.viewBox[0] / 2, -art.viewBox[1] / 2);
-    unit.addPath(new Path2D(art.d), matrix);
+    unit.addPath(new Path2D(art.d), new DOMMatrix(unitMatrix(art)));
     paths[key] = unit;
   }
   unitPaths = paths;

@@ -14,7 +14,9 @@ import {
   faunaDeepAlphaAt,
   orient,
   MAX_PITCH,
+  unitMatrix,
 } from '../../src/scripts/water/effects/fauna';
+import { FAUNA_ART } from '../../src/scripts/water/effects/faunaArt';
 import { CARD_OPACITY } from '../../src/scripts/water/effects/intensity';
 import { colourAtDepth, type Rgb } from '../../src/scripts/water/palette';
 import { bandForPath } from '../../src/scripts/water/depth';
@@ -528,5 +530,60 @@ describe('fauna orientation', () => {
     const { angle, scaleX } = orient(0, 0, 0);
     expect(Number.isFinite(angle)).toBe(true);
     expect(Number.isFinite(scaleX)).toBe(true);
+  });
+});
+
+describe('fauna unit-path transform', () => {
+  const species = Object.keys(FAUNA_ART) as (keyof typeof FAUNA_ART)[];
+
+  it('covers every species in the art table', () => {
+    expect(species.length).toBeGreaterThan(0);
+  });
+
+  // THE REGRESSION THIS FILE EXISTS FOR. fauna.ts mirrors each creature at
+  // draw time (see `orient`) so it faces the way it is swimming. If the
+  // unit-path transform ALSO mirrors, the two cancel and every creature
+  // swims tail-first in every direction — which shipped twice, because a
+  // still frame looks fine unless you already know which end of a turtle is
+  // its head. A reflection is exactly a negative determinant, so this is
+  // checkable without rendering anything.
+  it('is never a reflection — the determinant is strictly positive', () => {
+    for (const key of species) {
+      const [a, b, c, d] = unitMatrix(FAUNA_ART[key]);
+      expect(a * d - b * c).toBeGreaterThan(0);
+    }
+  });
+
+  it('is a rotation and a uniform scale, with no shear or squash', () => {
+    for (const key of species) {
+      const [a, b, c, d] = unitMatrix(FAUNA_ART[key]);
+      expect(a).toBeCloseTo(d, 12);
+      expect(b).toBeCloseTo(-c, 12);
+    }
+  });
+
+  it('scales each artwork to exactly unit length', () => {
+    // The ink spans `extent` viewBox units, so a uniform 1/extent scale puts
+    // it at 1. det is that scale squared.
+    for (const key of species) {
+      const art = FAUNA_ART[key];
+      const [a, b, c, d] = unitMatrix(art);
+      expect(Math.sqrt(a * d - b * c)).toBeCloseTo(1 / art.extent, 12);
+    }
+  });
+
+  it('puts the artwork the same way up for every species', () => {
+    // Each is authored nose-right or turned nose-right by `rotation` alone,
+    // so the transform's rotation must be a multiple of the declared one and
+    // nothing may be flipped relative to any other. Checked as: applying the
+    // transform to the artwork's own +x axis agrees in sign with cos of the
+    // declared rotation, for all of them.
+    for (const key of species) {
+      const art = FAUNA_ART[key];
+      const [a, b] = unitMatrix(art);
+      const theta = (art.rotation * Math.PI) / 180;
+      expect(Math.sign(a) || 1).toBe(Math.sign(Math.cos(theta)) || 1);
+      expect(Math.sign(b) || 1).toBe(Math.sign(Math.sin(theta)) || 1);
+    }
   });
 });

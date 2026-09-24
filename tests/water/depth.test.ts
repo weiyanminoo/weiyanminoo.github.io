@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   MAX_DEPTH,
   THERMOCLINE,
+  STILL,
   bandForPath,
   depthAt,
   depthForColumn,
@@ -11,46 +12,55 @@ import {
 } from '../../src/scripts/water/depth';
 
 describe('bandForPath', () => {
-  it('maps known paths to their bands', () => {
-    expect(bandForPath('/')).toEqual({ top: 0, bottom: 32, zones: 'column' });
-    expect(bandForPath('/work')).toEqual({ top: 5, bottom: 14, zones: 'single' });
-    expect(bandForPath('/work/')).toEqual({ top: 5, bottom: 14, zones: 'single' });
-    expect(bandForPath('/projects')).toEqual({ top: 12, bottom: 19, zones: 'single' });
-    expect(bandForPath('/projects/')).toEqual({ top: 12, bottom: 19, zones: 'single' });
-    expect(bandForPath('/outside')).toEqual({ top: 24, bottom: 32, zones: 'single' });
-    expect(bandForPath('/outside/')).toEqual({ top: 24, bottom: 32, zones: 'single' });
+  const still = { top: STILL, bottom: STILL, zones: 'single' };
+
+  it('maps Home to the column band, spanning the whole water column', () => {
+    expect(bandForPath('/')).toEqual({ top: 0, bottom: MAX_DEPTH, zones: 'column' });
+    expect(bandForPath('')).toEqual({ top: 0, bottom: MAX_DEPTH, zones: 'column' });
   });
 
-  it('falls back to the Home band for empty or unknown paths', () => {
-    expect(bandForPath('')).toEqual({ top: 0, bottom: 32, zones: 'column' });
-    expect(bandForPath('/nonsense')).toEqual({ top: 0, bottom: 32, zones: 'column' });
+  it('maps every sub-page to the same still band — the tabs share one flat colour', () => {
+    expect(bandForPath('/work')).toEqual(still);
+    expect(bandForPath('/work/')).toEqual(still);
+    expect(bandForPath('/school')).toEqual(still);
+    expect(bandForPath('/school/')).toEqual(still);
+    expect(bandForPath('/projects')).toEqual(still);
+    expect(bandForPath('/projects/')).toEqual(still);
+    expect(bandForPath('/hobbies')).toEqual(still);
+    expect(bandForPath('/hobbies/')).toEqual(still);
   });
 
-  it('has overlapping adjacent bands down the chain of light pages', () => {
-    const lightPaths = ['/', '/work', '/projects'];
-    const bands = lightPaths.map(bandForPath);
-    for (let i = 0; i < bands.length - 1; i++) {
-      expect(bands[i].bottom).toBeGreaterThan(bands[i + 1].top);
-    }
+  it('gives an unknown path the still band, not the descent', () => {
+    // Anything that is not Home is a plain page; only Home descends.
+    expect(bandForPath('/nonsense')).toEqual(still);
   });
 
-  it('does not overlap Projects with Outside — they sit on opposite sides of the thermocline passage', () => {
-    const projects = bandForPath('/projects');
-    const outside = bandForPath('/outside');
-    expect(projects.bottom).toBeLessThanOrEqual(outside.top);
+  it('makes the still band flat, so its water never moves as the page scrolls', () => {
+    const band = bandForPath('/work');
+    expect(band.top).toBe(band.bottom);
+    expect(depthAt(band, 0)).toBe(depthAt(band, 1));
   });
 
-  it('has no single-zone band crossing THERMOCLINE — each single-zone page is entirely above or entirely below it', () => {
-    const singleZonePaths = ['/work', '/projects', '/outside'];
-    const bands = singleZonePaths.map(bandForPath);
-    for (const band of bands) {
+  it('keeps STILL well inside the measured dark-ink contrast limit', () => {
+    // 20m is the deepest point where all three dark-ink tokens (--ink,
+    // --ink-2, --ink-3) still clear 4.5:1 against the water. Every sub-page
+    // renders dark ink, so STILL must sit above that with real margin —
+    // Phase 5's caustics, marine snow and dither perturb the background
+    // locally and would eat a bare-floor margin immediately.
+    expect(STILL).toBeLessThan(20);
+    expect(STILL).toBeLessThan(THERMOCLINE);
+  });
+
+  it('has no single-zone band crossing THERMOCLINE — each fixed-colour page is entirely above or entirely below it', () => {
+    const singleZonePaths = ['/work', '/school', '/projects', '/hobbies', '/nonsense'];
+    for (const band of singleZonePaths.map(bandForPath)) {
       expect(band.zones).toBe('single');
       expect(band.bottom <= THERMOCLINE || band.top >= THERMOCLINE).toBe(true);
     }
   });
 
   it('permits only the column band (Home) to cross THERMOCLINE', () => {
-    const allPaths = ['/', '/work', '/projects', '/outside'];
+    const allPaths = ['/', '/work', '/school', '/projects', '/hobbies'];
     for (const path of allPaths) {
       const band = bandForPath(path);
       const crosses = band.top < THERMOCLINE && band.bottom > THERMOCLINE;
@@ -65,29 +75,15 @@ describe('bandForPath', () => {
     expect(home.bottom).toBeGreaterThan(THERMOCLINE);
   });
 
-  it('keeps Projects and Outside with deliberate margin past the measured contrast limits (Projects bottom <= 19m, Outside top >= 24m)', () => {
-    // The bare contrast floor is 20m (deepest point where all dark-ink tokens
-    // --ink, --ink-2, --ink-3 still clear 4.5:1) and 23m (shallowest point
-    // where all on-deep tokens clear 4.5:1). Projects and Outside sit a metre
-    // inside those, at 5.03:1 and 4.80:1 worst-case, rather than on the bare
-    // floor: Phase 5's caustics, marine snow and dither overlay perturb the
-    // background locally and would eat a 0.02 margin immediately. Moving
-    // either boundary requires re-checking contrast against the palette stop
-    // table.
-    const projects = bandForPath('/projects');
-    const outside = bandForPath('/outside');
-    expect(projects.bottom).toBeLessThanOrEqual(19);
-    expect(outside.top).toBeGreaterThanOrEqual(24);
-  });
-
   it('strips a query string or hash before matching the segment', () => {
-    expect(bandForPath('/work?tab=1')).toEqual({ top: 5, bottom: 14, zones: 'single' });
-    expect(bandForPath('/work#section')).toEqual({ top: 5, bottom: 14, zones: 'single' });
+    expect(bandForPath('/work?tab=1')).toEqual(still);
+    expect(bandForPath('/work#section')).toEqual(still);
+    expect(bandForPath('/?tab=1')).toEqual({ top: 0, bottom: MAX_DEPTH, zones: 'column' });
   });
 
   it('tolerates a doubled leading slash and a trailing sub-path', () => {
-    expect(bandForPath('//work')).toEqual({ top: 5, bottom: 14, zones: 'single' });
-    expect(bandForPath('/work/something')).toEqual({ top: 5, bottom: 14, zones: 'single' });
+    expect(bandForPath('//work')).toEqual(still);
+    expect(bandForPath('/work/something')).toEqual(still);
   });
 });
 

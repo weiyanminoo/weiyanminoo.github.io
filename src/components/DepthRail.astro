@@ -62,12 +62,12 @@ const band = bandForPath(Astro.url.pathname);
      Rather than chase a threshold, give the rail its own backing so its
      contrast never depends on the water colour behind it: a translucent,
      blurred scrim tinted toward the same ground the rail's own text tokens
-     assume. `--rail-scrim-tint` defaults to foam (the light-zone ground);
-     `html.depth-deep` (BaseLayout.astro) overrides it to deep for the three
-     single-band pages, so the deep page (Outside) gets the right scrim even
-     with JS disabled — `.is-deep` below overrides it the same way at
-     runtime for the column page (Home), which has no single depth class to
-     hang it on. `z-index: -1` is load-bearing, not decoration: source
+     assume. `--rail-scrim-tint` defaults to foam (the light-zone ground),
+     which is the correct ground at the top of the column; `.is-deep` below
+     overrides it to deep at runtime once the water crosses the thermocline.
+     The rail now renders on the column page alone (BaseLayout.astro), so
+     that runtime toggle is the only override there is — the tabs carry no
+     rail. `z-index: -1` is load-bearing, not decoration: source
      order alone does NOT put this behind its siblings. An absolutely
      positioned box paints in the positioned-descendants layer, which is
      above every non-positioned in-flow sibling regardless of source order,
@@ -172,10 +172,9 @@ const band = bandForPath(Astro.url.pathname);
      crosses the thermocline, so a single inherited ink colour can't stay
      correct for the whole scroll range — it must track the current depth
      (toggled below in the water:depth listener). Reuses the same on-deep
-     token overrides depth-deep applies, rather than a second set of
-     deep-zone colours. On a `single` (fixed-colour) page this class is
-     never toggled, so the rail keeps inheriting its page's depth class as
-     before. */
+     token overrides `.zone-deep` applies, rather than a second set of
+     deep-zone colours. The column page is the only page with a rail, so
+     this is the rail's only source of deep-zone colour. */
   .depth-rail.is-deep {
     --ink-2: var(--on-deep-2);
     --ink-3: var(--on-deep-3);

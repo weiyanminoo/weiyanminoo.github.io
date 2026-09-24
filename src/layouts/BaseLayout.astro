@@ -9,13 +9,16 @@ import SiteFooter from '../components/SiteFooter.astro';
 import WaterCanvas from '../components/WaterCanvas.astro';
 import DepthRail from '../components/DepthRail.astro';
 
+// Two page kinds, matching depth.ts's two bands: `column` is Home, the one
+// page that descends 0-32m and carries the rail; `shallow` is every tab —
+// still water at depth.ts's STILL (6m), no rail, no descent.
 interface Props {
   title: string;
   description: string;
-  depth?: 'foam' | 'shallow' | 'mid' | 'deep' | 'column';
+  depth?: 'shallow' | 'column';
 }
 
-const { title, description, depth = 'foam' } = Astro.props;
+const { title, description, depth = 'shallow' } = Astro.props;
 
 const canonicalURL = new URL(Astro.url.pathname, Astro.site);
 const ogImageURL = new URL('/og.png', Astro.site);
@@ -27,10 +30,7 @@ const siteName = 'Wei Yan';
 // any script runs. Literal hex, not the CSS custom properties: this is a
 // meta tag's content attribute, not a stylesheet.
 const themeColors: Record<NonNullable<Props['depth']>, string> = {
-  foam: '#F6F9F9',
   shallow: '#E9F1F2',
-  mid: '#CFE1E4',
-  deep: '#1B4A5C',
   column: '#F6F9F9',
 };
 ---
@@ -70,7 +70,11 @@ const themeColors: Record<NonNullable<Props['depth']>, string> = {
     <a href="#main" class="skip-link">Skip to content</a>
     <WaterCanvas />
     <div class="grain" aria-hidden="true"></div>
-    <DepthRail />
+    {/* Only the descending page has a depth to read out. On a still page
+        the rail would show one unchanging number forever, and its 76px
+        gutter is reclaimed by the content (see html:not(.depth-column)
+        below). */}
+    {depth === 'column' && <DepthRail />}
     <SiteHeader />
     <main id="main" tabindex="-1">
       <div class="container">
@@ -94,46 +98,24 @@ const themeColors: Record<NonNullable<Props['depth']>, string> = {
      before any script runs (and with no script at all). The canvas
      (fixed, z-index: -1) paints over this once it mounts. Body stays
      transparent so this shows through. */
-  html.depth-foam {
-    --bg: var(--foam);
-    background: var(--bg);
-    color: var(--ink);
-  }
-
+  /* Every tab. Still water at depth.ts's STILL (6m), whose palette stop is
+     rgb(234,242,243) — within one channel step of --shallow, so this
+     fallback and the canvas paint the same colour. Dark ink throughout:
+     6m is far above the 20m depth where the ink tokens stop clearing
+     4.5:1, so no page-level zone switching is needed here at all. */
   html.depth-shallow {
     --bg: var(--shallow);
     background: var(--bg);
     color: var(--ink);
   }
 
-  html.depth-mid {
-    --bg: var(--mid);
-    background: var(--bg);
-    color: var(--ink);
-  }
-
-  html.depth-deep {
-    --bg: var(--deep);
-    background: var(--bg);
-    color: var(--on-deep);
-    --ink-2: var(--on-deep-2);
-    --ink-3: var(--on-deep-3);
-    --line: var(--line-deep);
-    /* --ink (the --focus default) is unreadable on deep; --mark passes
-       there instead (~5.75:1), where it fails on the lighter depths */
-    --focus: var(--mark);
-    /* DepthRail.astro's scrim reads this; defaults to foam otherwise. Set
-       here (not just via the rail's own JS-driven .is-deep toggle) so the
-       deep page still gets the right scrim tint with JavaScript disabled. */
-    --rail-scrim-tint: var(--deep);
-    /* Phase 7: the same mechanism, for the frosted-glass cards (RoleEntry,
-       ProjectCard, LogSlate's section wrapper, SiteHeader, tokens.css's
-       --card-tint default is foam) — dark glass, correct with no
-       JavaScript, same reasoning as --rail-scrim-tint above. */
-    --card-tint: var(--deep);
-    --card-border: rgba(255, 255, 255, 0.18);
-    --card-shadow: rgba(3, 14, 20, 0.28);
-    --card-shadow-hover: rgba(3, 14, 20, 0.34);
+  /* The rail renders on the descending page only, so on every other page
+     the gutter it reserves belongs to the content. Without this the tabs
+     keep a 76px left inset with nothing in it, and their text column sits
+     off-centre. Outranks tokens.css's `:root{--rail:76px}` and its 860px
+     override on specificity (0,1,1 beats 0,1,0), not source order. */
+  html:not(.depth-column) {
+    --rail: 0px;
   }
 
   /* Home: no single fixed text colour, since it spans the whole column and
@@ -159,9 +141,10 @@ const themeColors: Record<NonNullable<Props['depth']>, string> = {
     --ink-3: var(--on-deep-3);
     --line: var(--line-deep);
     --focus: var(--mark);
-    /* Phase 7: same mechanism as html.depth-deep above, for Home's own
-       deep-zone section (it has no depth-deep class of its own to hang
-       this off — see that block's comment). */
+    /* Dark glass for Home's own deep-zone section and footer. Since the
+       tabs became still water this is the only place on the site that
+       carries deep-zone colours, so these are not a duplicate of a
+       page-level rule — they are the rule. */
     --card-tint: var(--deep);
     --card-border: rgba(255, 255, 255, 0.18);
     --card-shadow: rgba(3, 14, 20, 0.28);

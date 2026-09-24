@@ -1,0 +1,54 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import LogSlate from '../components/LogSlate.astro';
+import SectionHead from '../components/SectionHead.astro';
+import { HOBBIES } from '../lib/hobbies';
+
+const title = 'Hobbies — Wei Yan';
+const description = 'What Wei Yan does outside of coursework and internships.';
+---
+
+<BaseLayout title={title} description={description}>
+  <section>
+    <h1>Hobbies</h1>
+    <SectionHead label="OUTSIDE THE WORK" />
+  </section>
+
+  {/* Copy lives in src/lib/hobbies.ts — Home's own Hobbies section renders
+      the same four topics as title-and-line cards, so it is one table
+      rather than two hand-kept copies. A topic with no line, body or
+      fields written yet renders as a bare heading rather than as a
+      placeholder claiming something on Wei Yan's behalf. */}
+  {
+    HOBBIES.map((hobby) => (
+      <section class="topic glass-card">
+        <h2>{hobby.title}</h2>
+        {hobby.line && <p class="line">{hobby.line}</p>}
+        {hobby.body && <p>{hobby.body}</p>}
+        {hobby.fields.length > 0 && <LogSlate fields={hobby.fields} />}
+      </section>
+    ))
+  }
+</BaseLayout>
+
+<style>
+  /* Card background — see base.css's .glass-card for the shared
+     blur/border/shadow/transition, and intensity.ts's CARD_OPACITY.entry
+     (72%) for the opacity this must match by hand. This page is still
+     water at 6m now, not the deep band it used to sit in, so its text
+     takes the ordinary ink tokens rather than the on-deep ones. */
+  .topic {
+    margin-top: 32px;
+    padding: 32px;
+    background: color-mix(in srgb, var(--card-tint) 72%, transparent);
+  }
+
+  .topic + .topic {
+    margin-top: 18px;
+  }
+
+  .line {
+    font-size: 17px;
+    color: var(--ink-2);
+  }
+</style>

@@ -1,0 +1,95 @@
+---
+import Tags from './Tags.astro';
+
+interface Props {
+  institution: string;
+  qualification: string;
+  period: string;
+  summary: string;
+  notes: string[];
+  // Home shows the institution, qualification and period only. /school adds
+  // the summary, the notes and whatever bullets the markdown body carries —
+  // same split as RoleEntry's `expandable`, and the same reason: the tabs
+  // exist to hold the detail the descent leaves out.
+  detailed?: boolean;
+}
+
+const { institution, qualification, period, summary, notes, detailed = false } = Astro.props;
+---
+
+<article class="school glass-card">
+  <h3>{institution}</h3>
+  <p class="qualification">{qualification}</p>
+  <p class="period">{period}</p>
+  {
+    detailed && (
+      <>
+        {summary && <p class="summary">{summary}</p>}
+        <div class="body md-body">
+          <slot />
+        </div>
+        {
+          notes.length > 0 && (
+            <div class="notes">
+              <Tags tags={notes} />
+            </div>
+          )
+        }
+      </>
+    )
+  }
+</article>
+
+<style>
+  /* Card background — see base.css's .glass-card for the shared
+     blur/border/shadow/transition, and intensity.ts's CARD_OPACITY.project
+     (66%) for the family this belongs to; the literal below matches
+     ProjectCard.astro's own, since these two sit in the same grid on Home
+     and any difference between them reads as a mistake. */
+  .school {
+    padding: 30px;
+    background: color-mix(in srgb, var(--card-tint) 58%, transparent);
+  }
+
+  /* Matches RoleEntry's .org — a school card and a role card are the same
+     kind of record, so they carry the same weight in the stack. */
+  h3 {
+    margin: 0;
+    font-weight: 700;
+    font-size: clamp(19px, 2vw, 24px);
+    line-height: 1.15;
+  }
+
+  .qualification {
+    margin: 8px 0 0;
+    font-size: 15px;
+    color: var(--ink-2);
+  }
+
+  .period {
+    margin: 14px 0 0;
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .summary {
+    margin: 20px 0 0;
+    max-width: 60ch;
+    color: var(--ink-2);
+  }
+
+  /* Fixed margins rather than :empty-driven ones: the slot's own source
+     whitespace makes the body div non-empty even when the markdown renders
+     nothing, so :empty cannot be relied on to detect an unwritten body. */
+  .body {
+    margin-top: 4px;
+  }
+
+  .notes {
+    margin-top: 22px;
+  }
+</style>

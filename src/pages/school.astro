@@ -1,0 +1,49 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import SchoolCard from '../components/SchoolCard.astro';
+import PlaceholderCard from '../components/PlaceholderCard.astro';
+import SectionHead from '../components/SectionHead.astro';
+import { SCHOOL_SLOTS } from '../lib/slots';
+import { getCollection, render } from 'astro:content';
+
+const title = 'School — Wei Yan';
+const description = "Where Wei Yan has studied.";
+
+const school = await getCollection('school');
+const sorted = [...school].sort((a, b) => a.data.order - b.data.order);
+const rendered = await Promise.all(sorted.map((entry) => render(entry)));
+
+const blanks = Math.max(0, SCHOOL_SLOTS - sorted.length);
+---
+
+<BaseLayout title={title} description={description}>
+  <section>
+    <h1>School</h1>
+    <SectionHead label="DIVE LOG — SCHOOL" />
+    <div class="cards">
+      {
+        sorted.map((entry, i) => {
+          const { Content } = rendered[i];
+          return (
+            <SchoolCard
+              institution={entry.data.institution}
+              qualification={entry.data.qualification}
+              period={entry.data.period}
+              summary={entry.data.summary}
+              notes={entry.data.notes}
+              detailed
+            >
+              <Content />
+            </SchoolCard>
+          );
+        })
+      }
+      {
+        Array.from({ length: blanks }, () => (
+          <PlaceholderCard label="A second school, not yet added" />
+        ))
+      }
+    </div>
+  </section>
+</BaseLayout>
+

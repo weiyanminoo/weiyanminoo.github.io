@@ -2,10 +2,12 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import SectionHead from '../components/SectionHead.astro';
 import RoleEntry from '../components/RoleEntry.astro';
+import SchoolCard from '../components/SchoolCard.astro';
 import ProjectCard from '../components/ProjectCard.astro';
-import LogSlate from '../components/LogSlate.astro';
-import { INTERESTS } from '../lib/interests';
-import { getCollection, render } from 'astro:content';
+import PlaceholderCard from '../components/PlaceholderCard.astro';
+import { HOBBIES } from '../lib/hobbies';
+import { SCHOOL_SLOTS, PROJECT_SLOTS } from '../lib/slots';
+import { getCollection } from 'astro:content';
 import { Image } from 'astro:assets';
 import portrait from '../assets/home-diving.png';
 
@@ -13,13 +15,54 @@ const title = 'Wei Yan — Computer Science, NUS';
 const description =
   'Wei Yan, Computer Science at the National University of Singapore. Software engineering, mobile, product and automation.';
 
+// No render() anywhere on this page. Home shows each record's summary row
+// and nothing more — the markdown bodies are what /work, /school and
+// /projects are for, so this page never asks for them.
 const roles = await getCollection('roles');
 const allRoles = [...roles].sort((a, b) => b.data.start.getTime() - a.data.start.getTime());
-const renderedRoles = await Promise.all(allRoles.map((entry) => render(entry)));
+
+const school = await getCollection('school');
+const allSchool = [...school].sort((a, b) => a.data.order - b.data.order);
 
 const projects = await getCollection('projects');
 const allProjects = [...projects].sort((a, b) => b.data.start.getTime() - a.data.start.getTime());
-const renderedProjects = await Promise.all(allProjects.map((entry) => render(entry)));
+
+const schoolBlanks = Math.max(0, SCHOOL_SLOTS - allSchool.length);
+const projectBlanks = Math.max(0, PROJECT_SLOTS - allProjects.length);
+
+// Depth markers. MEASURED against the rendered page, not spaced by eye:
+// each is depthForColumn() evaluated at that section heading's own document
+// position — the depth of the water the canvas actually paints behind it —
+// so a reader who notices that the label says 12 M and the water there is
+// the 12 M colour is right.
+//
+// They are therefore unevenly spaced, because the sections are unevenly
+// long: Work is five cards and School is two, so Work occupies nearly twice
+// the column School does and the gap between their markers is not the gap
+// between School's and Projects'. Evenly spaced markers would have been a
+// fiction.
+//
+// Measured at 1440x900 and 375x812 respectively:
+//   Work      5.74m / 6.00m
+//   School   12.12m / 11.67m
+//   Projects 15.67m / 14.92m  -> 15, whose mean error across the two
+//                               viewports is half that of 16
+//   Hobbies  23.49m / 22.60m
+// The two viewports differ because the layout reflows, so each marker is
+// one value standing for a small range. Deliberately NOT the same mapping
+// as the rail's readout, which answers "how far have I descended" and is
+// documented in depth.ts as not agreeing with this one everywhere.
+//
+// Re-measure if a section's length changes substantially. Nothing breaks if
+// these go stale — the water is pinned to the thermocline divider and
+// re-derives on its own — but a stale number here would contradict the
+// colour behind it.
+const DEPTH_MARKS = {
+  work: '6 M',
+  school: '12 M',
+  projects: '15 M',
+  hobbies: '23 M',
+};
 ---
 
 <BaseLayout title={title} description={description} depth="column">
@@ -29,9 +72,12 @@ const renderedProjects = await Promise.all(allProjects.map((entry) => render(ent
         <h1 class="hero-h1">Wei Yan</h1>
         <div class="hero-note glass-card">
           <p class="lede">
-            Driven by curiousity and a growth mindset, I love tackling complex problems and working on innovative solutions.
+            Driven by curiousity and a growth mindset, I love tackling complex problems and working
+            on innovative solutions.
           </p>
-          <p class="meta">SINGAPORE &middot; NATIONAL UNIVERSITY OF SINGAPORE &middot; COMPUTER SCIENCE</p>
+          <p class="meta">
+            SINGAPORE &middot; NATIONAL UNIVERSITY OF SINGAPORE &middot; COMPUTER SCIENCE
+          </p>
         </div>
       </div>
       <div class="portrait-wrap">
@@ -48,57 +94,75 @@ const renderedProjects = await Promise.all(allProjects.map((entry) => render(ent
   </section>
 
   <section class="zone-light">
-    <SectionHead label="DIVE LOG — WORK" depth="5 M" />
+    <SectionHead label="DIVE LOG — WORK" depth={DEPTH_MARKS.work} />
     <div class="roles">
       {
-        allRoles.map((entry, i) => {
-          const { Content } = renderedRoles[i];
-          return (
-            <RoleEntry
-              org={entry.data.org}
-              role={entry.data.role}
-              team={entry.data.team}
-              discipline={entry.data.discipline}
-              start={entry.data.start}
-              end={entry.data.end}
-              current={entry.data.current}
-              depth={entry.data.depth}
-              tags={entry.data.tags}
-              open={i === 0}
-            >
-              <Content />
-            </RoleEntry>
-          );
-        })
+        allRoles.map((entry) => (
+          <RoleEntry
+            org={entry.data.org}
+            role={entry.data.role}
+            team={entry.data.team}
+            discipline={entry.data.discipline}
+            start={entry.data.start}
+            end={entry.data.end}
+            current={entry.data.current}
+            depth={entry.data.depth}
+            tags={entry.data.tags}
+            expandable={false}
+          />
+        ))
       }
     </div>
     <p class="more glass-card"><a href="/work">All five roles in detail</a></p>
   </section>
 
   <section class="zone-light">
-    <SectionHead label="BUILT ON MY OWN TIME" depth="14 M" />
-    <div class="projects">
+    <SectionHead label="DIVE LOG — SCHOOL" depth={DEPTH_MARKS.school} />
+    <div class="cards">
       {
-        allProjects.map((entry, i) => {
-          const { Content } = renderedProjects[i];
-          return (
-            <ProjectCard
-              name={entry.data.name}
-              kind={entry.data.kind}
-              start={entry.data.start}
-              ongoing={entry.data.ongoing}
-              url={entry.data.url}
-              summary={entry.data.summary}
-              outcome={entry.data.outcome}
-              tags={entry.data.tags}
-            >
-              <Content />
-            </ProjectCard>
-          );
-        })
+        allSchool.map((entry) => (
+          <SchoolCard
+            institution={entry.data.institution}
+            qualification={entry.data.qualification}
+            period={entry.data.period}
+            summary={entry.data.summary}
+            notes={entry.data.notes}
+          />
+        ))
+      }
+      {
+        Array.from({ length: schoolBlanks }, () => (
+          <PlaceholderCard label="A second school, not yet added" />
+        ))
       }
     </div>
-    <p class="more glass-card"><a href="/projects">Both projects in detail</a></p>
+    <p class="more glass-card"><a href="/school">Where I have studied</a></p>
+  </section>
+
+  <section class="zone-light">
+    <SectionHead label="BUILT ON MY OWN TIME" depth={DEPTH_MARKS.projects} />
+    <div class="cards">
+      {
+        allProjects.map((entry) => (
+          <ProjectCard
+            name={entry.data.name}
+            kind={entry.data.kind}
+            start={entry.data.start}
+            ongoing={entry.data.ongoing}
+            url={entry.data.url}
+            summary={entry.data.summary}
+            outcome={entry.data.outcome}
+            tags={entry.data.tags}
+          />
+        ))
+      }
+      {
+        Array.from({ length: projectBlanks }, () => (
+          <PlaceholderCard label="A project not yet added" />
+        ))
+      }
+    </div>
+    <p class="more glass-card"><a href="/projects">Every project in detail</a></p>
   </section>
 
   <div class="thermocline-section">
@@ -110,20 +174,18 @@ const renderedProjects = await Promise.all(allProjects.map((entry) => render(ent
   </div>
 
   <section class="zone-deep">
-    <SectionHead label="OUTSIDE THE WORK" depth="24 M" />
-    <div class="interests">
+    <SectionHead label="OUTSIDE THE WORK" depth={DEPTH_MARKS.hobbies} />
+    <div class="hobbies">
       {
-        INTERESTS.map((interest) => (
-          <div class="interest glass-card">
-            <h3>{interest.title}</h3>
-            <p class="line">{interest.line}</p>
-            <p>{interest.body}</p>
-            <LogSlate fields={interest.fields} />
+        HOBBIES.map((hobby) => (
+          <div class="hobby glass-card">
+            <h3>{hobby.title}</h3>
+            {hobby.line && <p class="line">{hobby.line}</p>}
           </div>
         ))
       }
     </div>
-    <p class="more glass-card"><a href="/outside">More outside the work</a></p>
+    <p class="more glass-card"><a href="/hobbies">More outside the work</a></p>
   </section>
 </BaseLayout>
 
@@ -135,11 +197,9 @@ const renderedProjects = await Promise.all(allProjects.map((entry) => render(ent
      INTENSITY.caustics at 2.4 and 7.40:1 with it at 0 — see
      phase-7-report.md), and unlike every other body block on the site they
      had no card to sit on. Carded here at CARD_OPACITY.project (66%, must
-     match intensity.ts by hand), the same treatment Home's own condensed
-     list rows use. The <h1> above deliberately stays on bare water — it is
-     large text (3:1, with ~3x headroom) and the mockup leaves its own hero
-     heading floating free. Deviates from the mockup, whose .lede has no
-     card: the mockup's caustics never run this strong. */
+     match intensity.ts by hand). The <h1> above deliberately stays on bare
+     water — it is large text (3:1, with ~3x headroom) and the mockup leaves
+     its own hero heading floating free. */
   /* Mockup's .hero: padding-top 124px / padding-bottom 128px, overriding
      base.css's shared `section{padding-block:112px}` exactly as the
      mockup's own .hero rule overrides its `section` rule. */
@@ -150,8 +210,8 @@ const renderedProjects = await Promise.all(allProjects.map((entry) => render(ent
 
   /* Mockup's .hero h1: clamp(58px,9.2vw,132px)/800/.88/-.04em, scoped to
      just this page's own h1 (base.css's shared h1 rule stays the smaller
-     site-wide default that Work/Projects/Outside's plain page-title h1s
-     still use — the mockup only ever has the one hero heading). */
+     site-wide default that the tabs' plain page-title h1s still use — the
+     mockup only ever has the one hero heading). */
   .hero-h1 {
     font-size: clamp(58px, 9.2vw, 132px);
     line-height: 0.88;
@@ -183,11 +243,9 @@ const renderedProjects = await Promise.all(allProjects.map((entry) => render(ent
     color: var(--ink-3);
   }
 
-  /* Phase 8: Home carries the full log and the full projects, not the
-     condensed period/org/discipline rows it used to — same components,
-     same card language and same gaps as /work's .roles and /projects'
-     .projects, which is the point (phase-7-9-brief.md 8.2: reuse the
-     components, do not fork a second copy for Home). */
+  /* Mockup's .log: a gapped stack of cards, water visible between them.
+     Home's are RoleEntry's compact branch — the log row and nothing else,
+     since the bullets and figures live on /work now. */
   .roles {
     display: flex;
     flex-direction: column;
@@ -195,21 +253,15 @@ const renderedProjects = await Promise.all(allProjects.map((entry) => render(ent
     margin-top: 32px;
   }
 
-  .projects {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
-    gap: 18px;
-    margin-top: 32px;
-  }
 
   /* Carded for the same reason as .hero-note above: a 13px link is body
-     text (4.5:1, not the 3:1 its neighbouring headings get), and these
-     three sit at exactly the depths where bubbles, the shoal and — for the
-     last one — snow are at full strength. Shrink-wrapped to the link rather
-     than spanning the column, so the water still reads around it and the
-     link keeps its existing underlined appearance. CARD_OPACITY.project
-     (66%, must match intensity.ts by hand); the deep one inherits
-     .zone-deep's own --card-tint, no JavaScript involved. */
+     text (4.5:1, not the 3:1 its neighbouring headings get), and these sit
+     at exactly the depths where bubbles, the shoal and — for the last one —
+     snow are at full strength. Shrink-wrapped to the link rather than
+     spanning the column, so the water still reads around it and the link
+     keeps its existing underlined appearance. CARD_OPACITY.project (66%,
+     must match intensity.ts by hand); the deep one inherits .zone-deep's
+     own --card-tint, no JavaScript involved. */
   .more {
     width: fit-content;
     margin: 20px 0 0;
@@ -238,13 +290,7 @@ const renderedProjects = await Promise.all(allProjects.map((entry) => render(ent
      padding stand in for the distance actually swum through. A plain <div>,
      not a <section>, so base.css's `section{padding-block:112px}` does not
      stack on top of its own padding — the mockup's .thermo is likewise not
-     a section, and its .thermo__in carries the whole passage. Padding is
-     the mockup's clamp(130px,19vh,210px), replacing the asymmetric
-     160/260 that predated the Phase 8 rhythm: the page is now ~1.6x taller
-     for the same 0-32m range, so a metre of depth costs far more scrolling
-     and the extra bottom margin that used to keep the first deep-zone
-     heading clear of the contrast boundary is no longer doing that work —
-     verified by the contrast sweep, not assumed. */
+     a section, and its .thermo__in carries the whole passage. */
   .thermocline-section {
     padding-block: clamp(130px, 19vh, 210px);
   }
@@ -271,36 +317,34 @@ const renderedProjects = await Promise.all(allProjects.map((entry) => render(ent
     color: var(--ink);
   }
 
-  /* Stacked, not a row of three: each interest gets real room to breathe,
-     which is also what gives the deep zone enough height to be scrolled
-     through rather than glimpsed in one viewport. Each is its own deep
-     glass card — see outside.astro's .topic for the matching treatment and
+  /* Four small cards in a row rather than the stacked, slate-bearing blocks
+     this section used to carry: Home names the hobbies and /hobbies holds
+     whatever detail exists for them. Each is its own deep glass card at
      CARD_OPACITY.deep (72%, must match intensity.ts by hand); no mockup
-     precedent below the thermocline (finding 1). */
-  .interests {
-    display: flex;
-    flex-direction: column;
+     precedent below the thermocline. */
+  .hobbies {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
     gap: 18px;
     margin-top: 32px;
   }
 
-  .interest {
+  .hobby {
     padding: 28px;
     background: color-mix(in srgb, var(--card-tint) 72%, transparent);
   }
 
-  .interest h3 {
-    margin: 0 0 8px;
-    font-size: 20px;
+  .hobby h3 {
+    margin: 0;
+    font-size: 22px;
   }
 
-  .interest p {
-    max-width: 55ch;
-    color: var(--ink-2);
-  }
-
-  .interest .line {
-    font-size: 17px;
+  /* --on-deep-2 explicitly rather than --ink-2: .zone-deep remaps --ink-2
+     to exactly this, so the two are the same colour here — named directly
+     because this card only ever renders in the deep zone. */
+  .hobby .line {
+    margin: 10px 0 0;
+    font-size: 16px;
     color: var(--on-deep-2);
   }
 
@@ -328,9 +372,7 @@ const renderedProjects = await Promise.all(allProjects.map((entry) => render(ent
 
   /* A grid item gets a definite height from the row, which a percentage height
      on the image can actually resolve against — inside a flex item with auto
-     height it collapsed to zero. aspect-ratio then derives the width, so the
-     image is exactly as tall as the heading plus the card and no wider than
-     its own proportions allow. */
+     height it collapsed to zero. */
   .portrait-wrap {
     position: relative;
     width: clamp(210px, 26vw, 360px);
@@ -354,13 +396,9 @@ const renderedProjects = await Promise.all(allProjects.map((entry) => render(ent
 
   @media (max-width: 860px) {
     .hero-row {
-      flex-direction: column-reverse;
+      grid-template-columns: minmax(0, 1fr);
       align-items: center;
       gap: 28px;
-    }
-
-    .hero-row {
-      grid-template-columns: minmax(0, 1fr);
     }
 
     .portrait-wrap {

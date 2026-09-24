@@ -34,7 +34,8 @@
   /* Phase 7: frosted-glass cards, replacing the flat .content-scrim panel.
      --card-tint is the same zone-driven mechanism as --rail-scrim-tint
      (DepthRail.astro) — light (--foam) by default, swapped to dark
-     (--deep) by html.depth-deep / :global(.zone-deep) in BaseLayout.astro.
+     (--deep) by :global(.zone-deep) in BaseLayout.astro, which only Home's
+     deep section and the footer below it use.
      Each component mixes its own opacity into this tint via color-mix();
      the opacity numbers themselves live in
      src/scripts/water/effects/intensity.ts's CARD_OPACITY (one named

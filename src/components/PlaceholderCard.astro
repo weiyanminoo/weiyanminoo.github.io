@@ -1,0 +1,51 @@
+---
+// An empty slot in a set that is not full yet — the second school entry,
+// the third and fourth projects. Rendered by count, not by a placeholder
+// content file: each page asks for a fixed number of slots and fills the
+// shortfall with these, so adding a real markdown entry removes one of
+// these by itself and there is no stub file to remember to delete.
+//
+// Deliberately not a glass card. It is a hole in the layout, and dressing
+// it up as a finished card would be worse than leaving it plainly empty.
+interface Props {
+  // What belongs here, for a screen reader — the dashed box alone says
+  // nothing without sight of it.
+  label: string;
+}
+
+const { label } = Astro.props;
+---
+
+<div class="placeholder">
+  <span class="mark">[ TO COME ]</span>
+  <span class="visually-hidden">{label}</span>
+</div>
+
+<style>
+  .placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 140px;
+    padding: 30px;
+    border: 1px dashed var(--line);
+    border-radius: 15px;
+  }
+
+  /* --ink, not --ink-2 or --ink-3: this text sits on a tinted pill over
+     water that bubbles and fauna keep changing, which is exactly where the
+     softer tokens proved unstable across runs (see Tags.astro). The pill
+     itself is SectionHead's treatment — tint enough to hold contrast,
+     without the blur, border and shadow that would make this read as a
+     real card. Only ever rendered in a light zone, so there is no deep
+     counterpart to switch to. */
+  .mark {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    color: var(--ink);
+    padding: 4px 9px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--card-tint) 62%, transparent);
+  }
+</style>

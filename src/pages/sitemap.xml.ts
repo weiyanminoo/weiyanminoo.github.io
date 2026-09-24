@@ -1,10 +1,10 @@
 import type { APIRoute } from 'astro';
 
-// Four known static pages. Hand-rolled rather than @astrojs/sitemap: that
+// Five known static pages. Hand-rolled rather than @astrojs/sitemap: that
 // package is a dependency and a config change to produce twenty lines of
 // XML for a URL set this small and this fixed.
 // Trailing slashes are included to match the pages' canonical URLs.
-const pages = ['/', '/work/', '/projects/', '/outside/'];
+const pages = ['/', '/work/', '/school/', '/projects/', '/hobbies/'];
 
 export const GET: APIRoute = ({ site }) => {
   const urls = pages

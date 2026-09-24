@@ -1,10 +1,15 @@
 ---
 // Mockup's .sec-head (mockups/dive-log.html): a mono label, a hairline
-// rule, and a depth marker. Used by Home (three sections) and by each
-// sub-page, matching that page's own section (phase-7-brief.md change 1).
+// rule, and a depth marker.
+//
+// `depth` is optional because only Home descends. Its four sections each
+// sit at a real depth and say so; the tabs are still water at one fixed
+// depth, where a marker would be a number that never changes and implies a
+// descent the page does not have. Home's markers are measured against the
+// rendered page (see index.astro), not spaced by eye.
 interface Props {
   label: string;
-  depth: string;
+  depth?: string;
 }
 
 const { label, depth } = Astro.props;
@@ -13,7 +18,7 @@ const { label, depth } = Astro.props;
 <div class="sec-head">
   <h2>{label}</h2>
   <span class="rule" aria-hidden="true"></span>
-  <span class="depth">{depth}</span>
+  {depth && <span class="depth">{depth}</span>}
 </div>
 
 <style>

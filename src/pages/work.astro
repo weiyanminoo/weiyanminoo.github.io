@@ -12,10 +12,10 @@ const sorted = [...roles].sort((a, b) => b.data.start.getTime() - a.data.start.g
 const rendered = await Promise.all(sorted.map((entry) => render(entry)));
 ---
 
-<BaseLayout title={title} description={description} depth="shallow">
+<BaseLayout title={title} description={description}>
   <section>
     <h1>Work</h1>
-    <SectionHead label="DIVE LOG — WORK" depth="5 M" />
+    <SectionHead label="DIVE LOG — WORK" />
     <div class="roles">
       {
         sorted.map((entry, i) => {
@@ -44,7 +44,9 @@ const rendered = await Promise.all(sorted.map((entry) => render(entry)));
 
 <style>
   /* Mockup's .log: a gapped stack of cards, water visible between them —
-     see RoleEntry.astro for the card itself. */
+     see RoleEntry.astro for the card itself. These are the expandable
+     branch: Home shows the same rows without the bullets, and this page is
+     where they open. */
   .roles {
     display: flex;
     flex-direction: column;

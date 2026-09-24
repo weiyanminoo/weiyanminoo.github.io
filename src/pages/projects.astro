@@ -1,7 +1,9 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import ProjectCard from '../components/ProjectCard.astro';
+import PlaceholderCard from '../components/PlaceholderCard.astro';
 import SectionHead from '../components/SectionHead.astro';
+import { PROJECT_SLOTS } from '../lib/slots';
 import { getCollection, render } from 'astro:content';
 
 const title = 'Projects — Wei Yan';
@@ -10,13 +12,15 @@ const description = "Wei Yan's personal and side projects.";
 const projects = await getCollection('projects');
 const sorted = [...projects].sort((a, b) => b.data.start.getTime() - a.data.start.getTime());
 const rendered = await Promise.all(sorted.map((entry) => render(entry)));
+
+const blanks = Math.max(0, PROJECT_SLOTS - sorted.length);
 ---
 
-<BaseLayout title={title} description={description} depth="mid">
+<BaseLayout title={title} description={description}>
   <section>
     <h1>Projects</h1>
-    <SectionHead label="BUILT ON MY OWN TIME" depth="14 M" />
-    <div class="projects">
+    <SectionHead label="BUILT ON MY OWN TIME" />
+    <div class="cards">
       {
         sorted.map((entry, i) => {
           const { Content } = rendered[i];
@@ -30,23 +34,17 @@ const rendered = await Promise.all(sorted.map((entry) => render(entry)));
               summary={entry.data.summary}
               outcome={entry.data.outcome}
               tags={entry.data.tags}
+              detailed
             >
               <Content />
             </ProjectCard>
           );
         })
       }
+      {
+        Array.from({ length: blanks }, () => <PlaceholderCard label="A project not yet added" />)
+      }
     </div>
   </section>
 </BaseLayout>
 
-<style>
-  /* Mockup's .projects: a gapped card grid, water visible between them —
-     see ProjectCard.astro for the card itself. */
-  .projects {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
-    gap: 18px;
-    margin-top: 32px;
-  }
-</style>

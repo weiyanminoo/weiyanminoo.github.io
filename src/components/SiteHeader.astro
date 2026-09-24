@@ -2,8 +2,9 @@
 const links = [
   { href: '/', label: 'Home' },
   { href: '/work', label: 'Work' },
+  { href: '/school', label: 'School' },
   { href: '/projects', label: 'Projects' },
-  { href: '/outside', label: 'Outside' },
+  { href: '/hobbies', label: 'Hobbies' },
 ];
 
 const currentPath = Astro.url.pathname.replace(/\/$/, '') || '/';
@@ -74,10 +75,9 @@ const isCurrent = (href: string) =>
      itself crosses the thermocline, so — exactly like DepthRail.astro's
      `.scrim` / `.is-deep` — a single inherited --card-tint can't stay
      correct for the whole scroll range. Toggled by the same water:depth
-     event the rail already listens for. On a `single` (fixed-colour) page
-     this class is never toggled, so the header keeps inheriting its page's
-     depth class as before (see BaseLayout.astro's html.depth-deep, which
-     already sets --card-tint correctly with no JavaScript at all). */
+     event the rail already listens for. On a tab (still water at 6m) this
+     class is never toggled, and the light default --card-tint is correct
+     there with no JavaScript at all. */
   .site-header.is-deep {
     --card-tint: var(--deep);
     --card-border: rgba(255, 255, 255, 0.18);

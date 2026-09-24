@@ -25,40 +25,34 @@ export function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-interface RoutedBand extends ZonedBand {
-  readonly segment: string;
-}
+/**
+ * The depth every page other than Home paints, as a flat band (top ===
+ * bottom, so `depthAt` returns it at every scroll position and the water
+ * never moves). 6m is a stop in palette.ts's own table — rgb(234,242,243),
+ * within one channel step of the --shallow token — so the canvas and the
+ * no-JavaScript `html.depth-shallow` fallback background agree without a
+ * second hand-kept colour.
+ */
+export const STILL = 6;
 
-// Ordered top to bottom, surface to floor. Work and Projects deliberately
-// overlap each other so moving between them stays continuous. Neither may
-// cross THERMOCLINE (21m): each page's text colour is fixed by its depth
-// class, so a band straddling the thermocline would put light text on light
-// water or dark text on dark water. Projects ends at 19m and Outside starts
-// at 24m — inside the measured contrast limits (20m and 23m, where the
-// dark-ink and on-deep tokens respectively stop clearing 4.5:1) with
-// deliberate margin, since Phase 5's caustics, marine snow and dither
-// overlay perturb the background locally and would eat a bare-floor margin
-// immediately — leaving 19-24m as an unclaimed thermocline passage crossed
-// only by navigating into Outside, never by scrolling within a page.
+// Two cases, and only two. Home is the descent: `zones: 'column'`, spanning
+// the whole 0-32m column, and the only band permitted to cross THERMOCLINE
+// (it has no single fixed text colour — its sections declare their own light
+// or deep zone; see BaseLayout.astro).
 //
-// Home is the one exception: as of Phase 4c it is `zones: 'column'` and
-// spans the entire 0-32m column, so the whole descent is felt on one page.
-// It is the only band permitted to cross THERMOCLINE.
-const BANDS: readonly RoutedBand[] = [
-  { segment: '', top: 0, bottom: 32, zones: 'column' }, // Home
-  { segment: 'work', top: 5, bottom: 14, zones: 'single' },
-  { segment: 'projects', top: 12, bottom: 19, zones: 'single' },
-  { segment: 'outside', top: 24, bottom: 32, zones: 'single' },
-];
-
-const HOME_BAND: ZonedBand = BANDS[0];
+// Every other page is still water at a fixed STILL metres. Sub-pages used to
+// carry a band each, descending 5-14m / 12-19m / 24-32m to match their
+// position on Home; that coupling is gone by request — the tabs are plain
+// reference pages now, with no rail, no depth markers and no descent. A flat
+// band cannot cross THERMOCLINE, so the invariant that keeps a fixed-colour
+// page off the mid-tone water holds trivially rather than by arithmetic.
+const HOME_BAND: ZonedBand = { top: 0, bottom: MAX_DEPTH, zones: 'column' };
+const STILL_BAND: ZonedBand = { top: STILL, bottom: STILL, zones: 'single' };
 
 export function bandForPath(pathname: string): ZonedBand {
   const path = pathname.split(/[?#]/)[0]; // ignore query string / hash, if any
   const segment = path.split('/').filter(Boolean)[0] ?? '';
-  const match = BANDS.find((band) => band.segment === segment);
-  const { top, bottom, zones } = match ?? HOME_BAND;
-  return { top, bottom, zones };
+  return segment === '' ? HOME_BAND : STILL_BAND;
 }
 
 export function depthAt(band: Band, scrollProgress: number): number {

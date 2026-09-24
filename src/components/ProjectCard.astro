@@ -11,9 +11,13 @@ interface Props {
   summary: string;
   outcome: string;
   tags: string[];
+  // Home shows the name, kind, period and one-line summary only — the
+  // bullets, the outcome, the tags and the link to the live thing are what
+  // /projects is for. Same split as SchoolCard's and RoleEntry's.
+  detailed?: boolean;
 }
 
-const { name, kind, start, ongoing, url, summary, outcome, tags } = Astro.props;
+const { name, kind, start, ongoing, url, summary, outcome, tags, detailed = false } = Astro.props;
 
 const period = formatProjectPeriod(start, ongoing);
 ---
@@ -24,14 +28,24 @@ const period = formatProjectPeriod(start, ongoing);
     <p class="meta">{kind} &middot; {period}</p>
   </header>
   <p class="summary">{summary}</p>
-  <div class="body md-body">
-    <slot />
-  </div>
-  <p class="outcome"><strong>Outcome.</strong> {outcome}</p>
-  <div class="tags-wrap">
-    <Tags tags={tags} />
-  </div>
-  <a class="link" href={url}>Visit {name} &rarr;</a>
+  {
+    detailed && (
+      <>
+        <div class="body md-body">
+          <slot />
+        </div>
+        <p class="outcome">
+          <strong>Outcome.</strong> {outcome}
+        </p>
+        <div class="tags-wrap">
+          <Tags tags={tags} />
+        </div>
+        <a class="link" href={url}>
+          Visit {name} &rarr;
+        </a>
+      </>
+    )
+  }
 </article>
 
 <style>
@@ -58,6 +72,12 @@ const period = formatProjectPeriod(start, ongoing);
   .summary {
     max-width: 60ch;
     color: var(--ink-2);
+  }
+
+  /* Home's compact card ends here, so its paragraph margin would otherwise
+     become dead space inside the card's own padding. */
+  .summary:last-child {
+    margin-bottom: 0;
   }
 
   .outcome {

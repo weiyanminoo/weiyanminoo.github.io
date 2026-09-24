@@ -12,6 +12,8 @@ import {
   faunaAlphaAt,
   faunaLightAlphaAt,
   faunaDeepAlphaAt,
+  orient,
+  MAX_PITCH,
 } from '../../src/scripts/water/effects/fauna';
 import { CARD_OPACITY } from '../../src/scripts/water/effects/intensity';
 import { colourAtDepth, type Rgb } from '../../src/scripts/water/palette';
@@ -433,5 +435,98 @@ describe('stacked particle contrast bound', () => {
     expect(worst, `worst ratio ${worst.toFixed(3)} at ${worstDepth}m against --on-deep`).toBeGreaterThanOrEqual(
       LARGE_TEXT_RATIO
     );
+  });
+});
+
+describe('fauna orientation', () => {
+  // The rendering matrix is translate(x,y) . rotate(angle) . scale(L*scaleX, L),
+  // applied to a unit path whose nose is at +x and whose back is at -y (up,
+  // since canvas y grows downward). These helpers apply exactly that to the
+  // two directions that matter, so the assertions below are about what is
+  // actually drawn rather than about the intermediate numbers.
+  const nose = (dx: number, dy: number, peak: number) => {
+    const { angle, scaleX } = orient(dx, dy, peak);
+    return [scaleX * Math.cos(angle), scaleX * Math.sin(angle)];
+  };
+  const back = (dx: number, dy: number, peak: number) => {
+    const { angle } = orient(dx, dy, peak);
+    // scale does not affect (0,-1) in x, so only the rotation applies.
+    return [Math.sin(angle), -Math.cos(angle)];
+  };
+
+  // A spread of velocities including straight up, straight down, hard left,
+  // hard right and every diagonal, at speeds from a crawl to full peak.
+  const peak = 30;
+  const velocities: [number, number][] = [];
+  for (let deg = 0; deg < 360; deg += 7) {
+    const r = (deg * Math.PI) / 180;
+    for (const speed of [0.05, 0.4, 1]) {
+      velocities.push([peak * speed * Math.cos(r), peak * speed * Math.sin(r)]);
+    }
+  }
+
+  it('never draws a creature upside down, at any velocity', () => {
+    // This is the bug this function exists to prevent: rotating a profile
+    // silhouette by atan2(dy, dx) puts it on its back the moment it swims
+    // leftward. The creature's back must point up (negative y) always.
+    for (const [dx, dy] of velocities) {
+      const [, backY] = back(dx, dy, peak);
+      expect(backY).toBeLessThan(0);
+    }
+  });
+
+  it('never draws a creature swimming backwards', () => {
+    // The nose must agree with the direction of travel on both axes. A
+    // creature mid-turn has zero width, so only test where it has some.
+    for (const [dx, dy] of velocities) {
+      const { scaleX } = orient(dx, dy, peak);
+      if (Math.abs(scaleX) < 1e-6) {
+        continue;
+      }
+      const [noseX, noseY] = nose(dx, dy, peak);
+      expect(Math.sign(noseX)).toBe(Math.sign(dx));
+      if (Math.abs(dy) > 1e-6) {
+        expect(Math.sign(noseY)).toBe(Math.sign(dy));
+      }
+    }
+  });
+
+  it('never pitches a creature past MAX_PITCH', () => {
+    for (const [dx, dy] of velocities) {
+      expect(Math.abs(orient(dx, dy, peak).angle)).toBeLessThanOrEqual(MAX_PITCH + 1e-9);
+    }
+  });
+
+  it('keeps MAX_PITCH inside a quarter turn, which is what forbids the flip', () => {
+    expect(MAX_PITCH).toBeLessThan(Math.PI / 2);
+  });
+
+  it('turns through zero width rather than snapping between facings', () => {
+    // A hard sign flip is what reads as the creature being mirrored in
+    // place. Sweeping dx through zero must pass through |scaleX| = 0 and
+    // change by only a little between neighbouring samples.
+    let previous = orient(-peak, 0, peak).scaleX;
+    let sawZero = false;
+    for (let dx = -peak; dx <= peak; dx += peak / 200) {
+      const { scaleX } = orient(dx, 0, peak);
+      expect(Math.abs(scaleX - previous)).toBeLessThan(0.05);
+      if (Math.abs(scaleX) < 0.02) {
+        sawZero = true;
+      }
+      previous = scaleX;
+    }
+    expect(sawZero).toBe(true);
+  });
+
+  it('holds a creature at full width while it is not turning', () => {
+    // A traverse never reverses, so it must never be foreshortened.
+    expect(orient(peak, 0, peak).scaleX).toBe(1);
+    expect(orient(peak, 5, peak).scaleX).toBe(1);
+  });
+
+  it('does not divide by zero when a creature has no horizontal travel at all', () => {
+    const { angle, scaleX } = orient(0, 0, 0);
+    expect(Number.isFinite(angle)).toBe(true);
+    expect(Number.isFinite(scaleX)).toBe(true);
   });
 });

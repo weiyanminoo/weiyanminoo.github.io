@@ -20,6 +20,7 @@
 import type { Effect } from './types';
 import { INTENSITY } from './intensity';
 import { ramp, depthAtY } from './gate';
+import { clamp } from '../depth';
 import { FAUNA_ART, type FaunaSpecies } from './faunaArt';
 
 // Light-water silhouette: the same blue-grey the shoal uses. Against
@@ -101,8 +102,10 @@ const LENGTH: Record<FaunaSpecies, number> = {
  * animals you would actually linger with (a manta at a cleaning station, a
  * shark working a wall) rather than ones passing through.
  *
- * Both are closed-form, so heading comes from the analytic derivative and
- * the creature always faces where it is genuinely going.
+ * Both are closed-form, so velocity comes from the analytic derivative and
+ * the creature always faces where it is genuinely going — see `orient`,
+ * which turns that velocity into an orientation that is head-first and
+ * right way up whichever direction the creature happens to be swimming.
  */
 type Motion = 'traverse' | 'patrol';
 
@@ -221,27 +224,76 @@ export function faunaAlphaAt(d: number): number {
 interface Placed {
   readonly x: number;
   readonly y: number;
-  readonly heading: number;
+  /** Velocity at `t`. Not normalised — `orient` only needs its direction. */
+  readonly dx: number;
+  readonly dy: number;
+  /** The largest |dx| this creature ever reaches, which `orient` measures
+   *  the current dx against. Per-creature, not a global speed: a slow shark
+   *  and a fast tuna are each mid-turn at very different absolute speeds. */
+  readonly dxPeak: number;
 }
 
-/** Position and heading at `t`, from the closed-form path and its derivative. */
+/** Position and velocity at `t`, from the closed-form path and its derivative. */
 function place(c: Creature, t: number, width: number, height: number, margin: number): Placed {
   if (c.motion === 'patrol') {
     const px = c.phase;
     const py = c.phase * 0.7 + 1.1;
     const x = (c.cx + c.ax * Math.sin(t * c.speed + px)) * width;
     const y = (c.cy + c.ay * Math.sin(t * c.speedY + py)) * height;
-    const dx = c.ax * c.speed * Math.cos(t * c.speed + px) * width;
+    const dxPeak = c.ax * c.speed * width;
+    const dx = dxPeak * Math.cos(t * c.speed + px);
     const dy = c.ay * c.speedY * Math.cos(t * c.speedY + py) * height;
-    return { x, y, heading: Math.atan2(dy, dx) };
+    return { x, y, dx, dy, dxPeak };
   }
   const span = width + margin * 2;
   const travel = ((c.phase / 6.283 + t * c.speed) % 1 + 1) % 1;
   const x = -margin + travel * span;
   const y = (c.cy + c.ay * Math.sin(t * c.speedY + c.phase)) * height;
+  // Constant and positive: a traverse never reverses, so it never turns and
+  // `orient` leaves it at full width facing +x for its whole crossing.
   const dx = c.speed * span;
   const dy = c.ay * c.speedY * Math.cos(t * c.speedY + c.phase) * height;
-  return { x, y, heading: Math.atan2(dy, dx) };
+  return { x, y, dx, dy, dxPeak: dx };
+}
+
+/**
+ * Turns a velocity into a drawing orientation that is always head-first and
+ * never upside down.
+ *
+ * The naive version — rotate by `atan2(dy, dx)` — is wrong for artwork drawn
+ * in profile. Once a creature swims leftward that heading passes a quarter
+ * turn, and rotating a side view past vertical lays it on its back: a turtle
+ * with its shell underneath and its flippers in the air. Rotation cannot
+ * express "facing the other way" for a profile silhouette, because a rotation
+ * mirrors both axes at once and only one of them should be mirrored.
+ *
+ * So direction of travel is carried by a horizontal mirror instead, and the
+ * rotation only ever carries pitch — measured against |dx|, so it stays
+ * inside a quarter turn by construction and the shell can never come out
+ * underneath. Pitch is additionally clamped, because these animals swim close
+ * to level and a silhouette standing on its nose reads as a glitch whichever
+ * way up it is.
+ *
+ * The mirror passes through zero width rather than snapping from +1 to -1.
+ * A hard flip reads as the animal being mirrored in place — the "swimming
+ * backwards" effect — whereas easing through zero reads as it foreshortening,
+ * turning, and coming back out facing the other way, which is what a turn
+ * actually looks like from the side. Rays bank through their turns the same
+ * way, so this suits the top-view artwork too.
+ *
+ * Closed-form in the velocity alone, so it holds at `time = 0` for the
+ * reduced-motion frame like everything else here.
+ */
+export const MAX_PITCH = (32 * Math.PI) / 180;
+const TURN_FRACTION = 0.22;
+
+export function orient(dx: number, dy: number, dxPeak: number): { angle: number; scaleX: number } {
+  const pitch = clamp(Math.atan2(dy, Math.abs(dx)), -MAX_PITCH, MAX_PITCH);
+  const window = Math.abs(dxPeak) * TURN_FRACTION;
+  const scaleX = window > 0 ? clamp(dx / window, -1, 1) : 1;
+  // At dx = 0 the angle switches sign, but scaleX is 0 there — the creature
+  // has no width at that instant, so the switch cannot be seen.
+  return { angle: dx < 0 ? -pitch : pitch, scaleX };
 }
 
 // Two paths, each filled ONCE at one alpha — the same guarantee shoal.ts
@@ -263,17 +315,21 @@ const fauna: Effect = (frame) => {
   for (const c of CREATURES) {
     const band = BANDS[c.species];
     const length = LENGTH[c.species] * c.scale;
-    const { x, y, heading } = place(c, time, width, height, length * 1.4);
+    const { x, y, dx, dy, dxPeak } = place(c, time, width, height, length * 1.4);
 
     const alpha = bandAlpha(band, depthAtY(frame, y));
     if (alpha <= 0) {
       continue;
     }
 
+    // scaleX is the mirror that carries direction of travel — see `orient`.
+    // It is folded into the same scale as `length` rather than applied as a
+    // separate step, so the creature is still one matrix and one addPath.
+    const { angle, scaleX } = orient(dx, dy, dxPeak);
     const matrix = new DOMMatrix()
       .translate(x, y)
-      .rotate((heading * 180) / Math.PI)
-      .scale(length);
+      .rotate((angle * 180) / Math.PI)
+      .scale(length * scaleX, length);
 
     (band.deep ? deepPath : lightPath).addPath(art[c.species], matrix);
 

@@ -8,3 +8,5 @@ summary: GUI for event planners to plan weddings
 outcome: -
 tags: [Java, GUI, OOP]
 ---
+
+- Built it as part of NUS module CS2103T in a group of 5 students

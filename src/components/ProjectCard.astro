@@ -34,9 +34,11 @@ const period = formatProjectPeriod(start, ongoing);
         <div class="body md-body">
           <slot />
         </div>
-        <p class="outcome">
-          <strong>Outcome.</strong> {outcome}
-        </p>
+        {outcome && (
+          <p class="outcome">
+            <strong>Outcome.</strong> {outcome}
+          </p>
+        )}
         <div class="tags-wrap">
           <Tags tags={tags} />
         </div>

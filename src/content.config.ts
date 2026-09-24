@@ -42,7 +42,12 @@ const projects = defineCollection({
     ongoing: z.boolean().default(true),
     url: z.string().url(),
     summary: z.string(),
-    outcome: z.string(),
+    // Optional: not every project has a measured result worth stating, and
+    // an empty one renders nothing rather than a bare "Outcome." label.
+    // Write it as `outcome: ''`, never as a bare `-` — an unquoted dash is
+    // YAML's block-sequence indicator, not the character, and it fails the
+    // build with a confusing indentation error on the FOLLOWING line.
+    outcome: z.string().default(''),
     tags: z.array(z.string()).default([]),
   }),
 });

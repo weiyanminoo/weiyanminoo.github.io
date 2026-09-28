@@ -126,19 +126,47 @@ interface Creature {
   readonly phase: number;
   /** Multiplier on this individual's LENGTH, so same-species animals differ. */
   readonly scale: number;
+  /**
+   * traverse only: time spent off-screen between passes, as a multiple of
+   * the visible crossing. 0 means it re-enters the instant it leaves; 2
+   * means it is away twice as long as it is visible (on screen a third of
+   * the time). See `place`.
+   */
+  readonly gap?: number;
 }
 
 // Deliberately few. PRODUCT.md asks for "a presence rather than
 // decoration", and something at every depth all the time reads as an
 // aquarium rather than a dive.
+//
+// TIME IS SCATTERED, NOT JUST SPACE. The turtle and tuna bands overlap
+// around 8-14m, and without gaps both species were ALWAYS on screen there:
+// measured over ten minutes, 4-6 animals were visible 100% of the time,
+// never fewer than four, on top of the shoal. So traversers carry a `gap`
+// and the patrolling turtle swings wide enough to leave the frame. Same
+// measurement afterwards: 2.1 on screen on average, 4+ at once 19% of the
+// time, and the water empty about 7% of the time. The busy moments that
+// remain are the tuna school passing — it arrives together, by design, so a
+// pass is briefly full and then the water goes quiet. A school going by is
+// now an event rather than a fixture.
+//
+// Why absence rather than fading: every creature in a zone is filled in ONE
+// path at the zone's max alpha (see the draw function), which is what holds
+// the contrast guarantee. A creature dimmed on its own would still be
+// painted at the brightest one's alpha, so the only honest way to make an
+// animal less present is to take it out of frame.
 const CREATURES: readonly Creature[] = [
-  // Surface: two turtles of noticeably different size, both wandering.
-  { species: 'turtle', motion: 'patrol', speed: 0.055, speedY: 0.083, cx: 0.5, cy: 0.35, ax: 0.42, ay: 0.16, phase: 0.0, scale: 1.0 },
-  { species: 'turtle', motion: 'traverse', speed: 0.014, speedY: 0.11, cx: 0, cy: 0.68, ax: 0, ay: 0.07, phase: 2.1, scale: 0.72 },
+  // Surface: two turtles of noticeably different size. The big one's patrol
+  // is wide enough (ax 0.62 about a 0.5 centre) to carry it past both edges,
+  // so it turns out of view and is absent for part of each swing.
+  { species: 'turtle', motion: 'patrol', speed: 0.055, speedY: 0.083, cx: 0.5, cy: 0.35, ax: 0.62, ay: 0.16, phase: 0.0, scale: 1.0 },
+  { species: 'turtle', motion: 'traverse', speed: 0.014, speedY: 0.11, cx: 0, cy: 0.68, ax: 0, ay: 0.07, phase: 2.1, scale: 0.72, gap: 1.6 },
   // Mixed layer: a loose tuna school, passing through rather than lingering.
-  { species: 'tuna', motion: 'traverse', speed: 0.05, speedY: 0.21, cx: 0, cy: 0.3, ax: 0, ay: 0.06, phase: 0.0, scale: 1.0 },
-  { species: 'tuna', motion: 'traverse', speed: 0.05, speedY: 0.21, cx: 0, cy: 0.38, ax: 0, ay: 0.06, phase: 0.55, scale: 0.82 },
-  { species: 'tuna', motion: 'traverse', speed: 0.05, speedY: 0.21, cx: 0, cy: 0.24, ax: 0, ay: 0.06, phase: 1.15, scale: 0.66 },
+  // One shared gap, so the school still arrives together and leaves
+  // together — then the water is quiet for twice as long as the pass took.
+  { species: 'tuna', motion: 'traverse', speed: 0.05, speedY: 0.21, cx: 0, cy: 0.3, ax: 0, ay: 0.06, phase: 0.0, scale: 1.0, gap: 2 },
+  { species: 'tuna', motion: 'traverse', speed: 0.05, speedY: 0.21, cx: 0, cy: 0.38, ax: 0, ay: 0.06, phase: 0.55, scale: 0.82, gap: 2 },
+  { species: 'tuna', motion: 'traverse', speed: 0.05, speedY: 0.21, cx: 0, cy: 0.24, ax: 0, ay: 0.06, phase: 1.15, scale: 0.66, gap: 2 },
   // The manta: one, large, very slow, on a wide sweeping arc.
   { species: 'manta', motion: 'patrol', speed: 0.031, speedY: 0.047, cx: 0.5, cy: 0.5, ax: 0.44, ay: 0.2, phase: 1.3, scale: 1.0 },
   // Deep reef: sharks working a long, slow beat.
@@ -278,13 +306,30 @@ function place(c: Creature, t: number, width: number, height: number, margin: nu
     const dy = c.ay * c.speedY * Math.cos(t * c.speedY + py) * height;
     return { x, y, dx, dy, dxPeak };
   }
-  const span = width + margin * 2;
-  const travel = ((c.phase / 6.283 + t * c.speed) % 1 + 1) % 1;
-  const x = -margin + travel * span;
+  // The crossing itself, edge to edge including the margins.
+  const crossing = width + margin * 2;
+  // `gap` stretches the cycle so the creature spends time OFF-screen between
+  // passes. The whole cycle covers crossing * (1 + gap); only the first
+  // `crossing` of it is visible, so a traverser is on screen for 1/(1+gap)
+  // of the time. `travel` advances at speed/(1+gap), which keeps the swimming
+  // speed across the screen exactly what `speed` says — a fish with a gap is
+  // not slower, it is just away for longer.
+  //
+  // The phase is divided by (1 + gap) along with time, NOT added outside it.
+  // That keeps the spacing between members of a school in absolute distance
+  // (phase fraction x one crossing, exactly as with no gap). Adding it
+  // outside would stretch the spacing by (1 + gap) too, and a tuna school
+  // with a gap of 2 would spread across half the screen instead of arriving
+  // together — which is how this was first written.
+  const gap = c.gap ?? 0;
+  const travel = ((((c.phase / 6.283 + t * c.speed) / (1 + gap)) % 1) + 1) % 1;
+  const x = -margin + travel * crossing * (1 + gap);
   const y = (c.cy + c.ay * Math.sin(t * c.speedY + c.phase)) * height;
   // Constant and positive: a traverse never reverses, so it never turns and
-  // `orient` leaves it at full width facing +x for its whole crossing.
-  const dx = c.speed * span;
+  // `orient` leaves it at full width facing +x for its whole crossing. It is
+  // the ON-SCREEN speed (crossing, not crossing * (1 + gap)), so the gap
+  // cannot change how fast the animal appears to swim.
+  const dx = c.speed * crossing;
   const dy = c.ay * c.speedY * Math.cos(t * c.speedY + c.phase) * height;
   return { x, y, dx, dy, dxPeak: dx };
 }

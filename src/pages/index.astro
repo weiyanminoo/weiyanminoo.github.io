@@ -85,8 +85,8 @@ const DEPTH_MARKS = {
           class="portrait"
           src={portrait}
           alt="Wei Yan underwater in scuba gear, giving a shaka sign to the camera"
-          widths={[380, 560, 1011]}
-          sizes="(max-width: 860px) 70vw, 380px"
+          widths={[470, 700, 917]}
+          sizes="(max-width: 1239px) min(100vw, 420px), 450px"
           loading="eager"
         />
       </div>
@@ -352,14 +352,23 @@ const DEPTH_MARKS = {
      card — it is a cut-out, so the water is its background. No border or
      surface: anything drawn round it would read as a frame and break that. */
   /* The portrait stands the full height of the heading plus the intro card
-     beside it, so the two columns end level. The left column sets the row's
-     height; the image stretches to it and takes whatever width its aspect
-     ratio then asks for. */
+     beside it, so the two columns end level.
+
+     The text column is `auto`, so it is exactly as wide as the card wants to
+     be (its 64ch max-width), and the photo takes whatever is left. That
+     ordering is the point. The other way round — the photo sizing itself
+     from the row height and the text taking the remainder — is a feedback
+     loop: a wider photo narrows the card, the card's meta line wraps, the
+     column gets taller, and the photo then wants to be wider still. Grid
+     re-resolves that only once, so it overshot: measured 21px past the
+     content edge at 1440, with the meta line broken onto two lines. Here the
+     card's width never depends on the photo, so its height never does
+     either, and there is nothing to loop. */
   .hero-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr);
     align-items: stretch;
-    gap: 44px;
+    gap: 24px;
   }
 
   .hero-left {
@@ -372,10 +381,11 @@ const DEPTH_MARKS = {
 
   /* A grid item gets a definite height from the row, which a percentage height
      on the image can actually resolve against — inside a flex item with auto
-     height it collapsed to zero. */
+     height it collapsed to zero. It fills the remaining track's width, and the
+     image inside is height-limited within it (see the stacking breakpoint
+     below for where that stops holding). */
   .portrait-wrap {
     position: relative;
-    width: clamp(210px, 26vw, 360px);
   }
 
   /* No card or frame — it is a cut-out, so the water is its background. */
@@ -389,21 +399,37 @@ const DEPTH_MARKS = {
     width: 100%;
     height: 100%;
     object-fit: contain;
-    object-position: center bottom;
+    /* Right, so the photo's edge sits on the content column's edge — the same
+       line the section rules and depth markers below end on. Any spare track
+       width lands between the card and the diver, where the cut-out's own
+       shape already leaves open water. */
+    object-position: right bottom;
     display: block;
     filter: drop-shadow(0 18px 40px rgba(11, 42, 58, 0.28));
   }
 
-  @media (max-width: 860px) {
+  /* Stacks well above the site's usual 860px, because this photo is
+     landscape: to stand as tall as the text beside it, it needs about 1.17x
+     that height in width, on top of the card's own width. Below this the two
+     no longer fit side by side, and the photo would either be drawn shorter
+     than the text (width-limited) or squeeze the card. Stacked, neither
+     happens. Measured, not chosen: the photo is exact on all four edges down
+     to 1226px and starts falling short around 1222px (5px short at 1220, 35px
+     at 1181). Side by side from 1240 leaves ~17px of margin over that, so a
+     small difference in font metrics cannot tip it over; every common laptop
+     width (1280, 1366, 1440, 1536, 1920) is above it. */
+  @media (max-width: 1239px) {
     .hero-row {
       grid-template-columns: minmax(0, 1fr);
       align-items: center;
       gap: 28px;
     }
 
+    /* 100%, not a vw value: on Home the column is already narrowed by the
+       depth rail's gutter, and 88vw measured 2px wider than it at 375px. */
     .portrait-wrap {
       position: static;
-      width: min(70vw, 320px);
+      width: min(100%, 420px);
       justify-self: center;
     }
 

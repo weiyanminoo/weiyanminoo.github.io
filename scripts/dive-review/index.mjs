@@ -17,6 +17,7 @@
 // Assumes `npm run build` has already produced dist/.
 
 import { chromium } from 'playwright';
+import { PNG } from 'pngjs';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -30,7 +31,8 @@ const PORT = 4325;
 const BASE = `http://127.0.0.1:${PORT}`;
 const DESKTOP = { width: 1440, height: 900 };
 const MOBILE = { width: 390, height: 844 };
-const TIME_S = 10;
+// Mid-exhale (breathAt(8).phase ≈ 0.61), so sheets show the rising bubbles.
+const TIME_S = 8;
 const SHOT_SAMPLES = [0.25, 0.5, 0.75];
 // Every cut and blend in the storyboard: the exhale-burst cut into clip 4,
 // clip 4 → clip 3, the snapper cut back to wide, the manta and shark
@@ -101,8 +103,9 @@ async function frame(page, progress, timeS, entry = 1, type = 'png') {
 /** Lays images out in a grid by rendering an HTML page of them and
  *  screenshotting it — no image-processing dependency needed. */
 async function tile(browser, images, labels, cols, cellWidth, outPath) {
+  // A one-pixel viewport so the full-page screenshot is exactly the grid.
   const context = await browser.newContext({
-    viewport: { width: cols * cellWidth, height: 600 },
+    viewport: { width: cols * cellWidth, height: 1 },
     deviceScaleFactor: 1,
   });
   const page = await context.newPage();
@@ -235,6 +238,51 @@ async function contextLossCheck(browser) {
   await context.close();
 }
 
+const srgbToLinear = (c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+
+function meanLuminance(buf) {
+  const png = PNG.sync.read(buf);
+  let sum = 0;
+  let count = 0;
+  for (let y = 0; y < png.height; y += 8) {
+    for (let x = 0; x < png.width; x += 8) {
+      const i = (y * png.width + x) * 4;
+      const [r, g, b] = [png.data[i], png.data[i + 1], png.data[i + 2]].map((v) => srgbToLinear(v / 255));
+      sum += 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      count++;
+    }
+  }
+  return sum / count;
+}
+
+// WCAG 2.3.1: nothing flashes more than three times a second. The entry
+// burst is the one time-driven sequence (1.2 s, sampled at 60 fps); a flash
+// is a pair of opposing luminance swings each larger than 10% of the peak.
+async function flashCheck(browser) {
+  const { context, page } = await openReview(browser, DESKTOP);
+  const samples = 72;
+  const lum = [];
+  for (let i = 0; i < samples; i++) {
+    const e = i / (samples - 1);
+    lum.push(meanLuminance(await frame(page, 0, TIME_S + e * 1.2, e)));
+  }
+  await context.close();
+  const threshold = 0.1 * Math.max(...lum);
+  let swings = 0;
+  let dir = 0;
+  let extreme = lum[0];
+  for (const v of lum) {
+    if (dir >= 0) {
+      if (v > extreme) extreme = v;
+      else if (extreme - v > threshold) [swings, dir, extreme] = [swings + 1, -1, v];
+    } else if (v < extreme) extreme = v;
+    else if (v - extreme > threshold) [swings, dir, extreme] = [swings + 1, 1, v];
+  }
+  const flashes = swings / 2;
+  if (flashes <= 3) ok(`flash: entry burst has ${flashes} flash(es) in 1.2 s`);
+  else fail(`flash: entry burst has ${flashes} flashes in 1.2 s (limit 3/s)`);
+}
+
 async function exportStills(browser) {
   const dir = path.join(repoRoot, 'public', 'dive', 'stills');
   await fs.mkdir(dir, { recursive: true });
@@ -259,6 +307,7 @@ async function main() {
     await contactSheets(browser);
     if (flag('strips')) await strips(browser);
     if (flag('stills')) await exportStills(browser);
+    if (flag('flash')) await flashCheck(browser);
     await determinism(browser);
     await resizeCheck(browser);
     await contextLossCheck(browser);

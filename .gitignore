@@ -61,3 +61,6 @@ mockups/
 # ---------- scratch ----------
 # Local measurement scripts and backups from design/verification work.
 .scratch/
+
+# ---------- raw dive footage: never published ----------
+dive_videos/

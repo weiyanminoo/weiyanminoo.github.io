@@ -29,7 +29,9 @@ const WALL_TRACKS: readonly Track[] = [
     [0.37, 10.5],
   ],
   [
-    [0.74, 14],
+    // Back out of the haze for the drop-off, never popping in close.
+    [0.72, 40],
+    [0.76, 16],
     [0.8, 9],
     [0.9, 12],
   ],

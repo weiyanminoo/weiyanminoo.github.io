@@ -5,6 +5,7 @@
 
 import * as THREE from 'three';
 import { noise1 } from './noise';
+import { createPost, type DivePost } from './post';
 import type { TierSettings } from './quality';
 import { CAMERA_FOV_Y_DEG } from './timeline';
 import type { DiveFrame } from './types';
@@ -61,6 +62,9 @@ export async function createScene(
 
   const ctx: LayerContext = { renderer, scene, camera, settings };
   for (const layer of layers) await layer.init(ctx);
+  // The low tier renders straight to the screen: no lens pass, and so no
+  // thermocline band (plan Task 13).
+  const post: DivePost | null = settings.post ? createPost(renderer, 1, 1) : null;
 
   return {
     render(frame) {
@@ -72,16 +76,19 @@ export async function createScene(
         0,
       );
       for (const layer of layers) layer.update(frame);
-      renderer.render(scene, camera);
+      if (post) post.render(scene, camera, frame);
+      else renderer.render(scene, camera);
     },
     resize(w, h, dpr) {
       renderer.setPixelRatio(Math.min(dpr, settings.maxDpr));
       renderer.setSize(w, h, false);
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
+      post?.resize(w, h);
     },
     dispose() {
       for (const layer of layers) layer.dispose();
+      post?.dispose();
       renderer.dispose();
     },
   };

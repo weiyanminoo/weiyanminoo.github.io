@@ -22,6 +22,17 @@ describe('wallDistance', () => {
     expect(d).toBeLessThanOrEqual(16);
   });
 
+  // Neither return of the wall may pop in: each track starts far enough out
+  // that the fog hides it.
+  it('only ever appears from far out in the haze', () => {
+    let wasVisible = false;
+    for (let p = 0; p <= 1; p += 0.001) {
+      const d = wallDistance(p);
+      if (d !== null && !wasVisible) expect(d).toBeGreaterThanOrEqual(35);
+      wasVisible = d !== null;
+    }
+  });
+
   it('never reaches the lens', () => {
     for (let p = 0; p <= 1; p += 0.001) {
       const d = wallDistance(p);

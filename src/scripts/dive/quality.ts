@@ -1,0 +1,50 @@
+// Quality tiers. One dive, three budgets: the scene reads its particle
+// counts, pixel ratio, post pass and footage size from TierSettings, so a
+// slower device gets the same film with less in it rather than a different
+// design (spec §1, §11).
+
+export type Tier = 'high' | 'medium' | 'low';
+
+export interface TierInput {
+  deviceMemoryGB?: number;
+  dpr: number;
+  isMobile: boolean;
+  medianFrameMs?: number;
+}
+
+export interface TierSettings {
+  tier: Tier;
+  maxDpr: number;
+  snowCount: number;
+  schoolScale: number;
+  post: boolean;
+  footage: '1080' | '720' | '540';
+}
+
+// Above this median frame time the tier steps down once.
+const SLOW_FRAME_MS = 22;
+
+export function downgrade(tier: Tier): Tier {
+  return tier === 'high' ? 'medium' : 'low';
+}
+
+export function pickTier(input: TierInput): Tier {
+  let tier: Tier = input.isMobile ? 'medium' : 'high';
+  if (input.deviceMemoryGB !== undefined && input.deviceMemoryGB <= 4) tier = 'low';
+  if (input.medianFrameMs !== undefined && input.medianFrameMs > SLOW_FRAME_MS) tier = downgrade(tier);
+  return tier;
+}
+
+const BASE: Record<Tier, Omit<TierSettings, 'footage'>> = {
+  high: { tier: 'high', maxDpr: 1.5, snowCount: 2500, schoolScale: 1, post: true },
+  medium: { tier: 'medium', maxDpr: 1.25, snowCount: 1500, schoolScale: 0.6, post: true },
+  low: { tier: 'low', maxDpr: 1, snowCount: 700, schoolScale: 0.35, post: false },
+};
+
+export function settingsFor(tier: Tier, opts: { originals: boolean; isMobile: boolean }): TierSettings {
+  let footage: TierSettings['footage'];
+  if (opts.isMobile || tier === 'low') footage = '540';
+  else if (tier === 'high' && opts.originals) footage = '1080';
+  else footage = '720';
+  return { ...BASE[tier], footage };
+}

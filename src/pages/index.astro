@@ -208,19 +208,44 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
 </DiveLayout>
 
 <script>
-  import { mountDive } from '../scripts/dive/index';
+  import { createAudio, frameSync, renderPreview } from '../scripts/dive/audio';
+  import { readMuted } from '../scripts/dive/audioMath';
+  import { mountDive, type DiveHandle } from '../scripts/dive/index';
   import { wireUi } from '../scripts/dive/ui';
 
+  const BED_URL = '/dive/audio/bed.m4a';
   const root = document.querySelector('main');
   if (root) {
-    // The controls work with or without the film (reduced motion, no WebGL).
+    // The controls and sound work with or without the film (reduced
+    // motion, no WebGL).
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const dive = await mountDive(root);
+    const storage = (() => {
+      try {
+        return window.localStorage;
+      } catch {
+        return null;
+      }
+    })();
+    let dive: DiveHandle | null = null;
+    const audio = createAudio({
+      bed: BED_URL,
+      clock: () => dive?.timeS ?? performance.now() / 1000,
+      muted: readMuted(storage),
+    });
+    dive = await mountDive(root, { onFrame: frameSync(audio) });
     wireUi({
       getLenis: () => dive?.lenis ?? null,
       onDiveIn: () => dive?.startEntry(),
       reducedMotion,
+      audio,
+      storage,
     });
+    if (new URLSearchParams(location.search).has('review')) {
+      Object.assign(window, {
+        __diveAudio: audio,
+        __diveAudioPreview: (seconds: number, depthM: number) => renderPreview(BED_URL, seconds, depthM),
+      });
+    }
   }
 </script>
 

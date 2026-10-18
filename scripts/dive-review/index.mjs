@@ -366,6 +366,84 @@ async function keyboardCheck(browser) {
   await context.close();
 }
 
+// Review Focus 5: sound survives the tab going to the background (iOS
+// suspends the AudioContext), and a mute choice survives a reload.
+async function soundCheck(browser) {
+  const { context, page, errors } = await openPage(browser, DESKTOP, 'review');
+  await page.waitForFunction(() => !!window.__diveAudio);
+  await page.click('.dive-in');
+  await page.waitForTimeout(500);
+  const started = await page.evaluate(() => window.__diveAudio.context?.state);
+  await page.evaluate(async () => {
+    await window.__diveAudio.context.suspend();
+    Object.defineProperty(document, 'hidden', { value: false, configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await page.waitForTimeout(500);
+  const resumed = await page.evaluate(() => window.__diveAudio.context?.state);
+  if (started === 'running' && resumed === 'running') ok('sound: starts on Dive in and resumes after a suspension');
+  else fail(`sound: state after Dive in ${started}, after resume ${resumed}`);
+
+  await page.click('.sound-toggle');
+  const stored = await page.evaluate(() => window.localStorage.getItem('dive:muted'));
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForFunction(() => !!window.__diveAudio);
+  await page.click('.dive-in');
+  await page.waitForTimeout(300);
+  const after = await page.evaluate(() => ({
+    muted: window.__diveAudio.muted,
+    pressed: document.querySelector('.sound-toggle')?.getAttribute('aria-pressed'),
+  }));
+  if (stored === 'true' && after.muted && after.pressed === 'false') ok('sound: mute is remembered across a reload');
+  else fail(`sound: stored=${stored}, after reload muted=${after.muted} aria-pressed=${after.pressed}`);
+  if (errors.length) fail(`sound: page errors: ${errors.join(' | ')}`);
+  await context.close();
+}
+
+// Renders 60 s of the mix at 20 m offline in the page and measures its
+// integrated loudness with ffmpeg's EBU R128 meter (target ≈ −16 LUFS).
+async function loudness(browser) {
+  const { context, page } = await openReview(browser, DESKTOP, 'review');
+  await page.waitForFunction(() => !!window.__diveAudioPreview);
+  const b64 = await page.evaluate(async () => {
+    const buf = await window.__diveAudioPreview(60, 20);
+    const n = buf.length;
+    const view = new DataView(new ArrayBuffer(44 + n * 4));
+    const text = (o, s) => [...s].forEach((c, i) => view.setUint8(o + i, c.charCodeAt(0)));
+    text(0, 'RIFF');
+    view.setUint32(4, 36 + n * 4, true);
+    text(8, 'WAVEfmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 2, true);
+    view.setUint32(24, buf.sampleRate, true);
+    view.setUint32(28, buf.sampleRate * 4, true);
+    view.setUint16(32, 4, true);
+    view.setUint16(34, 16, true);
+    text(36, 'data');
+    view.setUint32(40, n * 4, true);
+    const [l, r] = [buf.getChannelData(0), buf.getChannelData(1)];
+    for (let i = 0; i < n; i++) {
+      view.setInt16(44 + i * 4, Math.max(-1, Math.min(1, l[i])) * 32767, true);
+      view.setInt16(46 + i * 4, Math.max(-1, Math.min(1, r[i])) * 32767, true);
+    }
+    const bytes = new Uint8Array(view.buffer);
+    let s = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    return btoa(s);
+  });
+  await context.close();
+  const wav = path.join(outDir, 'mix-20m.wav');
+  await fs.writeFile(wav, Buffer.from(b64, 'base64'));
+  const { spawnSync } = await import('node:child_process');
+  const r = spawnSync(process.env.FFMPEG ?? 'ffmpeg', ['-hide_banner', '-nostats', '-i', wav, '-af', 'ebur128', '-f', 'null', '-'], {
+    encoding: 'utf8',
+  });
+  const match = /I:\s+(-?[\d.]+) LUFS/.exec(r.stderr.split('Summary:').pop() ?? '');
+  if (match) ok(`loudness: ${match[1]} LUFS integrated at 20 m (target −16)`);
+  else fail(`loudness: could not read ffmpeg ebur128 output`);
+}
+
 async function exportStills(browser) {
   const dir = path.join(repoRoot, 'public', 'dive', 'stills');
   await fs.mkdir(dir, { recursive: true });
@@ -396,6 +474,8 @@ async function main() {
     await contextLossCheck(browser);
     await blockedVideoCheck(browser);
     await keyboardCheck(browser);
+    await soundCheck(browser);
+    if (flag('loudness')) await loudness(browser);
   } finally {
     await browser.close();
     await stopServer(child);

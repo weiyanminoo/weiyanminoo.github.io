@@ -32,7 +32,14 @@ export interface DiveHandle {
   startEntry(): void;
   /** The smooth scroller, when the film is running live (else null). */
   readonly lenis: Lenis | null;
+  /** The film's ambient clock, which the breathing sound follows. */
+  readonly timeS: number;
   dispose(): void;
+}
+
+export interface MountOptions {
+  /** Called after every rendered frame (e.g. to drive the sound). */
+  onFrame?(frame: DiveFrame): void;
 }
 
 /** Review mode adds read-only access to the storyboard, so the Node-side
@@ -90,7 +97,7 @@ export function frameAt(progress: number, timeS: number, entry: number): DiveFra
   return { state, water: waterAt(state.depth), timeS, entry };
 }
 
-export async function mountDive(root: HTMLElement): Promise<DiveHandle | null> {
+export async function mountDive(root: HTMLElement, opts: MountOptions = {}): Promise<DiveHandle | null> {
   const html = document.documentElement;
   const params = new URLSearchParams(location.search);
   const review = params.has('review');
@@ -161,6 +168,7 @@ export async function mountDive(root: HTMLElement): Promise<DiveHandle | null> {
       sections: SECTION_PROGRESS,
       stateAt: diveStateAt,
       lenis: null,
+      timeS: 0,
       // In review the entry is a seek argument, not a clock.
       startEntry() {},
       async seek(progress, timeS, entry = 1) {
@@ -208,6 +216,7 @@ export async function mountDive(root: HTMLElement): Promise<DiveHandle | null> {
     if (frame.state.depth > PRELOAD_DEPTH_M) footage.preload();
     footage.setActive(frame.state.insert?.clip ?? null);
     scene.render(frame);
+    opts.onFrame?.(frame);
 
     const vh = window.innerHeight;
     for (const el of stations) {
@@ -261,6 +270,9 @@ export async function mountDive(root: HTMLElement): Promise<DiveHandle | null> {
   return {
     get lenis() {
       return running ? lenis : null;
+    },
+    get timeS() {
+      return timeS;
     },
     async seek(progress, t, entry = 1) {
       scene.render(frameAt(progress, t, entry));

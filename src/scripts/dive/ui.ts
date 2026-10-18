@@ -3,14 +3,20 @@
 // buttons still move the reader (instantly) and sound stays available.
 
 import type Lenis from 'lenis';
+import type { DiveAudio } from './audio';
+import { writeMuted } from './audioMath';
 
 export interface UiOptions {
   /** Read at press time: the film can stop (a lost GPU context) and take
    *  its smooth scroller with it. */
   getLenis(): Lenis | null;
-  /** Starts the entry burst (when the film runs) and the sound. */
+  /** Starts the entry burst, when the film runs. */
   onDiveIn(): void;
   reducedMotion: boolean;
+  /** Started by Dive in (browsers block sound until a gesture). */
+  audio: DiveAudio;
+  /** Where the mute choice is remembered; null when storage is blocked. */
+  storage: Pick<Storage, 'setItem'> | null;
 }
 
 // The burst plays before the camera starts down (index.ts ENTRY_S).
@@ -32,12 +38,22 @@ export function wireUi(opts: UiOptions): () => void {
   const title = document.querySelector<HTMLElement>('.title-h1');
   const gauge = document.querySelector<HTMLElement>('.depth-gauge');
   const reading = gauge?.querySelector<HTMLElement>('[data-depth]');
+  const toggle = document.querySelector<HTMLButtonElement>('.sound-toggle');
   const timers: number[] = [];
 
   const smoothScroller = () => (reducedMotion ? null : opts.getLenis());
 
+  const showSoundState = () => toggle?.setAttribute('aria-pressed', String(!opts.audio.muted));
+
   const onDiveIn = () => {
     opts.onDiveIn();
+    // Synchronously inside the click, so the browser counts it as the
+    // gesture that may start sound.
+    void opts.audio.start().then(() => opts.audio.cue('splash'));
+    if (toggle) {
+      toggle.hidden = false;
+      showSoundState();
+    }
     if (!about) return;
     const land = () => about.focus({ preventScroll: true });
     if (smoothScroller()) {
@@ -79,14 +95,22 @@ export function wireUi(opts: UiOptions): () => void {
     }
   };
 
+  const onToggle = () => {
+    opts.audio.setMuted(!opts.audio.muted);
+    writeMuted(opts.storage, opts.audio.muted);
+    showSoundState();
+  };
+
   diveIn?.addEventListener('click', onDiveIn);
   surface?.addEventListener('click', onSurface);
+  toggle?.addEventListener('click', onToggle);
   window.addEventListener('dive:depth', onDepth);
 
   return () => {
     for (const t of timers) window.clearTimeout(t);
     diveIn?.removeEventListener('click', onDiveIn);
     surface?.removeEventListener('click', onSurface);
+    toggle?.removeEventListener('click', onToggle);
     window.removeEventListener('dive:depth', onDepth);
   };
 }

@@ -28,6 +28,10 @@ import createBubblesLayer from './layers/bubbles';
 
 export interface DiveHandle {
   seek(progress: number, timeS: number, entry?: number): Promise<void>;
+  /** Plays the Dive-in back-roll burst from now. */
+  startEntry(): void;
+  /** The smooth scroller, when the film is running live (else null). */
+  readonly lenis: Lenis | null;
   dispose(): void;
 }
 
@@ -156,6 +160,9 @@ export async function mountDive(root: HTMLElement): Promise<DiveHandle | null> {
       shots: SHOTS,
       sections: SECTION_PROGRESS,
       stateAt: diveStateAt,
+      lenis: null,
+      // In review the entry is a seek argument, not a clock.
+      startEntry() {},
       async seek(progress, timeS, entry = 1) {
         const frame = frameAt(progress, timeS, entry);
         // Frame-exact footage: the clip sits on the frame its push-in maps
@@ -184,7 +191,8 @@ export async function mountDive(root: HTMLElement): Promise<DiveHandle | null> {
   let rafId = 0;
   let running = true;
   let lastDepth = -Infinity;
-  const entryStartS = -Infinity;
+  // -Infinity: entry reads 1 (no burst) until Dive in is pressed.
+  let entryStartS = -Infinity;
   const pulls = new Map<HTMLElement, number>();
 
   const tick = (now: number) => {
@@ -251,8 +259,14 @@ export async function mountDive(root: HTMLElement): Promise<DiveHandle | null> {
   rafId = requestAnimationFrame(tick);
 
   return {
+    get lenis() {
+      return running ? lenis : null;
+    },
     async seek(progress, t, entry = 1) {
       scene.render(frameAt(progress, t, entry));
+    },
+    startEntry() {
+      entryStartS = timeS;
     },
     dispose() {
       stop();

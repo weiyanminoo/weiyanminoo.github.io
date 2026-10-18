@@ -331,6 +331,41 @@ async function blockedVideoCheck(browser) {
   await context.close();
 }
 
+// Dive in and Surface from the keyboard (plan Task 16).
+async function keyboardCheck(browser) {
+  const { context, page, errors } = await openPage(browser, DESKTOP, '');
+  await page.waitForFunction(() => document.documentElement.classList.contains('has-dive'));
+  let reached = false;
+  for (let i = 0; i < 15 && !reached; i++) {
+    await page.keyboard.press('Tab');
+    reached = await page.evaluate(() => document.activeElement?.classList.contains('dive-in') ?? false);
+  }
+  if (!reached) fail('keyboard: Dive in not reachable with Tab');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(4000);
+  const afterDive = await page.evaluate(() => ({
+    focus: document.activeElement?.id,
+    gauge: Number(document.querySelector('[data-depth]')?.textContent),
+    gaugeShown: !document.querySelector('.depth-gauge')?.hidden,
+  }));
+  if (afterDive.focus === 'about' && afterDive.gaugeShown && afterDive.gauge >= 6 && afterDive.gauge <= 9) {
+    ok(`keyboard: Dive in reached #about, gauge ${afterDive.gauge} m`);
+  } else {
+    fail(`keyboard: after Dive in focus=${afterDive.focus}, gauge=${afterDive.gauge} (shown ${afterDive.gaugeShown}); want #about, 6–9 m`);
+  }
+  await page.focus('.surface');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(5000);
+  const afterSurface = await page.evaluate(() => ({
+    y: Math.round(window.scrollY),
+    focus: document.activeElement?.className ?? '',
+  }));
+  if (afterSurface.y === 0 && afterSurface.focus.includes('title-h1')) ok('keyboard: Surface returned to the top, focus on the title');
+  else fail(`keyboard: after Surface scrollY=${afterSurface.y}, focus=${afterSurface.focus}`);
+  if (errors.length) fail(`keyboard: page errors: ${errors.join(' | ')}`);
+  await context.close();
+}
+
 async function exportStills(browser) {
   const dir = path.join(repoRoot, 'public', 'dive', 'stills');
   await fs.mkdir(dir, { recursive: true });
@@ -360,6 +395,7 @@ async function main() {
     await resizeCheck(browser);
     await contextLossCheck(browser);
     await blockedVideoCheck(browser);
+    await keyboardCheck(browser);
   } finally {
     await browser.close();
     await stopServer(child);

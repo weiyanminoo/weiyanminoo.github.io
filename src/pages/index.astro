@@ -57,7 +57,7 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
   <section class="station title" data-section="title" id="title">
     <img class="still" src={still('title')} alt="" loading="lazy" decoding="async" />
     <div class="content container">
-      <h1 class="title-h1">Wei Yan</h1>
+      <h1 class="title-h1" tabindex="-1">Wei Yan</h1>
       <p class="meta">
         SINGAPORE &middot; NATIONAL UNIVERSITY OF SINGAPORE &middot; COMPUTER SCIENCE
       </p>
@@ -67,7 +67,7 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
 
   <div class="gap" style={`--gap: ${GAP_VH.afterTitle}`} aria-hidden="true"></div>
 
-  <section class="station about" data-section="about" id="about">
+  <section class="station about" data-section="about" id="about" tabindex="-1">
     <img class="still" src={still('about')} alt="" loading="lazy" decoding="async" />
     <div class="content container about-row">
       <p class="lede">
@@ -209,9 +209,19 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
 
 <script>
   import { mountDive } from '../scripts/dive/index';
+  import { wireUi } from '../scripts/dive/ui';
 
   const root = document.querySelector('main');
-  if (root) void mountDive(root);
+  if (root) {
+    // The controls work with or without the film (reduced motion, no WebGL).
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const dive = await mountDive(root);
+    wireUi({
+      getLenis: () => dive?.lenis ?? null,
+      onDiveIn: () => dive?.startEntry(),
+      reducedMotion,
+    });
+  }
 </script>
 
 <style>
@@ -299,6 +309,13 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
       filter: none;
       transform: none;
     }
+  }
+
+  /* The title and About take focus only programmatically (Surface and Dive
+     in land on them); they are not controls, so no ring — as main's own
+     skip-link target in BaseLayout. */
+  [tabindex='-1']:focus-visible {
+    outline: none;
   }
 
   .title {

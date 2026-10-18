@@ -302,10 +302,12 @@ export default function createReefLayer(): Layer {
       // near-neutral — the material tint and the fog already carry the
       // blue, and blue light on blue-tinted rock went doubly saturated.
       sun.color.setRGB(0.85 + 0.15 * t[0], 0.95, 1, THREE.SRGBColorSpace);
-      sun.intensity = 1.6 * water.ambient;
+      // A diving camera auto-exposes: lit things stay readable at depth
+      // while the water itself (the fog) darkens.
+      sun.intensity = 2.4 * water.ambient;
       sky.color.setRGB(0.78, 0.9, 1, THREE.SRGBColorSpace);
       sky.groundColor.setRGB(0.32, 0.4, 0.46, THREE.SRGBColorSpace);
-      sky.intensity = 0.5 + 1.3 * water.ambient;
+      sky.intensity = 0.9 + 1.9 * water.ambient;
     },
     dispose() {
       wall.geometry.dispose();

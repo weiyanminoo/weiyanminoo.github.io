@@ -19,6 +19,7 @@ import createVolumeLayer from './layers/volume';
 import createSurfaceLayer from './layers/surface';
 import createShaftsLayer from './layers/shafts';
 import createReefLayer from './layers/reef';
+import createSchoolsLayer from './layers/schools';
 import createSnowLayer from './layers/snow';
 import createBubblesLayer from './layers/bubbles';
 
@@ -57,6 +58,7 @@ function buildLayers(): Layer[] {
     createSurfaceLayer(),
     createShaftsLayer(),
     createReefLayer(),
+    createSchoolsLayer(),
     createSnowLayer(),
     createBubblesLayer(),
   ];

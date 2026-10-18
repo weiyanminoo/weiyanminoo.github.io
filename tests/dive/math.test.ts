@@ -31,4 +31,8 @@ describe('lerp', () => {
     expect(lerp(0.4078, 0.1647, 0)).toBe(0.4078);
     expect(lerp(0.4078, 0.1647, 1)).toBe(0.1647);
   });
+
+  it('holds a flat segment exactly', () => {
+    for (let t = 0; t <= 1; t += 0.001) expect(lerp(18, 18, t)).toBe(18);
+  });
 });

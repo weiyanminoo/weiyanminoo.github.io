@@ -13,7 +13,10 @@ export function smoothstep(edge0: number, edge1: number, x: number): number {
 }
 
 /** Written as a·(1−t) + b·t rather than a + (b−a)·t so both endpoints come
- *  back exactly — table lookups are compared for equality in tests. */
+ *  back exactly — table lookups are compared for equality in tests. A flat
+ *  segment returns its value untouched, so a held depth never wobbles by a
+ *  rounding error. */
 export function lerp(a: number, b: number, t: number): number {
+  if (a === b) return a;
   return a * (1 - t) + b * t;
 }

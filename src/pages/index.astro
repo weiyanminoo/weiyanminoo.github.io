@@ -337,8 +337,8 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
   }
 
   /* The title and About take focus only programmatically (Surface and Dive
-     in land on them); they are not controls, so no ring — as main's own
-     skip-link target in BaseLayout. */
+     in land on them); they are not controls, so no ring — the same as
+     main, the skip link's target. */
   [tabindex='-1']:focus-visible {
     outline: none;
   }

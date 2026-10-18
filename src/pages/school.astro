@@ -1,5 +1,5 @@
 ---
-import BaseLayout from '../layouts/BaseLayout.astro';
+import StaticLayout from '../layouts/StaticLayout.astro';
 import SchoolCard from '../components/SchoolCard.astro';
 import PlaceholderCard from '../components/PlaceholderCard.astro';
 import SectionHead from '../components/SectionHead.astro';
@@ -16,7 +16,7 @@ const rendered = await Promise.all(sorted.map((entry) => render(entry)));
 const blanks = Math.max(0, SCHOOL_SLOTS - sorted.length);
 ---
 
-<BaseLayout title={title} description={description}>
+<StaticLayout title={title} description={description} still="school">
   <section>
     <h1>School</h1>
     <SectionHead label="DIVE LOG — SCHOOL" />
@@ -45,5 +45,5 @@ const blanks = Math.max(0, SCHOOL_SLOTS - sorted.length);
       }
     </div>
   </section>
-</BaseLayout>
+</StaticLayout>
 

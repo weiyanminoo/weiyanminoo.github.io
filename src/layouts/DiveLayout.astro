@@ -78,8 +78,9 @@ const siteName = 'Wei Yan';
 <style>
   /* With no film (no JS, reduced motion, no WebGL) the page still reads as
      a descent: surface blue to navy down its length, the same stops as
-     water.ts's FOG_STOPS. */
-  html {
+     water.ts's FOG_STOPS. Global and doubled up (html:root) to outrank
+     tokens.css's :root — Astro's scoped selectors are :where()-wrapped. */
+  :global(html:root) {
     --rail: 0px;
     color: var(--on-deep);
     background: #0a2135;

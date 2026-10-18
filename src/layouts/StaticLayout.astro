@@ -1,0 +1,114 @@
+---
+// The section pages (Work, School, Projects, Hobbies): static and easy to
+// read, for the visitor who came for the details rather than the film. No
+// canvas, no scroll effects, no ClientRouter. A still from the dive at the
+// section's own depth heads the page, so it still feels part of the same
+// water at no runtime cost.
+import '@fontsource-variable/archivo';
+import '@fontsource-variable/spline-sans-mono';
+import '../styles/tokens.css';
+import '../styles/base.css';
+import SiteHeader from '../components/SiteHeader.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+import type { SectionId } from '../scripts/dive/types';
+
+interface Props {
+  title: string;
+  description: string;
+  still: SectionId;
+}
+
+const { title, description, still } = Astro.props;
+
+const canonicalURL = new URL(Astro.url.pathname, Astro.site);
+const ogImageURL = new URL('/og.png', Astro.site);
+const siteName = 'Wei Yan';
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="author" content={siteName} />
+    <meta name="theme-color" content="#E9F1F2" />
+    <link rel="canonical" href={canonicalURL} />
+
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonicalURL} />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={siteName} />
+    <meta property="og:image" content={ogImageURL} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={`${siteName} — Computer Science, NUS`} />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImageURL} />
+
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
+  </head>
+  <body>
+    <a href="#main" class="skip-link">Skip to content</a>
+    <SiteHeader variant="solid" />
+    <img class="still" src={`/dive/stills/${still}.jpg`} alt="" width="1440" height="900" decoding="async" />
+    <main id="main" tabindex="-1">
+      <div class="container">
+        <slot />
+      </div>
+    </main>
+    <SiteFooter />
+  </body>
+</html>
+
+<style>
+  /* Solid, still water: one light background and dark ink throughout, so
+     every block holds AA without depending on anything behind it. Global
+     and doubled up (html:root) to outrank tokens.css's :root — Astro's
+     scoped selectors are :where()-wrapped and would lose to it. */
+  :global(html:root) {
+    --rail: 0px;
+    --bg: var(--shallow);
+    --card-tint: var(--foam);
+    background: var(--bg);
+    color: var(--ink);
+  }
+
+  .still {
+    display: block;
+    width: 100%;
+    height: 32vh;
+    min-height: 180px;
+    object-fit: cover;
+  }
+
+  main {
+    display: block;
+  }
+
+  main:focus-visible {
+    outline: none;
+  }
+
+  main .container {
+    padding-block: 0;
+  }
+
+  /* Cards sit on a solid page now, so no glass. */
+  main :global(.glass-card) {
+    backdrop-filter: none;
+  }
+
+  /* Readable measure for running text. */
+  main :global(p),
+  main :global(li) {
+    max-width: 68ch;
+  }
+</style>

@@ -18,6 +18,7 @@ import { waterAt } from './water';
 import createVolumeLayer from './layers/volume';
 import createSurfaceLayer from './layers/surface';
 import createShaftsLayer from './layers/shafts';
+import createSnowLayer from './layers/snow';
 import createBubblesLayer from './layers/bubbles';
 
 export interface DiveHandle {
@@ -50,7 +51,13 @@ const MAX_FRAME_S = 0.1;
 // Back to front (plan Phase 3): volume, surface, shafts, reef, schools,
 // fauna, snow, bubbles.
 function buildLayers(): Layer[] {
-  return [createVolumeLayer(), createSurfaceLayer(), createShaftsLayer(), createBubblesLayer()];
+  return [
+    createVolumeLayer(),
+    createSurfaceLayer(),
+    createShaftsLayer(),
+    createSnowLayer(),
+    createBubblesLayer(),
+  ];
 }
 
 function hasWebGL2(): boolean {

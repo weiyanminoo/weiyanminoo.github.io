@@ -20,6 +20,7 @@ import createSurfaceLayer from './layers/surface';
 import createShaftsLayer from './layers/shafts';
 import createReefLayer from './layers/reef';
 import createSchoolsLayer from './layers/schools';
+import createFaunaLayer from './layers/fauna';
 import createSnowLayer from './layers/snow';
 import createBubblesLayer from './layers/bubbles';
 
@@ -59,6 +60,7 @@ function buildLayers(): Layer[] {
     createShaftsLayer(),
     createReefLayer(),
     createSchoolsLayer(),
+    createFaunaLayer(),
     createSnowLayer(),
     createBubblesLayer(),
   ];

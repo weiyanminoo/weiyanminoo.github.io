@@ -15,7 +15,9 @@ import { createScene, type DiveScene, type Layer } from './scene';
 import { SECTION_PROGRESS, SHOTS, diveStateAt } from './timeline';
 import type { DiveFrame, DiveState, SectionId } from './types';
 import { waterAt } from './water';
+import { createFootage, type Footage } from './footage';
 import createVolumeLayer from './layers/volume';
+import createInsertLayer from './layers/insert';
 import createSurfaceLayer from './layers/surface';
 import createShaftsLayer from './layers/shafts';
 import createReefLayer from './layers/reef';
@@ -44,6 +46,10 @@ declare global {
 }
 
 const ENTRY_S = 1.2;
+// Footage is fetched once the dive passes this depth, so it has arrived
+// by the reef at 18 m (spec §8).
+const PRELOAD_DEPTH_M = 12;
+const FOOTAGE_BASE = '/dive/footage';
 // The depth event fires only when the reading changes by this much, so the
 // gauge and audit listeners are not woken at 60 Hz for an unchanged number.
 const DEPTH_EPSILON_M = 0.1;
@@ -51,11 +57,12 @@ const PULL_EPSILON = 0.005;
 // A tab left in the background resumes without a violent jump in time.
 const MAX_FRAME_S = 0.1;
 
-// Back to front (plan Phase 3): volume, surface, shafts, reef, schools,
-// fauna, snow, bubbles.
-function buildLayers(): Layer[] {
+// Back to front (plan Phase 3): volume, the footage insert, surface, shafts,
+// reef, schools, fauna, snow, bubbles.
+function buildLayers(footage: Footage): Layer[] {
   return [
     createVolumeLayer(),
+    createInsertLayer(footage),
     createSurfaceLayer(),
     createShaftsLayer(),
     createReefLayer(),
@@ -107,10 +114,12 @@ export async function mountDive(root: HTMLElement): Promise<DiveHandle | null> {
   });
   const settings = settingsFor(tier, { originals: false, isMobile });
 
+  const footage = createFootage(FOOTAGE_BASE, settings.footage, { review });
   let scene: DiveScene;
   try {
-    scene = await createScene(canvas, settings, buildLayers());
+    scene = await createScene(canvas, settings, buildLayers(footage));
   } catch {
+    footage.dispose();
     fallBack(true);
     return null;
   }
@@ -148,11 +157,19 @@ export async function mountDive(root: HTMLElement): Promise<DiveHandle | null> {
       sections: SECTION_PROGRESS,
       stateAt: diveStateAt,
       async seek(progress, timeS, entry = 1) {
-        scene.render(frameAt(progress, timeS, entry));
+        const frame = frameAt(progress, timeS, entry);
+        // Frame-exact footage: the clip sits on the frame its push-in maps
+        // to before the scene is rendered.
+        const insert = frame.state.insert;
+        if (insert) {
+          await footage.seekTo(insert.clip, insert.pushIn * (footage.duration(insert.clip) - 0.05));
+        }
+        scene.render(frame);
         await new Promise((r) => requestAnimationFrame(() => r(undefined)));
       },
       dispose() {
         scene.dispose();
+        footage.dispose();
         fallBack(false);
       },
     };
@@ -180,6 +197,8 @@ export async function mountDive(root: HTMLElement): Promise<DiveHandle | null> {
     const progress = progressFromScroll(scrollY, anchors);
     const entry = clamp((timeS - entryStartS) / ENTRY_S, 0, 1);
     const frame = frameAt(progress, timeS, entry);
+    if (frame.state.depth > PRELOAD_DEPTH_M) footage.preload();
+    footage.setActive(frame.state.insert?.clip ?? null);
     scene.render(frame);
 
     const vh = window.innerHeight;
@@ -218,6 +237,7 @@ export async function mountDive(root: HTMLElement): Promise<DiveHandle | null> {
   // goes with it so native scrolling keeps working.
   canvas.addEventListener('webglcontextlost', () => {
     stop();
+    footage.setActive(null);
     for (const el of stations) el.style.removeProperty('--pull');
     fallBack(false);
   });
@@ -237,6 +257,7 @@ export async function mountDive(root: HTMLElement): Promise<DiveHandle | null> {
     dispose() {
       stop();
       scene.dispose();
+      footage.dispose();
       fallBack(false);
     },
   };

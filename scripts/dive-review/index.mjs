@@ -10,6 +10,7 @@
 //   order         a frame does not depend on the frames seeked before it
 //   resize        rotating a phone mid-dive keeps sections on their depth
 //   context-loss  a lost WebGL context drops back to the stills
+//   blocked-video with every .mp4 refused, the inserts show their posters
 //
 // Flags: --round N  --strips  --stills (write public/dive/stills/*.jpg)
 //        --flash (entry-burst flash check, added with the bubbles)
@@ -283,6 +284,53 @@ async function flashCheck(browser) {
   else fail(`flash: entry burst has ${flashes} flashes in 1.2 s (limit 3/s)`);
 }
 
+function meanColour(buf) {
+  const png = PNG.sync.read(buf);
+  const sum = [0, 0, 0];
+  let count = 0;
+  for (let y = 0; y < png.height; y += 6) {
+    for (let x = 0; x < png.width; x += 6) {
+      const i = (y * png.width + x) * 4;
+      for (let c = 0; c < 3; c++) sum[c] += png.data[i + c];
+      count++;
+    }
+  }
+  return sum.map((v) => v / count);
+}
+
+function hueOf([r, g, b]) {
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  if (max === min) return 0;
+  const d = max - min;
+  const h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return h * 60;
+}
+
+// Review Focus 3: autoplay refused or the network fails. The insert must
+// fall back to its poster still — never black, never a frozen frame.
+async function blockedVideoCheck(browser) {
+  const context = await browser.newContext({ viewport: DESKTOP, deviceScaleFactor: 1 });
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.route('**/*.mp4', (route) => route.abort());
+  await page.goto(`${BASE}/?notext`, { waitUntil: 'load' });
+  await page.waitForFunction(() => document.documentElement.classList.contains('has-dive'));
+  await page.evaluate(() => document.getElementById('work').scrollIntoView({ block: 'center' }));
+  await page.waitForTimeout(2000);
+  const rgb = meanColour(await page.screenshot());
+  const lum = 0.2126 * srgbToLinear(rgb[0] / 255) + 0.7152 * srgbToLinear(rgb[1] / 255) + 0.0722 * srgbToLinear(rgb[2] / 255);
+  const hue = hueOf(rgb);
+  if (lum > 0.08 && hue >= 190 && hue <= 220) {
+    ok(`blocked-video: poster shown (luminance ${lum.toFixed(3)}, hue ${hue.toFixed(0)}°)`);
+  } else {
+    fail(`blocked-video: frame luminance ${lum.toFixed(3)}, hue ${hue.toFixed(0)}° — expected the poster (> 0.08, 190–220°)`);
+  }
+  if (errors.length) fail(`blocked-video: page errors: ${errors.join(' | ')}`);
+  await context.close();
+}
+
 async function exportStills(browser) {
   const dir = path.join(repoRoot, 'public', 'dive', 'stills');
   await fs.mkdir(dir, { recursive: true });
@@ -311,6 +359,7 @@ async function main() {
     await determinism(browser);
     await resizeCheck(browser);
     await contextLossCheck(browser);
+    await blockedVideoCheck(browser);
   } finally {
     await browser.close();
     await stopServer(child);

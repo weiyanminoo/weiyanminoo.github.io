@@ -10,7 +10,7 @@ import Lenis from 'lenis';
 import 'lenis/dist/lenis.css';
 import { clamp } from './math';
 import { anchorsFromLayout, focusFor, progressFromScroll, type Anchor } from './progress';
-import { pickTier, settingsFor } from './quality';
+import { downgrade, pickTier, settingsFor, type Tier } from './quality';
 import { createScene, type DiveScene, type Layer } from './scene';
 import { SECTION_PROGRESS, SHOTS, diveStateAt } from './timeline';
 import type { DiveFrame, DiveState, SectionId } from './types';
@@ -67,6 +67,12 @@ const DEPTH_EPSILON_M = 0.1;
 const PULL_EPSILON = 0.005;
 // A tab left in the background resumes without a violent jump in time.
 const MAX_FRAME_S = 0.1;
+// Runtime tier check (plan Task 19): after this many live frames (the
+// first few skipped as warm-up), a median frame time above SLOW_FRAME_MS
+// rebuilds the scene one tier down, once per page load.
+const TIER_WARMUP_FRAMES = 10;
+const TIER_SAMPLE_FRAMES = 120;
+const SLOW_FRAME_MS = 22;
 
 // Back to front (plan Phase 3): volume, the footage insert, surface, shafts,
 // reef, schools, fauna, snow, bubbles.
@@ -106,10 +112,14 @@ export async function mountDive(root: HTMLElement, opts: MountOptions = {}): Pro
 
   // Shows the stills. Spacers collapse only if the film never started;
   // after a context loss the layout is kept (dive-off) so nothing jumps.
+  // The stills were hidden from first paint, and Chrome never starts a
+  // lazy image that was display:none at parse time once it is shown — so
+  // they are switched to eager: they are needed now.
   const fallBack = (collapse: boolean) => {
     html.classList.remove('has-dive');
     if (collapse) html.classList.remove('dive-js');
     else html.classList.add('dive-off');
+    for (const img of root.querySelectorAll<HTMLImageElement>('img.still')) img.loading = 'eager';
   };
 
   if ((reducedMotion && !review) || !(canvas instanceof HTMLCanvasElement) || !hasWebGL2()) {
@@ -118,12 +128,12 @@ export async function mountDive(root: HTMLElement, opts: MountOptions = {}): Pro
   }
 
   const isMobile = window.matchMedia('(pointer: coarse)').matches;
-  const tier = pickTier({
+  let tier: Tier = pickTier({
     deviceMemoryGB: (navigator as Navigator & { deviceMemory?: number }).deviceMemory,
     dpr: window.devicePixelRatio,
     isMobile,
   });
-  const settings = settingsFor(tier, { originals: false, isMobile });
+  let settings = settingsFor(tier, { originals: false, isMobile });
 
   const footage = createFootage(FOOTAGE_BASE, settings.footage, { review });
   let scene: DiveScene;
@@ -202,12 +212,50 @@ export async function mountDive(root: HTMLElement, opts: MountOptions = {}): Pro
   // -Infinity: entry reads 1 (no burst) until Dive in is pressed.
   let entryStartS = -Infinity;
   const pulls = new Map<HTMLElement, number>();
+  const frameMs: number[] = [];
+  let frames = 0;
+  let rebuilding = false;
+  let tierChecked = tier === 'low';
+
+  // One tier down, keeping the scroll position and the footage already
+  // fetched; the loop skips rendering while the new scene is built.
+  const rebuild = async () => {
+    rebuilding = true;
+    tier = downgrade(tier);
+    settings = settingsFor(tier, { originals: false, isMobile });
+    scene.dispose();
+    try {
+      scene = await createScene(canvas, settings, buildLayers(footage));
+      resize();
+    } catch {
+      stop();
+      fallBack(false);
+    }
+    rebuilding = false;
+  };
+
+  const checkTier = (dtMs: number) => {
+    frames++;
+    if (frames <= TIER_WARMUP_FRAMES) return;
+    frameMs.push(dtMs);
+    if (frameMs.length < TIER_SAMPLE_FRAMES) return;
+    tierChecked = true;
+    const median = [...frameMs].sort((a, b) => a - b)[frameMs.length >> 1];
+    if (median > SLOW_FRAME_MS) void rebuild();
+  };
 
   const tick = (now: number) => {
     if (!running) return;
-    timeS += clamp((now - last) / 1000, 0, MAX_FRAME_S);
+    const dtMs = now - last;
+    timeS += clamp(dtMs / 1000, 0, MAX_FRAME_S);
     last = now;
     lenis.raf(now);
+    if (rebuilding) {
+      rafId = requestAnimationFrame(tick);
+      return;
+    }
+    // Only frames the visitor is actually watching count towards the tier.
+    if (!tierChecked && !document.hidden) checkTier(dtMs);
 
     const scrollY = lenis.scroll;
     const progress = progressFromScroll(scrollY, anchors);

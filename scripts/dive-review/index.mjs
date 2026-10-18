@@ -444,6 +444,64 @@ async function loudness(browser) {
   else fail(`loudness: could not read ffmpeg ebur128 output`);
 }
 
+// Every station's still has loaded (scrolling through so lazy ones fetch).
+async function stillsLoaded(page) {
+  await page.evaluate(async () => {
+    for (const el of document.querySelectorAll('.station')) {
+      el.scrollIntoView();
+      await new Promise((r) => setTimeout(r, 120));
+    }
+    window.scrollTo(0, 0);
+  });
+  await page.waitForTimeout(500);
+  return page.evaluate(() =>
+    [...document.querySelectorAll('.still')].every(
+      (img) => img.complete && img.naturalWidth > 0 && getComputedStyle(img).display !== 'none',
+    ),
+  );
+}
+
+// Reduced motion (plan Task 19): no film, the stills instead, no video,
+// and nothing moving.
+async function reducedMotionCheck(browser) {
+  const context = await browser.newContext({ viewport: DESKTOP, deviceScaleFactor: 1, reducedMotion: 'reduce' });
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto(`${BASE}/`, { waitUntil: 'load' });
+  await page.waitForTimeout(800);
+  const hasDive = await page.evaluate(() => document.documentElement.classList.contains('has-dive'));
+  const stills = await stillsLoaded(page);
+  const playing = await page.evaluate(() => [...document.querySelectorAll('video')].some((v) => !v.paused));
+  const a = sha(await page.screenshot());
+  await page.waitForTimeout(1000);
+  const b = sha(await page.screenshot());
+  if (!hasDive && stills && !playing && a === b) ok('reduced-motion: stills shown, no film, no video, nothing moving');
+  else fail(`reduced-motion: has-dive=${hasDive}, stills loaded=${stills}, video playing=${playing}, static=${a === b}`);
+  if (errors.length) fail(`reduced-motion: page errors: ${errors.join(' | ')}`);
+  await context.close();
+}
+
+// No WebGL at all: the stills, and no errors.
+async function noWebglCheck() {
+  const browser = await chromium.launch({ headless: true, args: ['--disable-3d-apis', '--disable-webgl'] });
+  try {
+    const context = await browser.newContext({ viewport: DESKTOP, deviceScaleFactor: 1 });
+    const page = await context.newPage();
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.goto(`${BASE}/`, { waitUntil: 'load' });
+    await page.waitForTimeout(800);
+    const hasDive = await page.evaluate(() => document.documentElement.classList.contains('has-dive'));
+    const stills = await stillsLoaded(page);
+    if (!hasDive && stills) ok('no-webgl: stills shown');
+    else fail(`no-webgl: has-dive=${hasDive}, stills loaded=${stills}`);
+    if (errors.length) fail(`no-webgl: page errors: ${errors.join(' | ')}`);
+  } finally {
+    await browser.close();
+  }
+}
+
 async function exportStills(browser) {
   const dir = path.join(repoRoot, 'public', 'dive', 'stills');
   await fs.mkdir(dir, { recursive: true });
@@ -475,6 +533,8 @@ async function main() {
     await blockedVideoCheck(browser);
     await keyboardCheck(browser);
     await soundCheck(browser);
+    await reducedMotionCheck(browser);
+    await noWebglCheck();
     if (flag('loudness')) await loudness(browser);
   } finally {
     await browser.close();

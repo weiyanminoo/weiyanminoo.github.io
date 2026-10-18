@@ -1,0 +1,162 @@
+---
+// The landing's shell: the film behind, the content in ordinary document
+// flow in front. No ClientRouter — the landing and the static section pages
+// are full page loads, so the WebGL scene is created and torn down with the
+// page instead of surviving client-side swaps.
+// The width-axis build of Archivo (same family, weight axis included): the
+// default import ships weight only, and the title's wide cut needs wdth.
+import '@fontsource-variable/archivo/wdth.css';
+import '@fontsource-variable/spline-sans-mono';
+import '../styles/tokens.css';
+import '../styles/base.css';
+import SiteHeader from '../components/SiteHeader.astro';
+
+interface Props {
+  title: string;
+  description: string;
+}
+
+const { title, description } = Astro.props;
+
+const canonicalURL = new URL(Astro.url.pathname, Astro.site);
+const ogImageURL = new URL('/og.png', Astro.site);
+const siteName = 'Wei Yan';
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="author" content={siteName} />
+    <meta name="theme-color" content="#0a2135" />
+    <link rel="canonical" href={canonicalURL} />
+
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonicalURL} />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={siteName} />
+    <meta property="og:image" content={ogImageURL} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={`${siteName} — Computer Science, NUS`} />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImageURL} />
+
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
+
+    {/* Before first paint: a browser that will run the film gets the long,
+        spaced-out layout the film needs. Without JS, or with reduced motion,
+        the page stays compact — the spacers only exist to give the film
+        room. index.ts removes the class again if the scene cannot start. */}
+    <script is:inline>
+      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        document.documentElement.classList.add('dive-js');
+      }
+    </script>
+  </head>
+  <body>
+    <a href="#main" class="skip-link">Skip to content</a>
+    <canvas id="dive-canvas" aria-hidden="true"></canvas>
+    <SiteHeader variant="overlay" />
+    <div class="depth-gauge" aria-hidden="true" hidden><span data-depth>0</span> M</div>
+    <button class="sound-toggle" type="button" aria-pressed="false" hidden>Sound</button>
+    <main id="main" tabindex="-1">
+      <slot />
+    </main>
+  </body>
+</html>
+
+<style>
+  /* With no film (no JS, reduced motion, no WebGL) the page still reads as
+     a descent: surface blue to navy down its length, the same stops as
+     water.ts's FOG_STOPS. */
+  html {
+    --rail: 0px;
+    color: var(--on-deep);
+    background: #0a2135;
+  }
+
+  body {
+    background: linear-gradient(#689fbd, #2a5c7d 38%, #0a2135 100%);
+  }
+
+  :global(html.has-dive) body {
+    background: none;
+  }
+
+  #dive-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: -1;
+    display: none;
+  }
+
+  :global(html.has-dive) #dive-canvas {
+    display: block;
+  }
+
+  main {
+    display: block;
+  }
+
+  /* ?review&notext (the review harness's stills): the film alone, no page
+     text or chrome over it. */
+  :global(html.review-notext) main,
+  :global(html.review-notext .site-header),
+  :global(html.review-notext) .depth-gauge,
+  :global(html.review-notext) .sound-toggle {
+    visibility: hidden;
+  }
+
+  main:focus-visible {
+    outline: none;
+  }
+
+  .depth-gauge {
+    position: fixed;
+    left: max(16px, (100% - 1180px) / 2);
+    bottom: 20px;
+    z-index: 40;
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 0.14em;
+    color: var(--on-deep);
+    text-shadow: 0 1px 10px rgba(4, 16, 28, 0.6);
+  }
+
+  .sound-toggle {
+    position: fixed;
+    right: max(16px, (100% - 1180px) / 2);
+    bottom: 14px;
+    z-index: 40;
+    min-height: 44px;
+    padding: 0 14px;
+    border: 1px solid rgba(234, 244, 246, 0.4);
+    border-radius: 999px;
+    background: rgba(4, 16, 28, 0.35);
+    color: var(--on-deep);
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    cursor: pointer;
+  }
+
+  .sound-toggle[aria-pressed='true']::after {
+    content: ' · on';
+  }
+
+  .sound-toggle[aria-pressed='false']::after {
+    content: ' · off';
+  }
+</style>

@@ -1,12 +1,15 @@
 ---
-import BaseLayout from '../layouts/BaseLayout.astro';
+import DiveLayout from '../layouts/DiveLayout.astro';
 import SectionHead from '../components/SectionHead.astro';
 import RoleEntry from '../components/RoleEntry.astro';
 import SchoolCard from '../components/SchoolCard.astro';
 import ProjectCard from '../components/ProjectCard.astro';
 import PlaceholderCard from '../components/PlaceholderCard.astro';
+import SiteFooter from '../components/SiteFooter.astro';
 import { HOBBIES } from '../lib/hobbies';
 import { SCHOOL_SLOTS, PROJECT_SLOTS } from '../lib/slots';
+import { SECTION_PROGRESS, diveStateAt } from '../scripts/dive/timeline';
+import type { SectionId } from '../scripts/dive/types';
 import { getCollection } from 'astro:content';
 import { Image } from 'astro:assets';
 import portrait from '../assets/home-diving.png';
@@ -15,9 +18,9 @@ const title = 'Wei Yan — Computer Science, NUS';
 const description =
   'Wei Yan, Computer Science at the National University of Singapore. Software engineering, mobile, product and automation.';
 
-// No render() anywhere on this page. Home shows each record's summary row
-// and nothing more — the markdown bodies are what /work, /school and
-// /projects are for, so this page never asks for them.
+// No render() anywhere on this page. The landing shows each record's
+// summary row and nothing more — the markdown bodies are what /work,
+// /school and /projects are for.
 const roles = await getCollection('roles');
 const allRoles = [...roles].sort((a, b) => b.data.start.getTime() - a.data.start.getTime());
 
@@ -30,412 +33,381 @@ const allProjects = [...projects].sort((a, b) => b.data.start.getTime() - a.data
 const schoolBlanks = Math.max(0, SCHOOL_SLOTS - allSchool.length);
 const projectBlanks = Math.max(0, PROJECT_SLOTS - allProjects.length);
 
-// Depth markers. MEASURED against the rendered page, not spaced by eye:
-// each is depthForColumn() evaluated at that section heading's own document
-// position — the depth of the water the canvas actually paints behind it —
-// so a reader who notices that the label says 12 M and the water there is
-// the 12 M colour is right.
-//
-// They are therefore unevenly spaced, because the sections are unevenly
-// long: Work is five cards and School is two, so Work occupies nearly twice
-// the column School does and the gap between their markers is not the gap
-// between School's and Projects'. Evenly spaced markers would have been a
-// fiction.
-//
-// Measured at 1440x900 and 375x812 respectively:
-//   Work      5.74m / 6.00m
-//   School   12.12m / 11.67m
-//   Projects 15.67m / 14.92m  -> 15, whose mean error across the two
-//                               viewports is half that of 16
-//   Hobbies  23.49m / 22.60m
-// The two viewports differ because the layout reflows, so each marker is
-// one value standing for a small range. Deliberately NOT the same mapping
-// as the rail's readout, which answers "how far have I descended" and is
-// documented in depth.ts as not agreeing with this one everywhere.
-//
-// Re-measure if a section's length changes substantially. Nothing breaks if
-// these go stale — the water is pinned to the thermocline divider and
-// re-derives on its own — but a stale number here would contradict the
-// colour behind it.
-const DEPTH_MARKS = {
-  work: '6 M',
-  school: '12 M',
-  projects: '15 M',
-  hobbies: '23 M',
+// Each section's depth label is the film's own depth at that section, read
+// from the same timeline the scene renders — so the label, the depth gauge
+// and the water behind the text always agree.
+const depthLabel = (id: SectionId) => `${Math.round(diveStateAt(SECTION_PROGRESS[id]).depth)} M`;
+
+// Scroll room between stations, in viewport heights, so the film has time
+// between summaries (spec §6). Only applied when the film runs.
+const GAP_VH = {
+  afterTitle: 80,
+  afterAbout: 140,
+  afterWork: 100,
+  afterSchool: 100,
+  afterProjects: 140,
+  afterHobbies: 100,
+  tail: 60,
 };
+
+const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
 ---
 
-<BaseLayout title={title} description={description} depth="column">
-  <section class="hero zone-light">
-    <div class="hero-row">
-      <div class="hero-left">
-        <h1 class="hero-h1">Wei Yan</h1>
-        <div class="hero-note glass-card">
-          <p class="lede">
-            Driven by curiousity and a growth mindset, I love tackling complex problems and working
-            on innovative solutions.
-          </p>
-          <p class="meta">
-            SINGAPORE &middot; NATIONAL UNIVERSITY OF SINGAPORE &middot; COMPUTER SCIENCE
-          </p>
-        </div>
+<DiveLayout title={title} description={description}>
+  <section class="station title" data-section="title" id="title">
+    <img class="still" src={still('title')} alt="" loading="lazy" decoding="async" />
+    <div class="content container">
+      <h1 class="title-h1">Wei Yan</h1>
+      <p class="meta">
+        SINGAPORE &middot; NATIONAL UNIVERSITY OF SINGAPORE &middot; COMPUTER SCIENCE
+      </p>
+      <button class="dive-in" type="button">Dive in</button>
+    </div>
+  </section>
+
+  <div class="gap" style={`--gap: ${GAP_VH.afterTitle}`} aria-hidden="true"></div>
+
+  <section class="station about" data-section="about" id="about">
+    <img class="still" src={still('about')} alt="" loading="lazy" decoding="async" />
+    <div class="content container about-row">
+      <p class="lede">
+        Driven by curiousity and a growth mindset, I love tackling complex problems and working on
+        innovative solutions.
+      </p>
+      <Image
+        class="portrait"
+        src={portrait}
+        alt="Wei Yan underwater in scuba gear, giving a shaka sign to the camera"
+        widths={[470, 700, 917]}
+        sizes="(max-width: 860px) min(100vw, 420px), 420px"
+        loading="lazy"
+      />
+    </div>
+  </section>
+
+  <div class="gap" style={`--gap: ${GAP_VH.afterAbout}`} aria-hidden="true"></div>
+
+  <section class="station" data-section="work" id="work">
+    <img class="still" src={still('work')} alt="" loading="lazy" decoding="async" />
+    <div class="content container">
+      <SectionHead label="DIVE LOG — WORK" depth={depthLabel('work')} />
+      <div class="roles">
+        {
+          allRoles.map((entry) => (
+            <RoleEntry
+              org={entry.data.org}
+              role={entry.data.role}
+              team={entry.data.team}
+              discipline={entry.data.discipline}
+              start={entry.data.start}
+              end={entry.data.end}
+              current={entry.data.current}
+              depth={entry.data.depth}
+              tags={entry.data.tags}
+              expandable={false}
+            />
+          ))
+        }
       </div>
-      <div class="portrait-wrap">
-        <Image
-          class="portrait"
-          src={portrait}
-          alt="Wei Yan underwater in scuba gear, giving a shaka sign to the camera"
-          widths={[470, 700, 917]}
-          sizes="(max-width: 1239px) min(100vw, 420px), 450px"
-          loading="eager"
-        />
+      <p class="more"><a href="/work">All five roles in detail</a></p>
+    </div>
+  </section>
+
+  <div class="gap" style={`--gap: ${GAP_VH.afterWork}`} aria-hidden="true"></div>
+
+  <section class="station" data-section="school" id="school">
+    <img class="still" src={still('school')} alt="" loading="lazy" decoding="async" />
+    <div class="content container">
+      <SectionHead label="DIVE LOG — SCHOOL" depth={depthLabel('school')} />
+      <div class="cards">
+        {
+          allSchool.map((entry) => (
+            <SchoolCard
+              institution={entry.data.institution}
+              qualification={entry.data.qualification}
+              period={entry.data.period}
+              summary={entry.data.summary}
+              notes={entry.data.notes}
+            />
+          ))
+        }
+        {
+          Array.from({ length: schoolBlanks }, () => (
+            <PlaceholderCard label="A second school, not yet added" />
+          ))
+        }
+      </div>
+      <p class="more"><a href="/school">Where I have studied</a></p>
+    </div>
+  </section>
+
+  <div class="gap" style={`--gap: ${GAP_VH.afterSchool}`} aria-hidden="true"></div>
+
+  <section class="station" data-section="projects" id="projects">
+    <img class="still" src={still('projects')} alt="" loading="lazy" decoding="async" />
+    <div class="content container">
+      <SectionHead label="BUILT ON MY OWN TIME" depth={depthLabel('projects')} />
+      <div class="cards">
+        {
+          allProjects.map((entry) => (
+            <ProjectCard
+              name={entry.data.name}
+              kind={entry.data.kind}
+              start={entry.data.start}
+              ongoing={entry.data.ongoing}
+              url={entry.data.url}
+              summary={entry.data.summary}
+              outcome={entry.data.outcome}
+              tags={entry.data.tags}
+            />
+          ))
+        }
+        {
+          Array.from({ length: projectBlanks }, () => (
+            <PlaceholderCard label="A project not yet added" />
+          ))
+        }
+      </div>
+      <p class="more"><a href="/projects">Every project in detail</a></p>
+    </div>
+  </section>
+
+  <div class="gap" style={`--gap: ${GAP_VH.afterProjects}`} aria-hidden="true"></div>
+
+  <section class="station" data-section="hobbies" id="hobbies">
+    <img class="still" src={still('hobbies')} alt="" loading="lazy" decoding="async" />
+    <div class="content container">
+      <SectionHead label="OUTSIDE THE WORK" depth={depthLabel('hobbies')} />
+      <div class="hobbies">
+        {
+          HOBBIES.map((hobby) => (
+            <div class="hobby">
+              <h3>{hobby.title}</h3>
+              {hobby.line && <p class="line">{hobby.line}</p>}
+            </div>
+          ))
+        }
+      </div>
+      <p class="more"><a href="/hobbies">More outside the work</a></p>
+    </div>
+  </section>
+
+  <div class="gap" style={`--gap: ${GAP_VH.afterHobbies}`} aria-hidden="true"></div>
+
+  <section class="station contact" data-section="contact" id="contact">
+    <img class="still" src={still('contact')} alt="" loading="lazy" decoding="async" />
+    <div class="content">
+      <SiteFooter />
+      <div class="container">
+        <button class="surface" type="button">Surface</button>
       </div>
     </div>
   </section>
 
-  <section class="zone-light">
-    <SectionHead label="DIVE LOG — WORK" depth={DEPTH_MARKS.work} />
-    <div class="roles">
-      {
-        allRoles.map((entry) => (
-          <RoleEntry
-            org={entry.data.org}
-            role={entry.data.role}
-            team={entry.data.team}
-            discipline={entry.data.discipline}
-            start={entry.data.start}
-            end={entry.data.end}
-            current={entry.data.current}
-            depth={entry.data.depth}
-            tags={entry.data.tags}
-            expandable={false}
-          />
-        ))
-      }
-    </div>
-    <p class="more glass-card"><a href="/work">All five roles in detail</a></p>
-  </section>
+  <div class="gap" style={`--gap: ${GAP_VH.tail}`} aria-hidden="true"></div>
+</DiveLayout>
 
-  <section class="zone-light">
-    <SectionHead label="DIVE LOG — SCHOOL" depth={DEPTH_MARKS.school} />
-    <div class="cards">
-      {
-        allSchool.map((entry) => (
-          <SchoolCard
-            institution={entry.data.institution}
-            qualification={entry.data.qualification}
-            period={entry.data.period}
-            summary={entry.data.summary}
-            notes={entry.data.notes}
-          />
-        ))
-      }
-      {
-        Array.from({ length: schoolBlanks }, () => (
-          <PlaceholderCard label="A second school, not yet added" />
-        ))
-      }
-    </div>
-    <p class="more glass-card"><a href="/school">Where I have studied</a></p>
-  </section>
+<script>
+  import { mountDive } from '../scripts/dive/index';
 
-  <section class="zone-light">
-    <SectionHead label="BUILT ON MY OWN TIME" depth={DEPTH_MARKS.projects} />
-    <div class="cards">
-      {
-        allProjects.map((entry) => (
-          <ProjectCard
-            name={entry.data.name}
-            kind={entry.data.kind}
-            start={entry.data.start}
-            ongoing={entry.data.ongoing}
-            url={entry.data.url}
-            summary={entry.data.summary}
-            outcome={entry.data.outcome}
-            tags={entry.data.tags}
-          />
-        ))
-      }
-      {
-        Array.from({ length: projectBlanks }, () => (
-          <PlaceholderCard label="A project not yet added" />
-        ))
-      }
-    </div>
-    <p class="more glass-card"><a href="/projects">Every project in detail</a></p>
-  </section>
-
-  <div class="thermocline-section">
-    <div id="thermocline" class="thermocline">
-      <span class="thermocline-rule" aria-hidden="true"></span>
-      <span class="thermocline-label">21M &middot; THERMOCLINE</span>
-      <span class="thermocline-rule" aria-hidden="true"></span>
-    </div>
-  </div>
-
-  <section class="zone-deep">
-    <SectionHead label="OUTSIDE THE WORK" depth={DEPTH_MARKS.hobbies} />
-    <div class="hobbies">
-      {
-        HOBBIES.map((hobby) => (
-          <div class="hobby glass-card">
-            <h3>{hobby.title}</h3>
-            {hobby.line && <p class="line">{hobby.line}</p>}
-          </div>
-        ))
-      }
-    </div>
-    <p class="more glass-card"><a href="/hobbies">More outside the work</a></p>
-  </section>
-</BaseLayout>
+  const root = document.querySelector('main');
+  if (root) void mountDive(root);
+</script>
 
 <style>
-  /* The hero's body copy is the one place on the site where uncarded text
-     was a binding contrast constraint: .lede/.meta are the softer
-     --ink-2/--ink-3 tokens, they sit at 0-4m where the caustics multiply is
-     at full strength (measured: this paragraph reads 4.64:1 with
-     INTENSITY.caustics at 2.4 and 7.40:1 with it at 0 — see
-     phase-7-report.md), and unlike every other body block on the site they
-     had no card to sit on. Carded here at CARD_OPACITY.project (66%, must
-     match intensity.ts by hand). The <h1> above deliberately stays on bare
-     water — it is large text (3:1, with ~3x headroom) and the mockup leaves
-     its own hero heading floating free. */
-  /* Mockup's .hero: padding-top 124px / padding-bottom 128px, overriding
-     base.css's shared `section{padding-block:112px}` exactly as the
-     mockup's own .hero rule overrides its `section` rule. */
-  .hero {
-    padding-top: 124px;
-    padding-bottom: 128px;
+  /* Light ink and no glass for everything on the landing: the shared
+     components were built for frosted cards over pale water, and spec §6
+     bans frosted cards over the film. Overriding their tokens here, rather
+     than editing them, keeps the static pages untouched. */
+  main {
+    --ink: var(--on-deep);
+    --ink-2: var(--on-deep-2);
+    --ink-3: var(--on-deep-3);
+    --line: var(--line-deep);
+    --focus: var(--mark);
+    --card-tint: transparent;
+    --card-border: transparent;
+    --card-shadow: transparent;
+    --card-shadow-hover: transparent;
+    color: var(--on-deep);
   }
 
-  /* Mockup's .hero h1: clamp(58px,9.2vw,132px)/800/.88/-.04em, scoped to
-     just this page's own h1 (base.css's shared h1 rule stays the smaller
-     site-wide default that the tabs' plain page-title h1s still use — the
-     mockup only ever has the one hero heading). */
-  .hero-h1 {
-    font-size: clamp(58px, 9.2vw, 132px);
+  main :global(.glass-card) {
+    backdrop-filter: none;
+  }
+
+  /* Without the film the spacers collapse, so no-JS and reduced-motion
+     readers get a compact page. html.dive-js is set before first paint by
+     DiveLayout's inline script. */
+  .gap {
+    height: 6vh;
+  }
+
+  :global(html.dive-js) .gap {
+    height: calc(var(--gap) * 1vh);
+  }
+
+  .station {
+    position: relative;
+    isolation: isolate;
+  }
+
+  /* The scrim: a soft darkening behind each station's text instead of a
+     card — no edges, nothing to read as glass. CSS rather than shader so it
+     also works without the film (plan deviation, ledgered). */
+  .station::before {
+    content: '';
+    position: absolute;
+    inset: -12% -4%;
+    z-index: -1;
+    pointer-events: none;
+    background: radial-gradient(
+      ellipse 75% 65% at 50% 50%,
+      rgba(5, 20, 35, 0.55),
+      transparent 70%
+    );
+  }
+
+  /* Poster frames behind each station when the film is not running. Hidden
+     from first paint whenever the film is expected (html.dive-js), so a
+     lazy image hidden by display:none is never fetched on the film path;
+     index.ts adds .dive-off if the film stops (e.g. a lost GPU context). */
+  .still {
+    position: absolute;
+    inset: 0;
+    z-index: -2;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  :global(html.dive-js:not(.dive-off)) .still {
+    display: none;
+  }
+
+  /* The focus pull (spec §6): text sharpens as its station reaches the
+     viewport's centre. --pull is set per station by index.ts; it defaults to
+     1 (sharp), so without the film nothing is ever blurred. Not named
+     --focus — that token is the focus-ring colour. */
+  .content {
+    filter: blur(calc((1 - var(--pull, 1)) * 6px));
+    transform: translateY(calc((1 - var(--pull, 1)) * 24px));
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .content {
+      filter: none;
+      transform: none;
+    }
+  }
+
+  .title {
+    min-height: 92vh;
+    display: flex;
+    align-items: center;
+  }
+
+  .title-h1 {
+    font-stretch: 125%;
+    font-size: clamp(64px, 11vw, 168px);
     line-height: 0.88;
-    letter-spacing: -0.04em;
-  }
-
-  .hero-note {
-    max-width: 64ch;
-    margin-top: 24px;
-    padding: 24px 28px;
-    background: color-mix(in srgb, var(--card-tint) 58%, transparent);
-  }
-
-  .lede {
-    margin: 0;
-    max-width: 46ch;
-    font-size: clamp(17px, 2.1vw, 23px);
-    line-height: 1.5;
-    color: var(--ink-2);
+    letter-spacing: -0.035em;
+    margin-bottom: 24px;
   }
 
   .meta {
-    margin-top: 24px;
-    margin-bottom: 0;
     font-family: var(--mono);
-    font-size: 11px;
-    letter-spacing: 0.15em;
+    font-size: 12px;
+    letter-spacing: 0.16em;
+    color: var(--on-deep);
+  }
+
+  .dive-in,
+  .surface {
+    margin-top: 28px;
+    min-height: 48px;
+    padding: 0 26px;
+    border: 1px solid rgba(234, 244, 246, 0.55);
+    border-radius: 999px;
+    background: rgba(4, 16, 28, 0.3);
+    color: var(--on-deep);
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 0.16em;
     text-transform: uppercase;
-    color: var(--ink-3);
+    cursor: pointer;
   }
 
-  /* Mockup's .log: a gapped stack of cards, water visible between them.
-     Home's are RoleEntry's compact branch — the log row and nothing else,
-     since the bullets and figures live on /work now. */
-  .roles {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    margin-top: 32px;
+  .dive-in:hover,
+  .surface:hover {
+    background: rgba(4, 16, 28, 0.5);
   }
 
-
-  /* Carded for the same reason as .hero-note above: a 13px link is body
-     text (4.5:1, not the 3:1 its neighbouring headings get), and these sit
-     at exactly the depths where bubbles, the shoal and — for the last one —
-     snow are at full strength. Shrink-wrapped to the link rather than
-     spanning the column, so the water still reads around it and the link
-     keeps its existing underlined appearance. CARD_OPACITY.project (66%,
-     must match intensity.ts by hand); the deep one inherits .zone-deep's
-     own --card-tint, no JavaScript involved. */
-  .more {
-    width: fit-content;
-    margin: 20px 0 0;
-    padding: 0 18px;
-    background: color-mix(in srgb, var(--card-tint) 58%, transparent);
-  }
-
-  /* The link, not the paragraph, carries the height: measured at 16.0px
-     tall before this — the pill's own 10px block padding is not part of
-     the target, so the hit area was the bare line box. */
-  .more a {
-    display: inline-flex;
+  .about-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 420px);
+    gap: 48px;
     align-items: center;
-    min-height: 44px;
-    color: inherit;
+  }
+
+  .lede {
+    font-size: clamp(20px, 2.2vw, 28px);
+    line-height: 1.45;
+    max-width: 30ch;
+  }
+
+  .portrait {
+    width: 100%;
+    height: auto;
+    border-radius: 6px;
+  }
+
+  @media (max-width: 860px) {
+    .about-row {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  .roles {
+    display: grid;
+    gap: 2px;
+    margin-top: 24px;
+  }
+
+  .more {
+    margin-top: 28px;
     font-family: var(--mono);
     font-size: 13px;
   }
 
-  .more a:hover {
-    text-decoration-thickness: 1px;
-    text-underline-offset: 4px;
+  .more a {
+    color: inherit;
+    text-underline-offset: 5px;
   }
 
-  /* The thermocline is a passage, not a rule: genuine top and bottom
-     padding stand in for the distance actually swum through. A plain <div>,
-     not a <section>, so base.css's `section{padding-block:112px}` does not
-     stack on top of its own padding — the mockup's .thermo is likewise not
-     a section, and its .thermo__in carries the whole passage. */
-  .thermocline-section {
-    padding-block: clamp(130px, 19vh, 210px);
-  }
-
-  .thermocline {
-    display: flex;
-    align-items: center;
-    gap: 20px;
-  }
-
-  .thermocline-rule {
-    flex: 1;
-    height: 1px;
-    background: var(--line);
-  }
-
-  .thermocline-label {
-    flex: 0 0 auto;
-    font-family: var(--mono);
-    font-size: 20px;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    white-space: nowrap;
-    color: var(--ink);
-  }
-
-  /* Four small cards in a row rather than the stacked, slate-bearing blocks
-     this section used to carry: Home names the hobbies and /hobbies holds
-     whatever detail exists for them. Each is its own deep glass card at
-     CARD_OPACITY.deep (72%, must match intensity.ts by hand); no mockup
-     precedent below the thermocline. */
   .hobbies {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
-    gap: 18px;
-    margin-top: 32px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px 48px;
+    margin-top: 28px;
   }
 
-  .hobby {
-    padding: 28px;
-    background: color-mix(in srgb, var(--card-tint) 72%, transparent);
+  @media (max-width: 700px) {
+    .hobbies {
+      grid-template-columns: minmax(0, 1fr);
+    }
   }
 
   .hobby h3 {
-    margin: 0;
+    margin: 0 0 6px;
     font-size: 22px;
   }
 
-  /* --on-deep-2 explicitly rather than --ink-2: .zone-deep remaps --ink-2
-     to exactly this, so the two are the same colour here — named directly
-     because this card only ever renders in the deep zone. */
   .hobby .line {
-    margin: 10px 0 0;
-    font-size: 16px;
     color: var(--on-deep-2);
   }
 
-  /* The portrait floats in the water beside the intro rather than sitting in a
-     card — it is a cut-out, so the water is its background. No border or
-     surface: anything drawn round it would read as a frame and break that. */
-  /* The portrait stands the full height of the heading plus the intro card
-     beside it, so the two columns end level.
-
-     The text column is `auto`, so it is exactly as wide as the card wants to
-     be (its 64ch max-width), and the photo takes whatever is left. That
-     ordering is the point. The other way round — the photo sizing itself
-     from the row height and the text taking the remainder — is a feedback
-     loop: a wider photo narrows the card, the card's meta line wraps, the
-     column gets taller, and the photo then wants to be wider still. Grid
-     re-resolves that only once, so it overshot: measured 21px past the
-     content edge at 1440, with the meta line broken onto two lines. Here the
-     card's width never depends on the photo, so its height never does
-     either, and there is nothing to loop. */
-  .hero-row {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    align-items: stretch;
-    gap: 24px;
-  }
-
-  .hero-left {
-    flex: 1 1 auto;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 28px;
-  }
-
-  /* A grid item gets a definite height from the row, which a percentage height
-     on the image can actually resolve against — inside a flex item with auto
-     height it collapsed to zero. It fills the remaining track's width, and the
-     image inside is height-limited within it (see the stacking breakpoint
-     below for where that stops holding). */
-  .portrait-wrap {
-    position: relative;
-  }
-
-  /* No card or frame — it is a cut-out, so the water is its background. */
-  /* Absolutely positioned so the image contributes NO intrinsic height: the
-     heading and card decide how tall the row is, and the image is sized to
-     them. Laid out in flow it did the opposite, driving the row 142px taller
-     than the text and leaving dead space under the card. */
-  .portrait {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-    /* Right, so the photo's edge sits on the content column's edge — the same
-       line the section rules and depth markers below end on. Any spare track
-       width lands between the card and the diver, where the cut-out's own
-       shape already leaves open water. */
-    object-position: right bottom;
-    display: block;
-    filter: drop-shadow(0 18px 40px rgba(11, 42, 58, 0.28));
-  }
-
-  /* Stacks well above the site's usual 860px, because this photo is
-     landscape: to stand as tall as the text beside it, it needs about 1.17x
-     that height in width, on top of the card's own width. Below this the two
-     no longer fit side by side, and the photo would either be drawn shorter
-     than the text (width-limited) or squeeze the card. Stacked, neither
-     happens. Measured, not chosen: the photo is exact on all four edges down
-     to 1226px and starts falling short around 1222px (5px short at 1220, 35px
-     at 1181). Side by side from 1240 leaves ~17px of margin over that, so a
-     small difference in font metrics cannot tip it over; every common laptop
-     width (1280, 1366, 1440, 1536, 1920) is above it. */
-  @media (max-width: 1239px) {
-    .hero-row {
-      grid-template-columns: minmax(0, 1fr);
-      align-items: center;
-      gap: 28px;
-    }
-
-    /* 100%, not a vw value: on Home the column is already narrowed by the
-       depth rail's gutter, and 88vw measured 2px wider than it at 375px. */
-    .portrait-wrap {
-      position: static;
-      width: min(100%, 420px);
-      justify-self: center;
-    }
-
-    .portrait {
-      position: static;
-      height: auto;
-    }
+  .contact :global(.site-footer) {
+    background: none;
   }
 </style>

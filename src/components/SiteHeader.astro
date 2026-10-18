@@ -1,4 +1,12 @@
 ---
+// `overlay` floats the menu over the landing's film: fixed, transparent,
+// light text. `solid` is the frosted header every other page uses.
+interface Props {
+  variant?: 'overlay' | 'solid';
+}
+
+const { variant = 'solid' } = Astro.props;
+
 const links = [
   { href: '/', label: 'Home' },
   { href: '/work', label: 'Work' },
@@ -13,7 +21,7 @@ const isCurrent = (href: string) =>
   href === '/' ? currentPath === '/' : currentPath === href;
 ---
 
-<header class="site-header">
+<header class:list={['site-header', variant === 'overlay' && 'is-overlay']}>
   <div class="container row">
     <p class="wordmark">WEI YAN</p>
     <nav aria-label="Primary">
@@ -95,6 +103,25 @@ const isCurrent = (href: string) =>
   .site-header .container {
     margin-left: max(0px, (100% - 1180px) / 2);
     margin-right: max(0px, (100% - 1180px) / 2);
+  }
+
+  /* Over the landing's film there is no bar at all (spec §6 bans white
+     header bars): just the links, light, with a soft shadow so they hold
+     contrast over the bright surface water. */
+  .site-header.is-overlay {
+    position: fixed;
+    inset: 0 0 auto 0;
+    margin-left: 0;
+    background: none;
+    backdrop-filter: none;
+    border-bottom: 0;
+    color: var(--on-deep);
+    text-shadow: 0 1px 12px rgba(4, 16, 28, 0.55);
+  }
+
+  .site-header.is-overlay .container {
+    margin-left: max(16px, (100% - 1180px) / 2);
+    margin-right: max(16px, (100% - 1180px) / 2);
   }
 
   .row {

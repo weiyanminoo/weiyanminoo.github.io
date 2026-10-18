@@ -26,7 +26,9 @@ const fragmentShader = /* glsl */ `
   varying vec3 vDir;
   void main() {
     float up = vDir.y;
-    vec3 glow = uFog * (1.0 + 1.6 * uAmbient) + vec3(0.18, 0.24, 0.26) * uShafts;
+    // Modest: the bright part of looking up is the surface layer's Snell's
+    // window, not the water itself.
+    vec3 glow = uFog * (1.0 + 0.55 * uAmbient) + vec3(0.06, 0.09, 0.11) * uShafts;
     vec3 below = uFog * mix(0.45, 0.8, uAmbient);
     vec3 col = up >= 0.0
       ? mix(uFog, glow, smoothstep(0.0, 1.0, up))

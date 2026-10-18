@@ -16,6 +16,8 @@ import { SECTION_PROGRESS, SHOTS, diveStateAt } from './timeline';
 import type { DiveFrame, DiveState, SectionId } from './types';
 import { waterAt } from './water';
 import createVolumeLayer from './layers/volume';
+import createSurfaceLayer from './layers/surface';
+import createShaftsLayer from './layers/shafts';
 import createBubblesLayer from './layers/bubbles';
 
 export interface DiveHandle {
@@ -48,7 +50,7 @@ const MAX_FRAME_S = 0.1;
 // Back to front (plan Phase 3): volume, surface, shafts, reef, schools,
 // fauna, snow, bubbles.
 function buildLayers(): Layer[] {
-  return [createVolumeLayer(), createBubblesLayer()];
+  return [createVolumeLayer(), createSurfaceLayer(), createShaftsLayer(), createBubblesLayer()];
 }
 
 function hasWebGL2(): boolean {

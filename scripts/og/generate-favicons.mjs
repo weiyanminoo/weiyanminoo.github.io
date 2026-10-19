@@ -1,7 +1,7 @@
 // One-off asset generator. Not wired into `npm run build` — run manually
 // with `node scripts/og/generate-favicons.mjs` whenever public/favicon.svg
 // changes. Renders the hand-authored favicon SVG to the raster fallbacks
-// referenced from BaseLayout.astro's head: a 32x32 PNG for browsers that
+// referenced from the layouts' heads (DiveLayout, StaticLayout): a 32x32 PNG for browsers that
 // don't support SVG favicons, and a 180x180 apple-touch-icon.
 import { readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';

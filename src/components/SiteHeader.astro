@@ -41,28 +41,10 @@ const isCurrent = (href: string) =>
 </header>
 
 <style>
-  /* Frosted glass, matching the mockup's header.top (rgba(246,249,249,.5) +
-     blur 14px). Opacity is intensity.ts's CARD_OPACITY.header (62%, not
-     the mockup's ~50%) — must match that constant by hand. Raised above
-     the mockup's own number because the header is the one card that must
-     hold contrast across Home's FULL 0-32m column: unlike a page-scoped
-     card, it cannot rely on a fixed --card-tint being the right zone
-     everywhere it renders (see .is-deep below and DepthRail.astro's own
-     `.scrim`, which hit the same problem at 70% and settled on 85% for the
-     rail; the header's own measured floor is lower because — unlike the
-     rail — it now tracks the correct zone tint via .is-deep instead of
-     staying permanently light). */
-  /* margin-left is the mockup's `.shell{margin-left:var(--rail)}`, which its
-     header.top lives inside — so the mockup's header glass starts at the
-     rail's right edge and never covers it. Ours spanned the full viewport,
-     which put a second translucent layer over the rail's top 65px; because
-     this element cross-fades its background over 0.9s at the thermocline
-     while the rail's text colour flips in one frame, that layer dropped the
-     rail's "DEPTH" label to a measured 1.60:1 mid-cross-fade, and still to
-     4.41:1 once the rail was raised above it (the rail's own scrim is 85%,
-     so 15% of this header's backdrop still reached it through the blur).
-     Clear of the rail entirely, the worst mid-cross-fade reading is the
-     settled one. */
+  /* The solid variant: frosted glass over the static pages' still water,
+     matching the mockup's header.top (rgba(246,249,249,.5) + blur 14px).
+     margin-left follows --rail, the gutter the old depth rail reserved;
+     both layouts now set it to 0. */
   .site-header {
     position: sticky;
     top: 0;
@@ -77,19 +59,6 @@ const isCurrent = (href: string) =>
     transition:
       background 0.9s var(--ease),
       border-color 0.9s var(--ease);
-  }
-
-  /* On the `column` page (Home), the header is fixed chrome over water that
-     itself crosses the thermocline, so — exactly like DepthRail.astro's
-     `.scrim` / `.is-deep` — a single inherited --card-tint can't stay
-     correct for the whole scroll range. Toggled by the same water:depth
-     event the rail already listens for. On a tab (still water at 6m) this
-     class is never toggled, and the light default --card-tint is correct
-     there with no JavaScript at all. */
-  .site-header.is-deep {
-    --card-tint: var(--deep);
-    --card-border: rgba(255, 255, 255, 0.18);
-    color: var(--on-deep);
   }
 
   /* base.css's .container folds the mockup's .shell offset and .wrap's own
@@ -190,31 +159,4 @@ const isCurrent = (href: string) =>
     }
   }
 </style>
-
-<script>
-  // Same pattern as DepthRail.astro's water:depth listener, for the same
-  // reason: on the `column` page (Home) this is the only thing that can
-  // keep the header's glass tinted to the correct zone as the water behind
-  // it crosses the thermocline. See that file's script for the fuller
-  // comment on cleanup/re-attachment across navigations.
-  import { isBelowThermocline } from '../scripts/water/depth';
-
-  let cleanup: (() => void) | null = null;
-
-  document.addEventListener('astro:page-load', () => {
-    cleanup?.();
-
-    const header = document.querySelector('.site-header');
-    if (!(header instanceof HTMLElement)) {
-      return;
-    }
-
-    function onDepth(event: Event): void {
-      const { metres } = (event as CustomEvent<{ metres: number; progress: number }>).detail;
-      header.classList.toggle('is-deep', isBelowThermocline(metres));
-    }
-
-    window.addEventListener('water:depth', onDepth);
-    cleanup = () => window.removeEventListener('water:depth', onDepth);
-  });
-</script>
+

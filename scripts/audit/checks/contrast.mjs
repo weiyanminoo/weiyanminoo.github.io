@@ -208,7 +208,7 @@ async function measurePage(browser, path, injectFailure) {
 export async function runContrastCheck(browser, { injectFailure = false } = {}) {
   const name = 'Contrast';
   const lines = [
-    'aria-hidden subtrees excluded from the sweep (e.g. the depth rail, which sits on its own scrim, not the water).',
+    'aria-hidden subtrees excluded from the sweep (e.g. the depth gauge, a decorative readout).',
   ];
   if (injectFailure) {
     lines.push('DELIBERATE FAILURE INJECTION ACTIVE: a low-contrast probe element is added to every page.');

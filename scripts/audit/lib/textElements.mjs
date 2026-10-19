@@ -1,8 +1,8 @@
 // Enumerates "text-bearing elements" on a freshly-loaded page: elements
 // with their own direct (non-whitespace) text, visible, and not inside an
 // aria-hidden subtree. Excluding aria-hidden here is what keeps the depth
-// rail (aria-hidden="true", DepthRail.astro) out of the sweep — it sits on
-// its own scrim, not the water, so testing it against the canvas is one of
+// gauge (aria-hidden="true", DiveLayout.astro) out of the sweep — a
+// decorative readout over the film, not page content; testing it like body text is one of
 // the false failures this harness exists to avoid.
 //
 // Must be called immediately after navigation, before any scroll, so

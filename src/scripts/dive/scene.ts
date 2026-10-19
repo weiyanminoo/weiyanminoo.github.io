@@ -26,6 +26,9 @@ export interface Layer {
 
 export interface DiveScene {
   render(frame: DiveFrame): void;
+  /** Compiles every material and draws each given frame once, so first-use
+   *  costs are paid up front instead of as a stall mid-dive. */
+  warm(frames: readonly DiveFrame[]): Promise<void>;
   resize(w: number, h: number, dpr: number): void;
   dispose(): void;
 }
@@ -66,18 +69,27 @@ export async function createScene(
   // thermocline band (plan Task 13).
   const post: DivePost | null = settings.post ? createPost(renderer, 1, 1) : null;
 
+  const render = (frame: DiveFrame) => {
+    const { state, timeS } = frame;
+    camera.position.set(0, -(state.depth + SURFACE_CLEARANCE_M), 0);
+    camera.rotation.set(
+      state.camera.pitch + DRIFT_RAD * noise1(timeS * DRIFT_RATE, DRIFT_SEED_PITCH),
+      state.camera.yaw + DRIFT_RAD * noise1(timeS * DRIFT_RATE, DRIFT_SEED_YAW),
+      0,
+    );
+    for (const layer of layers) layer.update(frame);
+    if (post) post.render(scene, camera, frame);
+    else renderer.render(scene, camera);
+  };
+
   return {
-    render(frame) {
-      const { state, timeS } = frame;
-      camera.position.set(0, -(state.depth + SURFACE_CLEARANCE_M), 0);
-      camera.rotation.set(
-        state.camera.pitch + DRIFT_RAD * noise1(timeS * DRIFT_RATE, DRIFT_SEED_PITCH),
-        state.camera.yaw + DRIFT_RAD * noise1(timeS * DRIFT_RATE, DRIFT_SEED_YAW),
-        0,
-      );
-      for (const layer of layers) layer.update(frame);
-      if (post) post.render(scene, camera, frame);
-      else renderer.render(scene, camera);
+    render,
+    async warm(frames) {
+      // Shader programs compile in parallel where the GPU allows; then one
+      // draw of each shot builds whatever per-draw state the driver keeps
+      // (measured: first draws stalled 50–370 ms each without this).
+      await renderer.compileAsync(scene, camera);
+      for (const frame of frames) render(frame);
     },
     resize(w, h, dpr) {
       renderer.setPixelRatio(Math.min(dpr, settings.maxDpr));

@@ -502,6 +502,48 @@ async function noWebglCheck() {
   }
 }
 
+// Scrolling back into a school must not stall (frame-cost audit, Task 20):
+// on ANGLE/D3D11 the instanced fish's first draw after a gap stalled the
+// GPU 100–230 ms. Oscillates the live page across the snapper school's
+// window edge (progress 0.6, ≈20.86 m) and fails on any frame over 80 ms
+// after a warm-up pass.
+async function stallCheck(browser) {
+  const { context, page, errors } = await openPage(browser, DESKTOP, '');
+  await page.waitForFunction(() => document.documentElement.classList.contains('has-dive'));
+  let lo = 0;
+  let hi = await page.evaluate(() => document.documentElement.scrollHeight - innerHeight);
+  for (let i = 0; i < 18; i++) {
+    const mid = Math.round((lo + hi) / 2);
+    await page.evaluate((y) => window.scrollTo(0, y), mid);
+    await page.waitForTimeout(120);
+    if ((await page.evaluate(() => window.__lastDepth)) < 20.86) lo = mid;
+    else hi = mid;
+  }
+  const oscillate = () =>
+    page.evaluate(
+      (centre) =>
+        new Promise((resolve) => {
+          const times = [];
+          const start = performance.now();
+          function step(t) {
+            times.push(t);
+            const e = t - start;
+            window.scrollTo(0, Math.round(centre + 60 * Math.sin((e / 1000) * Math.PI * 2)));
+            if (e < 4000) requestAnimationFrame(step);
+            else resolve(Math.max(...times.slice(1).map((x, i) => x - times[i])));
+          }
+          requestAnimationFrame(step);
+        }),
+      hi,
+    );
+  await oscillate();
+  const worst = await oscillate();
+  if (worst <= 80) ok(`stall: worst frame ${worst.toFixed(0)} ms crossing the school's window edge`);
+  else fail(`stall: a ${worst.toFixed(0)} ms frame crossing the school's window edge (limit 80 ms)`);
+  if (errors.length) fail(`stall: page errors: ${errors.join(' | ')}`);
+  await context.close();
+}
+
 async function exportStills(browser) {
   const dir = path.join(repoRoot, 'public', 'dive', 'stills');
   await fs.mkdir(dir, { recursive: true });
@@ -535,6 +577,7 @@ async function main() {
     await soundCheck(browser);
     await reducedMotionCheck(browser);
     await noWebglCheck();
+    await stallCheck(browser);
     if (flag('loudness')) await loudness(browser);
   } finally {
     await browser.close();

@@ -119,6 +119,19 @@ const isCurrent = (href: string) =>
     text-shadow: 0 1px 12px rgba(4, 16, 28, 0.55);
   }
 
+  /* A soft darkening at the top of the frame, like a film's title-safe
+     gradient — no bar and no edge. Without it the links fall to ~1.3:1 over
+     the bright Snell's window at the surface; with it they hold AA there. */
+  .site-header.is-overlay::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 150px;
+    z-index: -1;
+    pointer-events: none;
+    background: linear-gradient(to bottom, rgba(4, 16, 28, 0.62), rgba(4, 16, 28, 0.38) 45%, transparent);
+  }
+
   .site-header.is-overlay .container {
     margin-left: max(16px, (100% - 1180px) / 2);
     margin-right: max(16px, (100% - 1180px) / 2);

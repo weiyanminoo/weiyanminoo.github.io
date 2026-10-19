@@ -78,7 +78,16 @@ const CONTROL_HTML = `<!doctype html>
   bufBctx.fillStyle = '#886644';
   bufBctx.fillRect(0, 0, bufB.width, bufB.height);
 
+  // Draws only while the check is measuring the control itself (the check
+  // sets window.__run). Left running, this page kept compositing four
+  // full-viewport passes at 60Hz on the same GPU *while the site was being
+  // measured*, and the site's scrolling number was mostly this page's load.
+  window.__run = false;
   function loop() {
+    if (!window.__run) {
+      requestAnimationFrame(loop);
+      return;
+    }
     const grad = ctx.createLinearGradient(0, 0, 0, h);
     grad.addColorStop(0, '#123456');
     grad.addColorStop(1, '#654321');
@@ -139,12 +148,17 @@ async function collectWhileScrolling(page, durationMs) {
       new Promise((resolve) => {
         const start = performance.now();
         const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+        // The dive's heaviest stretch: the reef, both schools, the inserts
+        // and the animals sit roughly between a quarter and two thirds of
+        // the way down.
+        const from = 0.25 * maxScroll;
+        const span = 0.45 * maxScroll;
         function step(t) {
           window[fnName]();
           const elapsed = t - start;
           const cycle = (elapsed % 2000) / 2000; // one full down-up cycle every 2s
           const progress = cycle < 0.5 ? cycle * 2 : 2 - cycle * 2;
-          window.scrollTo(0, Math.round(progress * maxScroll));
+          window.scrollTo(0, Math.round(from + progress * span));
           if (elapsed < duration) {
             requestAnimationFrame(step);
           } else {
@@ -245,7 +259,9 @@ export async function runFrameCostCheck(browser) {
     const scrollFpsSamples = [];
 
     for (let round = 0; round < ROUNDS; round++) {
+      await controlPage.evaluate(() => (window.__run = true));
       const control = summarize(await collectRafTimestamps(controlPage, SAMPLE_MS));
+      await controlPage.evaluate(() => (window.__run = false));
       controlFpsSamples.push(control.fps);
 
       await sitePage.evaluate(() => window.scrollTo(0, 0));

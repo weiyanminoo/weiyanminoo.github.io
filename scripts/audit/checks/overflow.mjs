@@ -8,8 +8,9 @@ const WIDTHS = [375, 1440];
 const EPSILON = 0.5; // sub-pixel layout rounding
 
 async function findOffenders(page, viewportWidth) {
+  // page.evaluate takes a single argument: both values go in one object.
   return page.evaluate(
-    (width, eps) => {
+    ({ width, eps }) => {
       const offenders = [];
       for (const el of document.querySelectorAll('body *')) {
         const rect = el.getBoundingClientRect();
@@ -26,8 +27,7 @@ async function findOffenders(page, viewportWidth) {
       }
       return offenders;
     },
-    viewportWidth,
-    EPSILON
+    { width: viewportWidth, eps: EPSILON }
   );
 }
 

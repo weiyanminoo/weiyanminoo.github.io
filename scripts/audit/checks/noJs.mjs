@@ -30,12 +30,27 @@ export async function runNoJsCheck(browser) {
       // Body copy beyond just the h1 itself.
       const bodyOk = bodyText.length > h1Text.length + 10;
 
-      const passed = h1Ok && navOk && bodyOk;
+      // The landing additionally carries every station, each with its still
+      // displayed in place of the film.
+      let landingOk = true;
+      let landingNote = '';
+      if (path === '/') {
+        const landing = await page.evaluate(() => ({
+          stations: document.querySelectorAll('.station[data-section]').length,
+          stillsShown: [...document.querySelectorAll('.station .still')].filter(
+            (img) => getComputedStyle(img).display !== 'none' && img.getAttribute('src'),
+          ).length,
+        }));
+        landingOk = landing.stations === 7 && landing.stillsShown === 7;
+        landingNote = `, stations=${landing.stations}/7 stills shown=${landing.stillsShown}/7 (${landingOk ? 'OK' : 'FAIL'})`;
+      }
+
+      const passed = h1Ok && navOk && bodyOk && landingOk;
       if (!passed) allPassed = false;
 
       lines.push(
         `${path}: h1="${h1Text}" (${h1Ok ? 'OK' : 'FAIL'}), nav links=${nonEmptyNavLinks.length} (${navOk ? 'OK' : 'FAIL'}), ` +
-          `main text length=${bodyText.length}chars (${bodyOk ? 'OK' : 'FAIL'}) — ${passed ? 'OK' : 'FAIL'}`
+          `main text length=${bodyText.length}chars (${bodyOk ? 'OK' : 'FAIL'})${landingNote} — ${passed ? 'OK' : 'FAIL'}`
       );
     } finally {
       await context.close();

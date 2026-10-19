@@ -250,26 +250,8 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
 </script>
 
 <style>
-  /* Light ink and no glass for everything on the landing: the shared
-     components were built for frosted cards over pale water, and spec §6
-     bans frosted cards over the film. Overriding their tokens here, rather
-     than editing them, keeps the static pages untouched. */
-  main {
-    --ink: var(--on-deep);
-    --ink-2: var(--on-deep-2);
-    --ink-3: var(--on-deep-3);
-    --line: var(--line-deep);
-    --focus: var(--mark);
-    --card-tint: transparent;
-    --card-border: transparent;
-    --card-shadow: transparent;
-    --card-shadow-hover: transparent;
-    color: var(--on-deep);
-  }
-
-  main :global(.glass-card) {
-    backdrop-filter: none;
-  }
+  /* (The landing's light-ink token overrides live in DiveLayout, which owns
+     <main>: a scoped `main` rule here would never match it.) */
 
   /* Without the film the spacers collapse, so no-JS and reduced-motion
      readers get a compact page. html.dive-js is set before first paint by
@@ -290,17 +272,39 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
   /* The scrim: a soft darkening behind each station's text instead of a
      card — no edges, nothing to read as glass. CSS rather than shader so it
      also works without the film (plan deviation, ledgered). */
+  /* Two layers: a radial centred behind the text column (left-aligned in
+     the container, so not the page centre), and a feathered band across
+     the station's full width, so labels at the far edge still hold AA over
+     the brightest footage. The film stays clear in the gaps between. */
   .station::before {
     content: '';
     position: absolute;
-    inset: -12% -4%;
+    /* Feathered above and below; never wider than the page, which would
+       scroll it sideways. */
+    inset: -12% 0;
     z-index: -1;
     pointer-events: none;
-    background: radial-gradient(
-      ellipse 75% 65% at 50% 50%,
-      rgba(5, 20, 35, 0.55),
-      transparent 70%
-    );
+    background:
+      radial-gradient(ellipse 70% 65% at 38% 50%, rgba(5, 20, 35, var(--scrim, 0.6)), transparent 72%),
+      linear-gradient(
+        to bottom,
+        transparent,
+        rgba(5, 20, 35, var(--band, 0.48)) 16%,
+        rgba(5, 20, 35, var(--band, 0.48)) 84%,
+        transparent
+      );
+  }
+
+  /* The title sits over the brightest water in the film (just under the
+     surface), so its scrim is the deepest. Projects is read while the
+     camera looks up at the surface glow for the manta, so it is next. */
+  .title {
+    --scrim: 0.75;
+  }
+
+  .station[data-section='projects'] {
+    --scrim: 0.7;
+    --band: 0.56;
   }
 
   /* Poster frames behind each station when the film is not running. Hidden
@@ -370,8 +374,12 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
     min-height: 48px;
     padding: 0 26px;
     border: 1px solid rgba(234, 244, 246, 0.55);
-    border-radius: 999px;
-    background: rgba(4, 16, 28, 0.3);
+    /* A gently rounded rectangle, not a pill: the fill must cover the
+       button's whole box, which is what the contrast audit (and an eye
+       reading the label against the water) sees. Dark enough to hold AA
+       over the brightest surface water. */
+    border-radius: 6px;
+    background: rgba(4, 16, 28, 0.55);
     color: var(--on-deep);
     font-family: var(--mono);
     font-size: 13px;
@@ -382,7 +390,7 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
 
   .dive-in:hover,
   .surface:hover {
-    background: rgba(4, 16, 28, 0.5);
+    background: rgba(4, 16, 28, 0.68);
   }
 
   .about-row {

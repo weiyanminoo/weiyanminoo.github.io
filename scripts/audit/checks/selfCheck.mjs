@@ -22,9 +22,9 @@ import { captureFrame, pixelAt, colourDistance } from '../lib/pixels.mjs';
 // legitimate slow-but-alive rate while still catching an actually-stalled
 // loop.
 const MIN_PLAUSIBLE_FPS = 5;
-const FRESHNESS_MIN_DISTANCE = 40; // top (foam, ~rgb 246) vs bottom (abyss, ~rgb 11) must clearly differ
+const FRESHNESS_MIN_DISTANCE = 40; // the surface (light) vs the 40 m deep (navy) must clearly differ
 const DEEPEST_TOLERANCE = 40; // per-pixel tolerance for dither/effects noise on the bottom sample
-const CLEAR_X_OFFSET = 40; // px in from the right edge — clear of body text and the (left-side) depth rail
+const CLEAR_X_OFFSET = 40; // px in from the right edge, clear of the depth gauge and text
 const CLEAR_Y_MARGIN = 40; // px in from top/bottom of viewport
 
 export async function runSelfCheck(browser) {
@@ -34,7 +34,10 @@ export async function runSelfCheck(browser) {
   const page = await context.newPage();
 
   try {
-    await page.goto(`${BASE_URL}/`, { waitUntil: 'load' });
+    // Review mode: the dive renders exactly the frame it is seeked to, so
+    // the freshness samples below do not depend on scroll smoothing.
+    await page.goto(`${BASE_URL}/?review&notext`, { waitUntil: 'load' });
+    await page.waitForFunction(() => !!window.__dive, null, { timeout: 20000 });
     await settle(page, 5);
 
     // 1. The viewport is real.
@@ -61,19 +64,16 @@ export async function runSelfCheck(browser) {
       `rAF loop runs: ${measuredFrames} frames in ~1s (need >= ${MIN_PLAUSIBLE_FPS}) — ${rafOk ? 'OK' : 'FAIL'}`
     );
 
-    // 3. Canvas reads are fresh, not stale: sample at scroll-top, scroll to
-    // the bottom, sample again, require the two to differ, and require the
-    // bottom to read close to the 32m stop-table value.
-    await page.evaluate(() => window.scrollTo(0, 0));
+    // 3. Canvas reads are fresh, not stale: sample the dive's first frame,
+    // seek to its last, sample again, require the two to differ, and
+    // require the bottom to read close to the 40 m fog stop.
+    await page.evaluate(() => window.__dive.seek(0, 10));
     await settle(page, 5);
     const topFrame = await captureFrame(page);
     const sampleX = DESKTOP_VIEWPORT.width - CLEAR_X_OFFSET;
     const topPixel = pixelAt(topFrame, sampleX, CLEAR_Y_MARGIN + 40);
 
-    const maxScroll = await page.evaluate(
-      () => document.documentElement.scrollHeight - window.innerHeight
-    );
-    await page.evaluate((y) => window.scrollTo(0, y), maxScroll);
+    await page.evaluate(() => window.__dive.seek(1, 10));
     await settle(page, 5);
     const bottomFrame = await captureFrame(page);
     const bottomPixel = pixelAt(bottomFrame, sampleX, DESKTOP_VIEWPORT.height - CLEAR_Y_MARGIN);
@@ -88,7 +88,7 @@ export async function runSelfCheck(browser) {
     const deepDistance = colourDistance(bottomPixel, DEEPEST_STOP_RGB);
     const deepOk = deepDistance <= DEEPEST_TOLERANCE;
     lines.push(
-      `bottom-of-Home close to 32m stop: measured rgb(${bottomPixel.join(', ')}) vs stop rgb(${DEEPEST_STOP_RGB.join(
+      `bottom of the dive close to the 40 m stop: measured rgb(${bottomPixel.join(', ')}) vs stop rgb(${DEEPEST_STOP_RGB.join(
         ', '
       )}), distance ${deepDistance.toFixed(1)} (need <= ${DEEPEST_TOLERANCE}) — ${deepOk ? 'OK' : 'FAIL'}`
     );

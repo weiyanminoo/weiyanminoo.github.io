@@ -22,7 +22,7 @@ export const CONTRAST_LARGE = 3.0;
 export const LARGE_TEXT_PX = 24;
 export const LARGE_BOLD_TEXT_PX = 18.66;
 
-// The palette's deepest stop (32m), quoted directly from
-// src/scripts/water/palette.ts — read for reference, not imported, and
-// never modified. Used only by the self-check's freshness assertion.
-export const DEEPEST_STOP_RGB = [11, 42, 58];
+// The water's deepest fog stop (40 m, #0a2135), quoted directly from
+// src/scripts/dive/water.ts FOG_STOPS — read for reference, not imported,
+// and never modified. Used only by the self-check's freshness assertion.
+export const DEEPEST_STOP_RGB = [10, 33, 53];

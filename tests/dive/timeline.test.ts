@@ -35,7 +35,10 @@ describe('diveStateAt', () => {
   });
 
   it('frames the key shots', () => {
-    expect(diveStateAt(0.03).camera.pitch).toBeGreaterThan(0.9);
+    // Looking up at the surface, but low enough that Snell's window stays
+    // in the top of the frame, clear of the title (contrast audit).
+    expect(diveStateAt(0.03).camera.pitch).toBeGreaterThan(0.4);
+    expect(diveStateAt(0.03).camera.pitch).toBeLessThan(0.55);
     expect(diveStateAt(0.62).camera.pitch).toBeGreaterThan(0.6);
     expect(diveStateAt(0.82).camera.pitch).toBeLessThan(-0.3);
   });

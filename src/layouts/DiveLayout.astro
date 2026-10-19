@@ -107,8 +107,26 @@ const siteName = 'Wei Yan';
     display: block;
   }
 
+  /* Light ink and no glass for everything on the landing: the shared
+     components were built for frosted cards over pale water, and spec §6
+     bans frosted cards over the film. Overriding their tokens here, rather
+     than editing them, keeps the static pages untouched. */
   main {
     display: block;
+    --ink: var(--on-deep);
+    --ink-2: var(--on-deep-2);
+    --ink-3: var(--on-deep-3);
+    --line: var(--line-deep);
+    --focus: var(--mark);
+    --card-tint: transparent;
+    --card-border: transparent;
+    --card-shadow: transparent;
+    --card-shadow-hover: transparent;
+    color: var(--on-deep);
+  }
+
+  main :global(.glass-card) {
+    backdrop-filter: none;
   }
 
   /* ?review&notext (the review harness's stills): the film alone, no page

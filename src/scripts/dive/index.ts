@@ -147,17 +147,20 @@ export async function mountDive(root: HTMLElement, opts: MountOptions = {}): Pro
 
   const stations = [...root.querySelectorAll<HTMLElement>('.station[data-section]')];
   let anchors: Anchor[] = [];
+  // Station centres in document coordinates, re-read only when the layout
+  // can have changed (resize, fonts, content reflow). The frame loop must
+  // not read layout: interleaving those reads with its --pull writes forced
+  // a style-and-layout pass per station per frame (~23 a frame, traced).
+  let centres: number[] = [];
 
   // offsetTop, not getBoundingClientRect: the focus pull translates each
   // station's content, and the anchors must not move with it.
   const measure = () => {
     const vh = window.innerHeight;
     const maxScroll = Math.max(0, document.documentElement.scrollHeight - vh);
+    centres = stations.map((el) => el.offsetTop + el.offsetHeight / 2);
     anchors = anchorsFromLayout(
-      stations.map((el) => ({
-        id: el.dataset.section as SectionId,
-        centreY: el.offsetTop + el.offsetHeight / 2,
-      })),
+      stations.map((el, i) => ({ id: el.dataset.section as SectionId, centreY: centres[i] })),
       vh,
       maxScroll,
     );
@@ -168,9 +171,16 @@ export async function mountDive(root: HTMLElement, opts: MountOptions = {}): Pro
     measure();
   };
 
+  resize();
+  // Pre-roll: one frame of every shot, before the film is shown, so the
+  // dive never stalls on a first draw mid-scroll (frame-cost audit).
+  try {
+    await scene.warm(SHOTS.map((s) => frameAt((s.from + s.to) / 2, 0, 1)));
+  } catch {
+    // A failed warm-up is only a slower first pass, not a broken dive.
+  }
   html.classList.add('has-dive');
   if (params.has('notext')) html.classList.add('review-notext');
-  resize();
 
   if (review) {
     const handle: ReviewHandle = {
@@ -267,8 +277,8 @@ export async function mountDive(root: HTMLElement, opts: MountOptions = {}): Pro
     opts.onFrame?.(frame);
 
     const vh = window.innerHeight;
-    for (const el of stations) {
-      const pull = focusFor(el.offsetTop + el.offsetHeight / 2 - scrollY, vh / 2, vh);
+    for (const [i, el] of stations.entries()) {
+      const pull = focusFor(centres[i] - scrollY, vh / 2, vh);
       if (Math.abs((pulls.get(el) ?? -1) - pull) > PULL_EPSILON) {
         pulls.set(el, pull);
         el.style.setProperty('--pull', pull.toFixed(3));

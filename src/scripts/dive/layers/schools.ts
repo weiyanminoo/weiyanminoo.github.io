@@ -12,6 +12,10 @@ import { SCHOOLS, fishPose, type SchoolSpec } from '../schoolPaths';
 import type { Layer, LayerContext } from '../scene';
 import type { DiveFrame } from '../types';
 
+// Where an out-of-window school parks its one still-drawn fish: well past
+// the camera's 400 m far plane.
+const PARKED_M = 5000;
+
 interface SchoolLook {
   /** Fish length, metres. */
   length: number;
@@ -108,7 +112,13 @@ function withTailWave(material: THREE.MeshStandardMaterial, uniforms: Record<str
 
 export default function createSchoolsLayer(): Layer {
   let ctx: LayerContext;
-  const meshes: { spec: SchoolSpec; look: SchoolLook; mesh: THREE.InstancedMesh; time: THREE.IUniform }[] = [];
+  const meshes: {
+    spec: SchoolSpec;
+    look: SchoolLook;
+    mesh: THREE.InstancedMesh;
+    time: THREE.IUniform;
+    capacity: number;
+  }[] = [];
   const m = new THREE.Matrix4();
   const q = new THREE.Quaternion();
   const forward = new THREE.Vector3(0, 0, 1);
@@ -135,16 +145,28 @@ export default function createSchoolsLayer(): Layer {
         mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
         mesh.frustumCulled = false;
         ctx.scene.add(mesh);
-        meshes.push({ spec, look, mesh, time });
+        meshes.push({ spec, look, mesh, time, capacity: count });
       }
     },
     update(frame: DiveFrame) {
       const { progress } = frame.state;
       const t = frame.water.transmittance;
       const cam = ctx.camera.position;
-      for (const { spec, look, mesh, time } of meshes) {
-        mesh.visible = progress >= look.visible[0] && progress <= look.visible[1];
-        if (!mesh.visible) continue;
+      for (const { spec, look, mesh, time, capacity } of meshes) {
+        const inWindow = progress >= look.visible[0] && progress <= look.visible[1];
+        // Out of its window a school keeps drawing one fish, parked far
+        // beyond the far plane (so it costs nothing), rather than stopping.
+        // Measured: on ANGLE/D3D11, the first draw of the instanced fish
+        // after any gap stalled the GPU for 100–230 ms — every time the
+        // visitor scrolled back into a school (the frame-cost audit's
+        // 38 fps). Never letting the draw go idle removes the stall.
+        mesh.count = inWindow ? capacity : 1;
+        if (!inWindow) {
+          m.makeTranslation(cam.x, cam.y - PARKED_M, cam.z);
+          mesh.setMatrixAt(0, m);
+          mesh.instanceMatrix.needsUpdate = true;
+          continue;
+        }
         time.value = frame.timeS;
         // Absorbed with depth, but softened: a white-balanced camera still
         // shows the snapper yellow (ref 2, 2:05).

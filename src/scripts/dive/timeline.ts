@@ -37,8 +37,11 @@ export const DEPTH_KEYS: readonly (readonly [number, number])[] = [
 /** [progress, pitch, yaw] in radians, smoothstep between neighbours.
  *  Starting values — tuned in the critique rounds. */
 export const CAMERA_KEYS: readonly (readonly [number, number, number])[] = [
-  [0, 1.0, 0],
-  [0.06, 1.0, 0],
+  // Up at the surface, but only ~26°: Snell's window and the sun glare sit
+  // in the top quarter of the frame, behind the menu's gradient, and the
+  // title reads over blue water below them.
+  [0, 0.45, 0],
+  [0.06, 0.45, 0],
   [0.2, -0.35, 0],
   [0.28, -0.1, 0.15],
   [0.34, -0.25, 0],

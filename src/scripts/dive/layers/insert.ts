@@ -41,42 +41,68 @@ const fragmentShader = /* glsl */ `
   }
 `;
 
+const CLIPS: readonly ClipId[] = ['wall', 'slope'];
+
 export default function createInsertLayer(footage: Footage): Layer {
   let ctx: LayerContext;
   let mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>;
   const videoTextures = new Map<ClipId, THREE.VideoTexture>();
   const posterTextures = new Map<ClipId, THREE.Texture>();
+  const pendingPosters = new Set<ClipId>();
+  // Shown only if a cut arrives before its poster has decoded.
+  let blank: THREE.DataTexture;
   const fog = new THREE.Color();
 
+  // Textures are made and uploaded as soon as their sources exist — from
+  // ~12 m, when the footage is fetched — never at the cut itself: decoding
+  // and uploading a 720p poster or first video frame on the cut stalled
+  // the GPU 50–180 ms (frame-cost audit). Posters decode off the main
+  // thread via createImageBitmap.
+  const prepare = (clip: ClipId) => {
+    const img = footage.poster(clip);
+    if (!posterTextures.has(clip) && !pendingPosters.has(clip) && img.complete && img.naturalWidth > 0) {
+      pendingPosters.add(clip);
+      createImageBitmap(img, { imageOrientation: 'flipY' }).then(
+        (bitmap) => {
+          const t = new THREE.Texture(bitmap);
+          t.flipY = false;
+          t.colorSpace = THREE.SRGBColorSpace;
+          t.needsUpdate = true;
+          ctx.renderer.initTexture(t);
+          posterTextures.set(clip, t);
+        },
+        () => pendingPosters.delete(clip),
+      );
+    }
+    const video = footage.video(clip);
+    if (!videoTextures.has(clip) && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+      const t = new THREE.VideoTexture(video);
+      t.colorSpace = THREE.SRGBColorSpace;
+      ctx.renderer.initTexture(t);
+      videoTextures.set(clip, t);
+    }
+  };
+
   const textureFor = (clip: ClipId): THREE.Texture => {
-    if (footage.ready(clip)) {
-      let t = videoTextures.get(clip);
-      if (!t) {
-        t = new THREE.VideoTexture(footage.video(clip));
-        t.colorSpace = THREE.SRGBColorSpace;
-        videoTextures.set(clip, t);
-      }
+    const video = videoTextures.get(clip);
+    if (video && footage.ready(clip)) {
       // VideoTexture uploads only when the browser presents a new video
       // frame; a paused, just-seeked clip may not have presented yet, so in
       // review mode upload the current frame on every render.
-      if (footage.exact) t.needsUpdate = true;
-      return t;
+      if (footage.exact) video.needsUpdate = true;
+      return video;
     }
-    let p = posterTextures.get(clip);
-    if (!p) {
-      p = new THREE.Texture(footage.poster(clip));
-      p.colorSpace = THREE.SRGBColorSpace;
-      posterTextures.set(clip, p);
-    }
-    const img = footage.poster(clip);
-    if (img.complete && img.naturalWidth > 0 && p.version === 0) p.needsUpdate = true;
-    return p;
+    return posterTextures.get(clip) ?? blank;
   };
 
   return {
     id: 'insert',
     init(c) {
       ctx = c;
+      // The deep water colour, sRGB #0a2135.
+      blank = new THREE.DataTexture(new Uint8Array([10, 33, 53, 255]), 1, 1);
+      blank.colorSpace = THREE.SRGBColorSpace;
+      blank.needsUpdate = true;
       const material = new THREE.ShaderMaterial({
         vertexShader,
         fragmentShader,
@@ -98,6 +124,7 @@ export default function createInsertLayer(footage: Footage): Layer {
       ctx.scene.add(mesh);
     },
     update(frame: DiveFrame) {
+      for (const clip of CLIPS) prepare(clip);
       const insert = frame.state.insert;
       mesh.visible = insert !== null;
       if (!insert) return;
@@ -123,6 +150,7 @@ export default function createInsertLayer(footage: Footage): Layer {
     dispose() {
       for (const t of videoTextures.values()) t.dispose();
       for (const t of posterTextures.values()) t.dispose();
+      blank.dispose();
       mesh.geometry.dispose();
       mesh.material.dispose();
       ctx.scene.remove(mesh);

@@ -90,11 +90,15 @@ function mantaMaterial(uniforms: Record<string, THREE.IUniform>): THREE.MeshStan
         // The planform: x lateral, y along the body (front +1).
         float a = abs(vPlan.x);
         float z = vPlan.y;
-        float front = 0.55 - 0.6 * pow(a, 0.9);
-        float back = -0.55 + 0.5 * pow(a, 0.6);
-        bool wing = z <= front && z >= back;
-        bool cephalic = a > 0.06 && a < 0.16 && z > 0.4 && z < 0.68;
-        bool tail = a < 0.015 && z < -0.5 && z > -1.0;
+        // Curved, not a kite (round 3 critique): a convex leading edge, a
+        // concave trailing edge, both sweeping back into falcate tips.
+        float front = 0.45 - 0.45 * pow(a, 1.5) - 0.25 * pow(a, 6.0);
+        float back = -0.5 + 0.38 * pow(a, 0.6) - 0.13 * pow(a, 6.0);
+        bool wing = z <= front && z >= back && a <= 1.0;
+        // Rounded cephalic lobes either side of the broad mouth.
+        vec2 lobe = vec2((a - 0.11) / 0.045, (z - 0.5) / 0.12);
+        bool cephalic = dot(lobe, lobe) < 1.0;
+        bool tail = a < 0.012 && z < -0.45 && z > -1.0;
         if (!(wing || cephalic || tail)) discard;
         float edge = wing ? min(front - z, z - back) : 0.0;
         float margin = max(1.0 - smoothstep(0.0, 0.12, edge), smoothstep(0.75, 1.0, a));

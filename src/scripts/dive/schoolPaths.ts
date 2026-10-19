@@ -12,7 +12,7 @@ import { hash1, noise1 } from './noise';
 import type { Vec3 } from './types';
 
 export interface SchoolSpec {
-  id: 'open-blue' | 'snapper';
+  id: 'open-blue' | 'snapper' | 'jacks';
   count: number;
   /** Half-extent of the school around its centre, metres. */
   radius: Vec3;
@@ -22,6 +22,11 @@ export interface SchoolSpec {
   /** Swim direction bias, m/s. Where scroll (not time) carries the school,
    *  this keeps the fish facing the way they travel on screen. */
   swim: Vec3;
+  /** A milling school: fish hold places in a hollow column and circle its
+   *  vertical axis at about this rate, rad/s, counter-clockwise from above. */
+  orbit?: number;
+  /** How far a fish wanders from its place, as a share of the radius. */
+  wander?: number;
 }
 
 export const SCHOOLS: readonly SchoolSpec[] = [
@@ -50,24 +55,48 @@ export const SCHOOLS: readonly SchoolSpec[] = [
     centre: (t, s) => [lerp(14, -14, s) + 0.6 * Math.sin(0.4 * t), -0.4 + 0.3 * Math.sin(0.5 * t), -1.6],
     swim: [-1.5, 0, 0],
   },
+  {
+    // Jacks milling in a slow column above and ahead in the deep: dark
+    // shapes against the last of the light, where the final shot looks up
+    // (round 3 critique: the deep was twelve per cent of empty blue).
+    id: 'jacks',
+    count: 300,
+    radius: [7, 5, 7],
+    seed: 909,
+    centre: (t, s) => [lerp(4, -2, s) + 0.8 * Math.sin(0.07 * t), 6 + 0.6 * Math.sin(0.11 * t), -12],
+    swim: [0, 0, 0],
+    orbit: 0.18,
+    wander: 0.05,
+  },
 ];
 
-// How far a fish wanders from its place, as a share of the school radius.
 const WANDER = 0.15;
 const WANDER_RATE = 0.3;
 const HEADING_DT = 0.05;
 
-function position(spec: SchoolSpec, i: number, t: number, s: number): Vec3 {
-  const c = spec.centre(t, s);
+/** A fish's seeded place in its school, in units of the school radius. */
+function place(spec: SchoolSpec, i: number, t: number): number[] {
+  if (spec.orbit !== undefined) {
+    // A hollow column, every fish circling its axis at its own pace.
+    const rho = 0.55 + 0.45 * hash1(i, spec.seed);
+    const a = hash1(i, spec.seed + 1) * Math.PI * 2 + spec.orbit * (0.85 + 0.3 * hash1(i, spec.seed + 2)) * t;
+    return [rho * Math.cos(a), hash1(i, spec.seed + 3) * 2 - 1, rho * Math.sin(a)];
+  }
   // A seeded point inside the unit ball.
   const dx = hash1(i, spec.seed) * 2 - 1;
   const dy = hash1(i, spec.seed + 1) * 2 - 1;
   const dz = hash1(i, spec.seed + 2) * 2 - 1;
   const len = Math.hypot(dx, dy, dz) || 1;
   const r = Math.cbrt(hash1(i, spec.seed + 3));
-  const u = [(dx / len) * r, (dy / len) * r, (dz / len) * r];
+  return [(dx / len) * r, (dy / len) * r, (dz / len) * r];
+}
+
+function position(spec: SchoolSpec, i: number, t: number, s: number): Vec3 {
+  const c = spec.centre(t, s);
+  const u = place(spec, i, t);
+  const wander = spec.wander ?? WANDER;
   return [0, 1, 2].map(
-    (k) => c[k] + spec.radius[k] * (u[k] + WANDER * noise1(t * WANDER_RATE + i * (1.31 + k), spec.seed + 4 + k)),
+    (k) => c[k] + spec.radius[k] * (u[k] + wander * noise1(t * WANDER_RATE + i * (1.31 + k), spec.seed + 4 + k)),
   ) as unknown as Vec3;
 }
 

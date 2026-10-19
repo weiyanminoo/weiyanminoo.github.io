@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { SCHOOLS, fishPose } from '../../src/scripts/dive/schoolPaths';
 
-const [blue, snapper] = SCHOOLS;
+const [blue, snapper, jacks] = SCHOOLS;
 
 describe('fishPose', () => {
   it('is deterministic', () => {
@@ -34,6 +34,31 @@ describe('fishPose', () => {
   it('crosses the snapper school over the lens at s = 0.5', () => {
     const c = snapper.centre(10, 0.5);
     expect(Math.hypot(c[0], c[2])).toBeLessThan(2);
+  });
+
+  it('mills the jacks around their own vertical axis, all one way', () => {
+    let along = 0;
+    for (let i = 0; i < jacks.count; i += 7) {
+      const { position: p, heading: h } = fishPose(jacks, i, 20, 0.5);
+      const c = jacks.centre(20, 0.5);
+      const rx = p[0] - c[0];
+      const rz = p[2] - c[2];
+      const r = Math.hypot(rx, rz);
+      if (r < 1) continue;
+      // Counter-clockwise seen from above: the tangent is (-rz, rx) / r.
+      const tangent = (h[0] * -rz + h[2] * rx) / r;
+      expect(tangent).toBeGreaterThan(0.5);
+      along++;
+    }
+    expect(along).toBeGreaterThan(20);
+  });
+
+  it('holds the jacks above and ahead of the camera', () => {
+    for (let s = 0; s <= 1; s += 0.1) {
+      const c = jacks.centre(20, s);
+      expect(c[1]).toBeGreaterThan(4);
+      expect(c[2]).toBeLessThan(-10);
+    }
   });
 
   it('points the snapper the way the scroll sweeps them', () => {

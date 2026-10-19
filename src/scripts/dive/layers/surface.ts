@@ -57,19 +57,34 @@ const fragmentShader = /* glsl */ `
     vec3 ray = normalize(vWorld - uCam);
     vec2 p = vWorld.xz;
     float e = 0.03;
-    float hx = height(p + vec2(e, 0.0), uTime) - height(p - vec2(e, 0.0), uTime);
-    float hz = height(p + vec2(0.0, e), uTime) - height(p - vec2(0.0, e), uTime);
+    float h0 = height(p, uTime);
+    float hpx = height(p + vec2(e, 0.0), uTime);
+    float hmx = height(p - vec2(e, 0.0), uTime);
+    float hpz = height(p + vec2(0.0, e), uTime);
+    float hmz = height(p - vec2(0.0, e), uTime);
     // The upward normal, tilted by the ripples' slope (central differences).
-    vec3 n = normalize(vec3(-hx / (2.0 * e) * uSlope, 1.0, -hz / (2.0 * e) * uSlope));
+    vec3 n = normalize(vec3(-(hpx - hmx) / (2.0 * e) * uSlope, 1.0, -(hpz - hmz) / (2.0 * e) * uSlope));
+    // Ripple troughs focus the light, crests spread it: moving bright cells
+    // over the window and faint ones across the mirror outside it.
+    float lap = (hpx + hmx + hpz + hmz - 4.0 * h0) / (e * e);
+    float focus = clamp(1.0 + lap * uSlope * 0.8, 0.6, 1.6);
     float cosI = dot(ray, n);
-    float edge = mix(0.1, 0.015, uCrisp);
-    float window = smoothstep(${COS_CRITICAL} - edge, ${COS_CRITICAL} + edge, cosI);
-    // Through the window: sky blue, a hot sun spot, and bright lines where
-    // ripples focus the light.
-    float sun = pow(max(dot(normalize(ray + (n - vec3(0.0, 1.0, 0.0)) * 2.0), uSunDir), 0.0), 90.0);
-    float sparkle = pow(clamp(1.0 - abs(cosI - 0.93) * 6.0, 0.0, 1.0), 6.0) * uCrisp;
-    vec3 sky = uSky * (0.9 + 0.35 * sparkle) + vec3(1.0) * sun * 1.4;
-    vec3 col = mix(uBelow, sky, window);
+    // The real refraction out into the air: the window holds the whole sky,
+    // the horizon (hazy, bright) at its rim and the zenith at its centre;
+    // transmission dims smoothly towards the critical angle, so the rim
+    // darkens rather than ending in a cut-out edge (round 3 critique).
+    vec3 t = refract(ray, -n, 1.333);
+    float band = mix(0.2, 0.02, uCrisp);
+    float window = dot(t, t) > 0.0 ? smoothstep(${COS_CRITICAL}, ${COS_CRITICAL} + band, cosI) : 0.0;
+    vec3 out_ = normalize(t + vec3(0.0, 1e-4, 0.0));
+    // The horizon-to-zenith gradient follows the flat surface: through the
+    // rippled refraction it broke into large dark blobs.
+    vec3 skyCol = mix(uSky * 1.15 + 0.04, uSky * 0.95, smoothstep(${COS_CRITICAL}, 0.97, ray.y));
+    float sunDot = max(dot(out_, uSunDir), 0.0);
+    float sun = pow(sunDot, 600.0) * 3.0 + pow(sunDot, 16.0) * 0.2;
+    vec3 sky = (skyCol + vec3(1.0) * sun) * mix(1.0, focus, uCrisp);
+    vec3 below = uBelow * mix(1.0, 0.9 + 0.1 * focus, uCrisp * 0.5);
+    vec3 col = mix(below, sky, window);
     // Far away the surface simply vanishes into the water — no colour of its
     // own, so there is no edge where it meets the dome.
     float dist = length(vWorld - uCam);
@@ -125,13 +140,14 @@ export default function createSurfaceLayer(): Layer {
       mesh.position.set(cam.x, 0, cam.z);
       u.uTime.value = frame.timeS;
       u.uCrisp.value = 1 - smoothstep(2, 10, depth);
-      // About 7° of ripple tilt at the surface, flattening with depth.
-      u.uSlope.value = 0.12 * (0.3 + 0.7 * (1 - smoothstep(2, 14, depth)));
+      // About 4° of ripple tilt at the surface, flattening with depth: more
+      // broke the window into large dark blobs (round 3 critique).
+      u.uSlope.value = 0.07 * (0.4 + 0.6 * (1 - smoothstep(2, 14, depth)));
       u.uFade.value = fade;
       u.uFogDensity.value = fogDensity;
       // Sky through the window: a pale sky blue, dimming with depth.
       const sky = 0.75 + 0.25 * ambient;
-      (u.uSky.value as THREE.Color).setRGB(0.6 * sky, 0.84 * sky, 0.98 * sky, THREE.SRGBColorSpace);
+      (u.uSky.value as THREE.Color).setRGB(0.7 * sky, 0.88 * sky, 0.98 * sky, THREE.SRGBColorSpace);
       // Outside the window the surface mirrors the water below it.
       (u.uBelow.value as THREE.Color).setRGB(fog[0] * 0.92, fog[1] * 0.95, fog[2], THREE.SRGBColorSpace);
     },

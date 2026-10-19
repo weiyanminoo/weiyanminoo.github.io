@@ -58,7 +58,12 @@ const fragmentShader = /* glsl */ `
       + noise(vec2(vUv.x * 9.0 + uTime * 0.05, vUv.y * 22.0 - uTime * 0.6)) * 0.4;
     float dist = length(vWorld - uCam);
     float fogged = exp(-pow(uFogDensity * dist, 2.0));
-    float a = across * along * smoothstep(0.25, 0.85, mask) * fogged * uOpacity;
+    // Fade in from the surface, over more of the beam the farther it is:
+    // a distant beam's top outlasted the fogged-out surface and hung in
+    // mid-water as a hard line (round 3 critique).
+    float band = 0.05 + dist * 0.004;
+    float top = 1.0 - smoothstep(1.0 - band, 1.0, vUv.y);
+    float a = across * along * top * smoothstep(0.25, 0.85, mask) * fogged * uOpacity;
     gl_FragColor = vec4(uColour, a);
     #include <colorspace_fragment>
   }

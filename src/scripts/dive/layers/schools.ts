@@ -58,6 +58,19 @@ const LOOKS: Record<SchoolSpec['id'], SchoolLook> = {
     stripes: true,
     keepColour: 0.82,
   },
+  jacks: {
+    length: 0.6,
+    visible: [0.86, 1],
+    pass: (p) => clamp((p - 0.88) / 0.12, 0, 1),
+    // Silver, a little darker above: in the deep blue jacks read as pale
+    // flashes (grey-blue at 20 m they were lost in the haze).
+    colour: (y) => {
+      const t = smoothstep(0.02, -0.03, y);
+      return [lerp(0.5, 0.85, t), lerp(0.55, 0.87, t), lerp(0.6, 0.88, t)];
+    },
+    stripes: false,
+    keepColour: 0.5,
+  },
 };
 
 /** A fish pointing along +z, `length` long: lathe body flattened sideways

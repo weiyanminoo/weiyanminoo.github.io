@@ -233,6 +233,9 @@ export default function createSchoolsLayer(): Layer {
       for (const { mesh } of meshes) {
         mesh.geometry.dispose();
         (mesh.material as THREE.Material).dispose();
+        // Frees the per-instance matrix buffer, which the geometry's dispose
+        // does not.
+        mesh.dispose();
         ctx.scene.remove(mesh);
       }
     },

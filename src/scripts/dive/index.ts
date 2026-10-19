@@ -92,7 +92,10 @@ function buildLayers(footage: Footage): Layer[] {
 
 function hasWebGL2(): boolean {
   try {
-    return !!document.createElement('canvas').getContext('webgl2');
+    const probe = document.createElement('canvas').getContext('webgl2');
+    // Give the probe's context back at once: browsers cap live contexts.
+    probe?.getExtension('WEBGL_lose_context')?.loseContext();
+    return !!probe;
   } catch {
     return false;
   }
@@ -135,11 +138,20 @@ export async function mountDive(root: HTMLElement, opts: MountOptions = {}): Pro
   });
   let settings = settingsFor(tier, { originals: false, isMobile });
 
+  // A context lost before the film is shown (driver reset, a mobile
+  // browser's context cap) ends the mount: stills, in the compact layout.
+  let lostEarly = false;
+  const onEarlyLoss = () => {
+    lostEarly = true;
+  };
+  canvas.addEventListener('webglcontextlost', onEarlyLoss);
+
   const footage = createFootage(FOOTAGE_BASE, settings.footage, { review });
   let scene: DiveScene;
   try {
     scene = await createScene(canvas, settings, buildLayers(footage));
   } catch {
+    canvas.removeEventListener('webglcontextlost', onEarlyLoss);
     footage.dispose();
     fallBack(true);
     return null;
@@ -178,6 +190,13 @@ export async function mountDive(root: HTMLElement, opts: MountOptions = {}): Pro
     await scene.warm(SHOTS.map((s) => frameAt((s.from + s.to) / 2, 0, 1)));
   } catch {
     // A failed warm-up is only a slower first pass, not a broken dive.
+  }
+  canvas.removeEventListener('webglcontextlost', onEarlyLoss);
+  if (lostEarly || scene.isLost()) {
+    scene.dispose();
+    footage.dispose();
+    fallBack(true);
+    return null;
   }
   html.classList.add('has-dive');
   if (params.has('notext')) html.classList.add('review-notext');
@@ -238,8 +257,7 @@ export async function mountDive(root: HTMLElement, opts: MountOptions = {}): Pro
       scene = await createScene(canvas, settings, buildLayers(footage));
       resize();
     } catch {
-      stop();
-      fallBack(false);
+      toStills();
     }
     rebuilding = false;
   };
@@ -299,29 +317,35 @@ export async function mountDive(root: HTMLElement, opts: MountOptions = {}): Pro
   window.addEventListener('orientationchange', resize);
   void document.fonts.ready.then(measure);
 
+  // While hidden, rAF stops; on return, restart the clock from now so time
+  // does not leap forward.
+  const onVisibility = () => {
+    last = performance.now();
+  };
+  document.addEventListener('visibilitychange', onVisibility);
+
   const stop = () => {
     running = false;
     cancelAnimationFrame(rafId);
     observer.disconnect();
     window.removeEventListener('resize', resize);
     window.removeEventListener('orientationchange', resize);
+    document.removeEventListener('visibilitychange', onVisibility);
     lenis.destroy();
   };
 
-  // Review Focus 4: a lost GPU context drops back to the stills, and Lenis
-  // goes with it so native scrolling keeps working.
-  canvas.addEventListener('webglcontextlost', () => {
+  // The film stops for good: the stills, in the film's layout, with no
+  // leftover focus blur and no clip playing unseen.
+  const toStills = () => {
     stop();
     footage.setActive(null);
     for (const el of stations) el.style.removeProperty('--pull');
     fallBack(false);
-  });
+  };
 
-  // While hidden, rAF stops; on return, restart the clock from now so time
-  // does not leap forward.
-  document.addEventListener('visibilitychange', () => {
-    last = performance.now();
-  });
+  // Review Focus 4: a lost GPU context drops back to the stills, and Lenis
+  // goes with it so native scrolling keeps working.
+  canvas.addEventListener('webglcontextlost', toStills);
 
   rafId = requestAnimationFrame(tick);
 

@@ -61,7 +61,7 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
       <p class="meta">
         SINGAPORE &middot; NATIONAL UNIVERSITY OF SINGAPORE &middot; COMPUTER SCIENCE
       </p>
-      <button class="dive-in" type="button">Dive in</button>
+      <a class="dive-in" href="#about">Dive in</a>
     </div>
   </section>
 
@@ -199,7 +199,7 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
     <div class="content">
       <SiteFooter />
       <div class="container">
-        <button class="surface" type="button">Surface</button>
+        <a class="surface" href="#title">Surface</a>
       </div>
     </div>
   </section>
@@ -232,7 +232,8 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
       clock: () => dive?.timeS ?? performance.now() / 1000,
       muted: readMuted(storage),
     });
-    dive = await mountDive(root, { onFrame: frameSync(audio) });
+    // Wired before the film mounts, which can take a while (scene build,
+    // shader warm-up): until it is up, the controls work without it.
     wireUi({
       getLenis: () => dive?.lenis ?? null,
       onDiveIn: () => dive?.startEntry(),
@@ -240,6 +241,7 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
       audio,
       storage,
     });
+    dive = await mountDive(root, { onFrame: frameSync(audio) });
     if (new URLSearchParams(location.search).has('review')) {
       Object.assign(window, {
         __diveAudio: audio,
@@ -368,8 +370,13 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
     color: var(--on-deep);
   }
 
+  /* Links, not buttons: without JavaScript they still jump to About and
+     back to the top; with it, ui.ts takes over the click. */
   .dive-in,
   .surface {
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none;
     margin-top: 28px;
     min-height: 48px;
     padding: 0 26px;

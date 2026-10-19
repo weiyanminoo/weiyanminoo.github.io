@@ -52,6 +52,8 @@ export default function createInsertLayer(footage: Footage): Layer {
   // Shown only if a cut arrives before its poster has decoded.
   let blank: THREE.DataTexture;
   const fog = new THREE.Color();
+  // A poster can finish decoding after the layer is gone (a tier rebuild).
+  let disposed = false;
 
   // Textures are made and uploaded as soon as their sources exist — from
   // ~12 m, when the footage is fetched — never at the cut itself: decoding
@@ -64,6 +66,10 @@ export default function createInsertLayer(footage: Footage): Layer {
       pendingPosters.add(clip);
       createImageBitmap(img, { imageOrientation: 'flipY' }).then(
         (bitmap) => {
+          if (disposed) {
+            bitmap.close();
+            return;
+          }
           const t = new THREE.Texture(bitmap);
           t.flipY = false;
           t.colorSpace = THREE.SRGBColorSpace;
@@ -150,8 +156,12 @@ export default function createInsertLayer(footage: Footage): Layer {
       (u.uLift.value as THREE.Color).copy(fog).multiplyScalar(0.04);
     },
     dispose() {
+      disposed = true;
       for (const t of videoTextures.values()) t.dispose();
-      for (const t of posterTextures.values()) t.dispose();
+      for (const t of posterTextures.values()) {
+        t.dispose();
+        (t.image as ImageBitmap).close();
+      }
       blank.dispose();
       mesh.geometry.dispose();
       mesh.material.dispose();

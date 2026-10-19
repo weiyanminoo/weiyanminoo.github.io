@@ -32,8 +32,9 @@ function centreOn(el: HTMLElement): number {
 
 export function wireUi(opts: UiOptions): () => void {
   const { reducedMotion } = opts;
-  const diveIn = document.querySelector<HTMLButtonElement>('.dive-in');
-  const surface = document.querySelector<HTMLButtonElement>('.surface');
+  // In-page links (so they work without JavaScript); handled here instead.
+  const diveIn = document.querySelector<HTMLAnchorElement>('.dive-in');
+  const surface = document.querySelector<HTMLAnchorElement>('.surface');
   const about = document.getElementById('about');
   const title = document.querySelector<HTMLElement>('.title-h1');
   const gauge = document.querySelector<HTMLElement>('.depth-gauge');
@@ -45,7 +46,8 @@ export function wireUi(opts: UiOptions): () => void {
 
   const showSoundState = () => toggle?.setAttribute('aria-pressed', String(!opts.audio.muted));
 
-  const onDiveIn = () => {
+  const onDiveIn = (e: Event) => {
+    e.preventDefault();
     opts.onDiveIn();
     // Synchronously inside the click, so the browser counts it as the
     // gesture that may start sound.
@@ -73,7 +75,8 @@ export function wireUi(opts: UiOptions): () => void {
     }
   };
 
-  const onSurface = () => {
+  const onSurface = (e: Event) => {
+    e.preventDefault();
     const land = () => title?.focus({ preventScroll: true });
     const lenis = smoothScroller();
     if (lenis) lenis.scrollTo(0, { duration: SURFACE_SCROLL_S, onComplete: land });

@@ -10,6 +10,7 @@
 //   order         a frame does not depend on the frames seeked before it
 //   resize        rotating a phone mid-dive keeps sections on their depth
 //   context-loss  a lost WebGL context drops back to the stills
+//   early-context-loss  one lost during the warm-up still ends the mount
 //   blocked-video with every .mp4 refused, the inserts show their posters
 //
 // Flags: --round N  --strips  --stills (write public/dive/stills/*.jpg)
@@ -236,6 +237,50 @@ async function contextLossCheck(browser) {
   if (!result.hasDive && result.stillDisplay !== 'none') ok('context-loss: fell back to the stills');
   else fail(`context-loss: has-dive=${result.hasDive}, #work still display=${result.stillDisplay}`);
   if (errors.length) fail(`context-loss: page errors: ${errors.join(' | ')}`);
+  await context.close();
+}
+
+// The GPU context is lost during the pre-roll, before the film is shown.
+// The mount must still end — on the stills, compact layout — with Dive in
+// working (renderer.compileAsync once waited for ever here, and the
+// controls were only wired after the mount).
+async function earlyContextLossCheck(browser) {
+  const context = await browser.newContext({ viewport: DESKTOP, deviceScaleFactor: 1 });
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.addInitScript(() => {
+    const original = HTMLCanvasElement.prototype.getContext;
+    let done = false;
+    HTMLCanvasElement.prototype.getContext = function (type, ...rest) {
+      const gl = original.call(this, type, ...rest);
+      if (!done && gl && type === 'webgl2' && this.id === 'dive-canvas') {
+        done = true;
+        setTimeout(() => gl.getExtension('WEBGL_lose_context')?.loseContext(), 0);
+      }
+      return gl;
+    };
+  });
+  await page.goto(`${BASE}/?notext`, { waitUntil: 'load' });
+  const ended = await page
+    .waitForFunction(() => !document.documentElement.classList.contains('dive-js'), null, { timeout: 8000 })
+    .then(() => true, () => false);
+  const result = await page.evaluate(() => ({
+    hasDive: document.documentElement.classList.contains('has-dive'),
+    stillDisplay: getComputedStyle(document.querySelector('#work .still')).display,
+  }));
+  await page.click('.dive-in');
+  await page.waitForTimeout(300);
+  const focused = await page.evaluate(() => document.activeElement?.id ?? '');
+  if (ended && !result.hasDive && result.stillDisplay !== 'none' && focused === 'about') {
+    ok('early-context-loss: the mount ended on the stills, Dive in reached #about');
+  } else {
+    fail(
+      `early-context-loss: mount ended=${ended}, has-dive=${result.hasDive}, ` +
+        `#work still display=${result.stillDisplay}, focus after Dive in=${focused || 'none'}`,
+    );
+  }
+  if (errors.length) fail(`early-context-loss: page errors: ${errors.join(' | ')}`);
   await context.close();
 }
 
@@ -573,6 +618,7 @@ async function main() {
     await determinism(browser);
     await resizeCheck(browser);
     await contextLossCheck(browser);
+    await earlyContextLossCheck(browser);
     await blockedVideoCheck(browser);
     await keyboardCheck(browser);
     await soundCheck(browser);

@@ -30,6 +30,8 @@ export interface DiveScene {
    *  costs are paid up front instead of as a stall mid-dive. */
   warm(frames: readonly DiveFrame[]): Promise<void>;
   resize(w: number, h: number, dpr: number): void;
+  /** True once the GPU context is gone (the browser's event may lag). */
+  isLost(): boolean;
   dispose(): void;
 }
 
@@ -44,6 +46,9 @@ const DRIFT_SEED_YAW = 23;
 // edge. The depth gauge still reads the timeline's depth; only the rendered
 // camera sits this much lower.
 export const SURFACE_CLEARANCE_M = 3;
+// The longest the pre-roll waits for shaders before drawing anyway (a draw
+// then finishes their compile itself, just synchronously).
+const WARM_COMPILE_MS = 5000;
 
 export async function createScene(
   canvas: HTMLCanvasElement,
@@ -64,7 +69,19 @@ export async function createScene(
   camera.rotation.order = 'YXZ';
 
   const ctx: LayerContext = { renderer, scene, camera, settings };
-  for (const layer of layers) await layer.init(ctx);
+  // A layer that fails to start takes the scene with it, but not before
+  // the ones already started (and the renderer) give back their GPU memory.
+  const started: Layer[] = [];
+  try {
+    for (const layer of layers) {
+      await layer.init(ctx);
+      started.push(layer);
+    }
+  } catch (err) {
+    for (const layer of started) layer.dispose();
+    renderer.dispose();
+    throw err;
+  }
   // The low tier renders straight to the screen: no lens pass, and so no
   // thermocline band (plan Task 13).
   const post: DivePost | null = settings.post ? createPost(renderer, 1, 1) : null;
@@ -88,7 +105,21 @@ export async function createScene(
       // Shader programs compile in parallel where the GPU allows; then one
       // draw of each shot builds whatever per-draw state the driver keeps
       // (measured: first draws stalled 50–370 ms each without this).
-      await renderer.compileAsync(scene, camera);
+      // Not renderer.compileAsync: it polls until every program reports
+      // ready, which a lost context never does, so it can hang the mount
+      // for good. This wait gives up on a lost context or after a while.
+      const gl = renderer.getContext();
+      const pending = renderer.compile(scene, camera);
+      const deadline = performance.now() + WARM_COMPILE_MS;
+      while (pending.size > 0 && !gl.isContextLost() && performance.now() < deadline) {
+        for (const material of pending) {
+          const program = (renderer.properties.get(material) as { currentProgram?: { isReady(): boolean } })
+            .currentProgram;
+          if (!program || program.isReady() === true) pending.delete(material);
+        }
+        if (pending.size > 0) await new Promise((r) => setTimeout(r, 10));
+      }
+      if (gl.isContextLost()) throw new Error('WebGL context lost during warm-up');
       for (const frame of frames) render(frame);
     },
     resize(w, h, dpr) {
@@ -97,6 +128,9 @@ export async function createScene(
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       post?.resize(w, h);
+    },
+    isLost() {
+      return renderer.getContext().isContextLost();
     },
     dispose() {
       for (const layer of layers) layer.dispose();

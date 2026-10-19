@@ -84,6 +84,18 @@ const siteName = 'Wei Yan';
     --rail: 0px;
     color: var(--on-deep);
     background: #0a2135;
+    /* The gold ring for the whole landing — the overlay header and the
+       sound toggle sit outside main, and the default navy ring vanished
+       on dark water. */
+    --focus: var(--mark);
+    /* Focus and in-page jumps land clear of the fixed 64px header. */
+    scroll-padding-top: 80px;
+  }
+
+  /* A dark halo either side of the gold ring, so it holds 3:1 over the
+     brightest surface water as well as the deep. */
+  :global(:focus-visible) {
+    box-shadow: 0 0 0 7px rgba(4, 16, 28, 0.7);
   }
 
   body {
@@ -117,7 +129,6 @@ const siteName = 'Wei Yan';
     --ink-2: var(--on-deep-2);
     --ink-3: var(--on-deep-3);
     --line: var(--line-deep);
-    --focus: var(--mark);
     --card-tint: transparent;
     --card-border: transparent;
     --card-shadow: transparent;
@@ -140,6 +151,13 @@ const siteName = 'Wei Yan';
 
   main:focus-visible {
     outline: none;
+    box-shadow: none;
+  }
+
+  /* The gauge reads the film's depth: with the film stopped (a lost GPU
+     context) its last reading would hang over the stills. */
+  :global(html:not(.has-dive)) .depth-gauge {
+    display: none;
   }
 
   .depth-gauge {

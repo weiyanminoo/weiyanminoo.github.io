@@ -77,6 +77,12 @@ function buildGraph(ctx: BaseAudioContext, bed: AudioBuffer | null): Graph {
   const bedFilter = ctx.createBiquadFilter();
   bedFilter.type = 'lowpass';
   const bedGain = ctx.createGain();
+  // Start at the surface's mix: without the film (reduced motion, no
+  // WebGL) nothing ever calls setDepth, and the node defaults (a 350 Hz
+  // low-pass, unity gain) were a muffled bed at twice its level.
+  const surface = depthFilter(0);
+  bedFilter.frequency.value = surface.lowpassHz;
+  bedGain.gain.value = BED_LEVEL * surface.gain;
   bedFilter.connect(bedGain).connect(master);
   const breathGain = ctx.createGain();
   breathGain.gain.value = BREATH_LEVEL;
@@ -211,7 +217,10 @@ export function createAudio(opts: { bed: string; clock(): number; muted: boolean
   let g: Graph | null = null;
   let muted = opts.muted;
   let offset = 0;
-  let scheduledUntil = 0;
+  // Breaths are booked up to this audio-context time. Kept in context time,
+  // not film time, so re-syncing the offset (a second Dive in, a return to
+  // the tab) never books the same seconds twice.
+  let bookedUntil = 0;
   let timer = 0;
   let lastHz = -1;
   let lastGain = -1;
@@ -219,10 +228,10 @@ export function createAudio(opts: { bed: string; clock(): number; muted: boolean
 
   const schedule = () => {
     if (!ctx || !g || ctx.state !== 'running') return;
-    const to = ctx.currentTime + LOOKAHEAD_S + offset;
-    const from = Math.max(scheduledUntil, ctx.currentTime + offset);
-    if (to > from) scheduleBreaths(ctx, g, from, to, offset);
-    scheduledUntil = to;
+    const to = ctx.currentTime + LOOKAHEAD_S;
+    const from = Math.max(bookedUntil, ctx.currentTime);
+    if (to > from) scheduleBreaths(ctx, g, from + offset, to + offset, offset);
+    bookedUntil = Math.max(bookedUntil, to);
   };
 
   // Review Focus 5: back from the background, wake the context. A refusal
@@ -232,7 +241,6 @@ export function createAudio(opts: { bed: string; clock(): number; muted: boolean
     ctx.resume().then(
       () => {
         if (ctx) offset = opts.clock() - ctx.currentTime;
-        scheduledUntil = 0;
       },
       () => {},
     );
@@ -259,7 +267,6 @@ export function createAudio(opts: { bed: string; clock(): number; muted: boolean
         }
         await ctx.resume();
         offset = opts.clock() - ctx.currentTime;
-        scheduledUntil = 0;
         schedule();
       } catch {
         // No Web Audio, or it refused to start: the dive goes on silently.

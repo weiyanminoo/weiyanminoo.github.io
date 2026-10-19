@@ -48,6 +48,9 @@ export const CAMERA_KEYS: readonly (readonly [number, number, number])[] = [
   // Out of the slope clip still looking down at the reef, as its camera
   // was: the cut carries the angle, and the floor fills the frame.
   [0.52, -0.42, 0],
+  // Over the reef top for most of its shot before turning up to the manta
+  // (round 4: half the shot was open water).
+  [0.555, -0.32, 0],
   [0.6, 1.0, 0],
   // Down from the manta in good time to be level, turned left, for the
   // whole of the shark's pass (round 2: it crossed while the camera still

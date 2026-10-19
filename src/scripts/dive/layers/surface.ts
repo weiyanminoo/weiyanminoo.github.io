@@ -81,7 +81,8 @@ const fragmentShader = /* glsl */ `
     // rippled refraction it broke into large dark blobs.
     vec3 skyCol = mix(uSky * 1.15 + 0.04, uSky * 0.95, smoothstep(${COS_CRITICAL}, 0.97, ray.y));
     float sunDot = max(dot(out_, uSunDir), 0.0);
-    float sun = pow(sunDot, 600.0) * 3.0 + pow(sunDot, 16.0) * 0.2;
+    // A hard disc near the surface; scattered into a soft glow with depth.
+    float sun = pow(sunDot, mix(60.0, 600.0, uCrisp)) * mix(0.7, 3.0, uCrisp) + pow(sunDot, 16.0) * 0.2;
     vec3 sky = (skyCol + vec3(1.0) * sun) * mix(1.0, focus, uCrisp);
     vec3 below = uBelow * mix(1.0, 0.9 + 0.1 * focus, uCrisp * 0.5);
     vec3 col = mix(below, sky, window);

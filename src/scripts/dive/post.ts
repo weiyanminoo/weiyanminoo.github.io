@@ -35,6 +35,11 @@ const fragmentShader = /* glsl */ `
   const float VIGNETTE = 0.35;
   const float GRAIN = 0.035;
   const float BAND = 0.18;
+  // The reference camera's punch (round 1 critique: our blue read grey next
+  // to reference 2's cobalt): saturation in linear light, a gentle contrast
+  // curve after the sRGB conversion. One grade over CG and footage alike.
+  const float SATURATION = 1.3;
+  const float CONTRAST = 1.06;
 
   float hash(vec2 p) {
     return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
@@ -71,9 +76,12 @@ const fragmentShader = /* glsl */ `
         * (0.6 + 0.4 * sin(uv.x * 13.0 - uTime * 1.3));
       col = mix(col, col * 1.12 + 0.012, w * 0.6) + vec3(0.012, 0.018, 0.022) * shimmer * w;
     }
+    float luma = dot(col, vec3(0.2126, 0.7152, 0.0722));
+    col = max(mix(vec3(luma), col, SATURATION), 0.0);
     col *= 1.0 - VIGNETTE * smoothstep(0.15, 1.0, r2 / rMax2);
     gl_FragColor = vec4(col, 1.0);
     #include <colorspace_fragment>
+    gl_FragColor.rgb = clamp((gl_FragColor.rgb - 0.5) * CONTRAST + 0.5, 0.0, 1.0);
     gl_FragColor.rgb += (hash(gl_FragCoord.xy + uGrainSeed * vec2(17.0, 23.0)) - 0.5) * GRAIN;
   }
 `;

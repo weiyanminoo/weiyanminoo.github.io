@@ -322,10 +322,11 @@ async function blockedVideoCheck(browser) {
   const rgb = meanColour(await page.screenshot());
   const lum = 0.2126 * srgbToLinear(rgb[0] / 255) + 0.7152 * srgbToLinear(rgb[1] / 255) + 0.0722 * srgbToLinear(rgb[2] / 255);
   const hue = hueOf(rgb);
-  if (lum > 0.08 && hue >= 190 && hue <= 220) {
+  // The blank fallback (deep #0a2135) reads ~0.015; the graded poster ~0.056.
+  if (lum > 0.03 && hue >= 190 && hue <= 220) {
     ok(`blocked-video: poster shown (luminance ${lum.toFixed(3)}, hue ${hue.toFixed(0)}°)`);
   } else {
-    fail(`blocked-video: frame luminance ${lum.toFixed(3)}, hue ${hue.toFixed(0)}° — expected the poster (> 0.08, 190–220°)`);
+    fail(`blocked-video: frame luminance ${lum.toFixed(3)}, hue ${hue.toFixed(0)}° — expected the poster (> 0.03, 190–220°)`);
   }
   if (errors.length) fail(`blocked-video: page errors: ${errors.join(' | ')}`);
   await context.close();

@@ -73,14 +73,23 @@ function mix3(a: RGBTuple, b: RGBTuple, t: number): RGBTuple {
   return [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
 }
 
-/** Rock with coral patches: a patch noise picks where coral grows and a
- *  coarse cell hash picks which coral. */
+// Growth tones for the 3D reef: muted ochre, olive and sage. The vivid
+// colour belongs to the footage; seen from a distance through haze a real
+// wall reads as rock with subtle growth (round 1 critique).
+const GROWTH: readonly RGBTuple[] = [
+  [0.62, 0.52, 0.36],
+  [0.5, 0.52, 0.34],
+  [0.46, 0.55, 0.5],
+];
+
+/** Rock with patches of growth, blended by smooth noise — no hard-edged
+ *  cells, which read as camouflage squares (round 1 critique). */
 function reefColour(x: number, y: number, seed: number): RGBTuple {
   const rock = mix3(ROCK_A, ROCK_B, 0.5 + 0.5 * fbm2(x * 0.35, y * 0.35, seed + 1, 4));
-  const patch = smoothstep(0.0, 0.3, fbm2(x * 0.5, y * 0.5, seed + 2, 4));
-  const cell = hash1(Math.floor(x / 1.2) * 7919 + Math.floor(y / 1.2) * 104729, seed + 3);
-  const coral = CORALS[Math.floor(cell * CORALS.length)];
-  return mix3(rock, coral, patch * 0.8);
+  const patch = smoothstep(0.05, 0.4, fbm2(x * 0.4, y * 0.4, seed + 2, 4));
+  const pick = 0.5 + 0.5 * fbm2(x * 0.12, y * 0.12, seed + 3, 3);
+  const growth = pick < 0.5 ? mix3(GROWTH[0], GROWTH[1], pick * 2) : mix3(GROWTH[1], GROWTH[2], pick * 2 - 1);
+  return mix3(rock, growth, patch * 0.45);
 }
 
 function setColour(geometry: THREE.BufferGeometry, colourAt: (x: number, y: number, z: number) => RGBTuple) {
@@ -155,14 +164,17 @@ function buildWall(): THREE.BufferGeometry {
   face.computeVertexNormals();
   setColour(face, (x, y) => reefColour(x, y, SEED + 30));
 
+  // Encrusting growth, not boulders: fewer, smaller, nearly flush with the
+  // rock and muted towards its colour (round 1 critique: the wall read as
+  // floating balls).
   const parts: THREE.BufferGeometry[] = [face];
-  for (let i = 0; i < 320; i++) {
+  for (let i = 0; i < 140; i++) {
     const x = (hash1(i, SEED + 40) - 0.5) * (WALL_WIDTH_M - 6);
     const y = top - 1 - hash1(i, SEED + 41) * (height * 0.6);
-    const r = 0.3 + 1.3 * hash1(i, SEED + 42) ** 2;
-    const colour = CORALS[Math.floor(hash1(i, SEED + 43) * CORALS.length)];
-    const head = coralHead(r, 0.5, 'z', i, colour);
-    head.translate(x, y, wallZ(x, y, top) + r * 0.15);
+    const r = 0.25 + 0.9 * hash1(i, SEED + 42) ** 2;
+    const coral = CORALS[Math.floor(hash1(i, SEED + 43) * CORALS.length)];
+    const head = coralHead(r, 0.32, 'z', i, mix3(reefColour(x, y, SEED + 30), coral, 0.45));
+    head.translate(x, y, wallZ(x, y, top) + r * 0.02);
     parts.push(head);
   }
   return mergeGeometries(parts)!;
@@ -188,13 +200,13 @@ function buildPlateau(): THREE.BufferGeometry {
   setColour(ground, (x, _y, z) => reefColour(x, z, SEED + 60));
 
   const parts: THREE.BufferGeometry[] = [ground];
-  for (let i = 0; i < 220; i++) {
+  for (let i = 0; i < 160; i++) {
     const x = (hash1(i, SEED + 70) - 0.5) * (PLATEAU_WIDTH_M - 8);
     const z = -hash1(i, SEED + 71) * (PLATEAU_LENGTH_M - 3);
-    const r = 0.35 + 1.4 * hash1(i, SEED + 72) ** 2;
-    const colour = CORALS[Math.floor(hash1(i, SEED + 73) * CORALS.length)];
-    const head = coralHead(r, 0.55, 'y', 1000 + i, colour);
-    head.translate(x, plateauY(x, z) + r * 0.1, z);
+    const r = 0.3 + 1.1 * hash1(i, SEED + 72) ** 2;
+    const coral = CORALS[Math.floor(hash1(i, SEED + 73) * CORALS.length)];
+    const head = coralHead(r, 0.42, 'y', 1000 + i, mix3(reefColour(x, z, SEED + 60), coral, 0.5));
+    head.translate(x, plateauY(x, z) + r * 0.05, z);
     parts.push(head);
   }
   for (let i = 0; i < 26; i++) {
@@ -287,10 +299,13 @@ export default function createReefLayer(): Layer {
       // between it and the surface, softened so a white-balanced camera's
       // view (reference 2) still shows some warmth.
       const t = water.transmittance;
+      // 0.8: matched to the footage's own reef brightness at 18–20 m
+      // (round 1 critique: both cuts within ~12% in luminance) rather than
+      // the fully absorbed value.
       (wall.material as THREE.MeshStandardMaterial).color.setRGB(
-        lerp(t[0], 1, 0.5),
-        lerp(t[1], 1, 0.5),
-        lerp(t[2], 1, 0.5),
+        lerp(t[0], 1, 0.8),
+        lerp(t[1], 1, 0.8),
+        lerp(t[2], 1, 0.8),
         THREE.SRGBColorSpace,
       );
       uniforms.uCausticTime.value = frame.timeS;
@@ -304,10 +319,10 @@ export default function createReefLayer(): Layer {
       sun.color.setRGB(0.85 + 0.15 * t[0], 0.95, 1, THREE.SRGBColorSpace);
       // A diving camera auto-exposes: lit things stay readable at depth
       // while the water itself (the fog) darkens.
-      sun.intensity = 2.4 * water.ambient;
+      sun.intensity = 3.0 * water.ambient;
       sky.color.setRGB(0.78, 0.9, 1, THREE.SRGBColorSpace);
-      sky.groundColor.setRGB(0.32, 0.4, 0.46, THREE.SRGBColorSpace);
-      sky.intensity = 0.9 + 1.9 * water.ambient;
+      sky.groundColor.setRGB(0.36, 0.45, 0.52, THREE.SRGBColorSpace);
+      sky.intensity = 1.6 + 2.6 * water.ambient;
     },
     dispose() {
       wall.geometry.dispose();

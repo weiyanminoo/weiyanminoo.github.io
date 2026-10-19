@@ -45,7 +45,9 @@ export const CAMERA_KEYS: readonly (readonly [number, number, number])[] = [
   [0.2, -0.35, 0],
   [0.28, -0.1, 0.15],
   [0.34, -0.25, 0],
-  [0.52, -0.2, 0],
+  // Out of the slope clip still looking down at the reef, as its camera
+  // was: the cut carries the angle, and the floor fills the frame.
+  [0.52, -0.42, 0],
   [0.6, 1.0, 0],
   [0.66, 1.0, 0],
   [0.7, 0, 0.4],

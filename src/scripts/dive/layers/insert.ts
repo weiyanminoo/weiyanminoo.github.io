@@ -141,10 +141,12 @@ export default function createInsertLayer(footage: Footage): Layer {
       // water at this depth, which made both cuts jump (round 15 strips at
       // 0.36 and 0.52). Bring it down to the water's level and towards its
       // blue (linear-light multipliers), and open the deepest shadows a
-      // little into the water colour, as distance haze would.
+      // little into the water colour, as distance haze would. Round 1
+      // critique: the reference reef tops sit at ~0.15 mean luminance and
+      // the footage was at 0.26; these land it at ~0.15.
       const [r, g, b] = frame.water.fog;
       fog.setRGB(r, g, b, THREE.SRGBColorSpace);
-      (u.uBalance.value as THREE.Vector3).set(0.6, 0.72, 0.86);
+      (u.uBalance.value as THREE.Vector3).set(0.36, 0.4, 0.52);
       (u.uLift.value as THREE.Color).copy(fog).multiplyScalar(0.04);
     },
     dispose() {

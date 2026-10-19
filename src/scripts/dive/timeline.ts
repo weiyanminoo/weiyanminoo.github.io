@@ -49,8 +49,11 @@ export const CAMERA_KEYS: readonly (readonly [number, number, number])[] = [
   // was: the cut carries the angle, and the floor fills the frame.
   [0.52, -0.42, 0],
   [0.6, 1.0, 0],
-  [0.66, 1.0, 0],
-  [0.7, 0, 0.4],
+  // Down from the manta in good time to be level, turned left, for the
+  // whole of the shark's pass (round 2: it crossed while the camera still
+  // looked up).
+  [0.64, 1.0, 0],
+  [0.685, 0, 0.4],
   [0.74, 0, 0],
   [0.8, -0.45, 0],
   [0.92, -0.2, 0],

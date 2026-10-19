@@ -1,17 +1,18 @@
 // The reef: a procedural wall and a plateau (reefPaths.ts says where), built
 // once from seeded noise. Seen from a distance through haze, so it is
 // shapes, light and colour rather than detail: a displaced rock face with
-// coral patches in its vertex colours, lumpy coral heads, table corals on
-// the plateau, and the plateau's far edge plunging away for the drop-off.
+// crevices and growth patches in its vertex colours, sea fans standing
+// off it, low coral mounds and table corals on the plateau, and the
+// plateau's far edge plunging away for the drop-off.
 //
-// Colour is absorbed with depth (material colour × transmittance), and
-// caustics are injected into the standard material so they ripple across
-// upward-facing surfaces near the surface. This layer also owns the scene's
-// lights, which the fish and animals share.
+// Colour is absorbed with depth (material colour × transmittance). The
+// surface — rock grain and caustics — is in reefShading.ts, the fans in
+// reefFans.ts. This layer also owns the scene's lights, which the fish and
+// animals share.
 
 import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
-import { lerp, smoothstep } from '../math';
+import { clamp, lerp, smoothstep } from '../math';
 import { hash1 } from '../noise';
 import {
   PLATEAU_LENGTH_M,
@@ -23,6 +24,8 @@ import {
 } from '../reefPaths';
 import { SURFACE_CLEARANCE_M, type Layer, type LayerContext } from '../scene';
 import type { DiveFrame } from '../types';
+import { fanGeometry, fanMaterial, laceTexture, type FanPlacement } from './reefFans';
+import { withReefShading } from './reefShading';
 
 const SEED = 606;
 const WALL_WIDTH_M = 90;
@@ -42,6 +45,15 @@ const CORALS: readonly RGBTuple[] = [
   [0.8, 0.45, 0.55],
   [0.87, 0.74, 0.32],
   [0.45, 0.58, 0.5],
+];
+// Gorgonian and soft-coral tones from the wall footage (clip 4): pale gold,
+// cream, a few red and violet.
+const FANS: readonly RGBTuple[] = [
+  [0.85, 0.72, 0.45],
+  [0.86, 0.8, 0.66],
+  [0.82, 0.62, 0.38],
+  [0.72, 0.3, 0.22],
+  [0.55, 0.32, 0.55],
 ];
 
 const worldY = (depthM: number) => -(depthM + SURFACE_CLEARANCE_M);
@@ -73,6 +85,8 @@ function mix3(a: RGBTuple, b: RGBTuple, t: number): RGBTuple {
   return [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
 }
 
+const scale3 = (c: RGBTuple, k: number): RGBTuple => [c[0] * k, c[1] * k, c[2] * k];
+
 // Growth tones for the 3D reef: muted ochre, olive and sage. The vivid
 // colour belongs to the footage; seen from a distance through haze a real
 // wall reads as rock with subtle growth (round 1 critique).
@@ -92,6 +106,10 @@ function reefColour(x: number, y: number, seed: number): RGBTuple {
   return mix3(rock, growth, patch * 0.45);
 }
 
+/** Occlusion from local relief: hollows (negative detail) darker, as the
+ *  scattered light reaches into them less. */
+const occlusion = (detail: number, gain: number, lo: number) => clamp(0.82 + gain * detail, lo, 1.08);
+
 function setColour(geometry: THREE.BufferGeometry, colourAt: (x: number, y: number, z: number) => RGBTuple) {
   const pos = geometry.getAttribute('position');
   const colours = new Float32Array(pos.count * 3);
@@ -104,12 +122,12 @@ function setColour(geometry: THREE.BufferGeometry, colourAt: (x: number, y: numb
   geometry.setAttribute('color', new THREE.BufferAttribute(colours, 3));
 }
 
-/** A lumpy coral head or boulder: an icosphere with seeded radial noise,
- *  squashed along `axis` so it encrusts its surface instead of sitting on it
- *  like a ball. Welded first — Three's polyhedra are non-indexed, which
- *  would give faceted, rock-in-space normals. */
+/** A lumpy coral mound or boulder: an icosphere with seeded radial noise,
+ *  squashed along `axis` so it spreads over its surface instead of sitting
+ *  on it like a ball. Welded first — Three's polyhedra are non-indexed,
+ *  which would give faceted, rock-in-space normals. */
 function coralHead(radius: number, squash: number, axis: 'y' | 'z', seed: number, colour: RGBTuple): THREE.BufferGeometry {
-  const raw = new THREE.IcosahedronGeometry(radius, 3);
+  const raw = new THREE.IcosahedronGeometry(radius, radius < 0.6 ? 2 : 3);
   raw.deleteAttribute('normal');
   raw.deleteAttribute('uv');
   const g = mergeVertices(raw);
@@ -123,11 +141,17 @@ function coralHead(radius: number, squash: number, axis: 'y' | 'z', seed: number
     pos.setXYZ(i, v.x, v.y, v.z);
   }
   g.computeVertexNormals();
-  setColour(g, (x, y) => mix3(colour, [colour[0] * 0.6, colour[1] * 0.6, colour[2] * 0.6], 0.5 + 0.5 * vnoise2(x * 6, y * 6, seed)));
+  // Darker towards where it meets the ground.
+  setColour(g, (x, y, z) => {
+    const up = (axis === 'y' ? y : z) / (radius * squash);
+    const shade = lerp(0.6, 1, smoothstep(-0.6, 0.5, up));
+    return scale3(mix3(colour, scale3(colour, 0.7), 0.5 + 0.5 * vnoise2(x * 6, (axis === 'y' ? z : y) * 6, seed)), shade);
+  });
   return g;
 }
 
-/** A table coral: a wide, thin plate on a short stalk. */
+/** A table coral: a wide, thin plate on a short stalk, its underside and
+ *  stalk in shadow. */
 function tableCoral(radius: number, colour: RGBTuple): THREE.BufferGeometry {
   const plate = new THREE.CylinderGeometry(radius, radius * 0.92, 0.18, 18, 1);
   plate.translate(0, 0.9, 0);
@@ -135,25 +159,31 @@ function tableCoral(radius: number, colour: RGBTuple): THREE.BufferGeometry {
   stalk.translate(0, 0.45, 0);
   const g = mergeGeometries([plate.toNonIndexed(), stalk.toNonIndexed()])!;
   g.deleteAttribute('uv');
-  setColour(g, () => colour);
+  setColour(g, (_x, y) => (y > 0.95 ? colour : scale3(colour, 0.5)));
   return g;
 }
 
-/** The wall face's surface: z offset (towards the camera) at (x, y). The
- *  top rounds back into a lip instead of ending in a straight edge. */
-function wallZ(x: number, y: number, top: number): number {
-  let z =
-    2.8 * fbm2(x * 0.08, y * 0.08, SEED + 20) +
-    0.9 * fbm2(x * 0.35, y * 0.35, SEED + 21, 3) +
-    0.35 * fbm2(x * 1.1, y * 1.1, SEED + 23, 2);
+/** The wall face's surface, split into its broad shape and its local
+ *  relief (which also drives the occlusion): z offset towards the camera
+ *  at (x, y). The top rounds back into a lip instead of a straight edge. */
+function wallRelief(x: number, y: number, top: number): { broad: number; detail: number } {
   // Vertical buttresses and gullies.
-  z += 1.4 * Math.sin(x * 0.21 + 2.0 * fbm2(x * 0.05, y * 0.03, SEED + 22));
+  let broad = 2.8 * fbm2(x * 0.08, y * 0.08, SEED + 20) + 1.4 * Math.sin(x * 0.21 + 2.0 * fbm2(x * 0.05, y * 0.03, SEED + 22));
   const lip = top - y;
-  if (lip < 3) z -= (3 - lip) ** 2 * 0.9;
-  return z;
+  if (lip < 3) broad -= (3 - lip) ** 2 * 0.9;
+  // Crevices: narrow grooves along the zero lines of a stretched noise
+  // field (ridged noise), with the finer knobbly relief.
+  const groove = (1 - Math.abs(fbm2(x * 0.16, y * 0.45, SEED + 24, 3))) ** 8;
+  const detail = 0.9 * fbm2(x * 0.35, y * 0.35, SEED + 21, 3) + 0.35 * fbm2(x * 1.1, y * 1.1, SEED + 23, 2) - 0.9 * groove;
+  return { broad, detail };
 }
 
-function buildWall(): THREE.BufferGeometry {
+function wallZ(x: number, y: number, top: number): number {
+  const { broad, detail } = wallRelief(x, y, top);
+  return broad + detail;
+}
+
+function buildWall(): { rock: THREE.BufferGeometry; fans: FanPlacement[] } {
   const height = WALL_BOTTOM_DEPTH_M - WALL_TOP_DEPTH_M;
   // Three vertices a metre, enough for the 1 m relief term to show.
   const face = new THREE.PlaneGeometry(WALL_WIDTH_M, height, WALL_WIDTH_M * 3, Math.round(height * 3));
@@ -162,34 +192,50 @@ function buildWall(): THREE.BufferGeometry {
   const pos = face.getAttribute('position');
   for (let i = 0; i < pos.count; i++) pos.setZ(i, wallZ(pos.getX(i), pos.getY(i), top));
   face.computeVertexNormals();
-  setColour(face, (x, y) => reefColour(x, y, SEED + 30));
+  setColour(face, (x, y) => scale3(reefColour(x, y, SEED + 30), occlusion(wallRelief(x, y, top).detail, 0.5, 0.45)));
 
-  // Encrusting growth, not boulders: fewer, smaller, nearly flush with the
-  // rock and muted towards its colour (round 1 critique: the wall read as
-  // floating balls).
-  const parts: THREE.BufferGeometry[] = [face];
-  for (let i = 0; i < 140; i++) {
-    const x = (hash1(i, SEED + 40) - 0.5) * (WALL_WIDTH_M - 6);
-    const y = top - 1 - hash1(i, SEED + 41) * (height * 0.6);
-    const r = 0.25 + 0.9 * hash1(i, SEED + 42) ** 2;
-    const coral = CORALS[Math.floor(hash1(i, SEED + 43) * CORALS.length)];
-    const head = coralHead(r, 0.32, 'z', i, mix3(reefColour(x, y, SEED + 30), coral, 0.45));
-    head.translate(x, y, wallZ(x, y, top) + r * 0.02);
-    parts.push(head);
+  // No coral heads on the wall (round 2 critique: they read as floating
+  // potatoes); its growth is sea fans standing off the rock at an angle,
+  // densest across the middle, where the camera faces it, and down to the
+  // drop-off's depths.
+  const fans: FanPlacement[] = [];
+  for (let i = 0; i < 520; i++) {
+    const spread = i % 5 < 2 ? 0.35 : 1;
+    const x = (hash1(i, SEED + 40) - 0.5) * (WALL_WIDTH_M - 10) * spread;
+    const y = top - 1.5 - hash1(i, SEED + 41) ** 1.2 * 40;
+    const width = 0.9 + 2.3 * hash1(i, SEED + 42) ** 2;
+    const side = hash1(i, SEED + 43) < 0.5 ? -1 : 1;
+    const yaw = side * (0.35 + 0.75 * hash1(i, SEED + 44));
+    // Out from the rock by however far the turned fan's back edge swings
+    // in, so that edge just meets it.
+    const z = wallZ(x, y, top) + 0.5 * width * Math.abs(Math.sin(yaw)) + 0.05;
+    fans.push({
+      position: new THREE.Vector3(x, y, z),
+      width,
+      yaw,
+      tilt: -0.1 - 0.35 * hash1(i, SEED + 45),
+      colour: FANS[Math.floor(hash1(i, SEED + 46) * FANS.length)],
+    });
   }
-  return mergeGeometries(parts)!;
+  return { rock: face, fans };
 }
 
-/** The plateau's surface height at (x, z); z runs from 0 (near edge) to
- *  -PLATEAU_DEPTH_EXTENT_M. Past the far edge it plunges away. */
-function plateauY(x: number, z: number): number {
-  let y = 1.2 * fbm2(x * 0.12, z * 0.12, SEED + 50) + 0.35 * fbm2(x * 0.6, z * 0.6, SEED + 51, 3);
+/** The plateau's surface height at (x, z), split into broad shape and
+ *  local relief; z runs from 0 (near edge) to -PLATEAU_DEPTH_EXTENT_M.
+ *  Past the far edge it plunges away. */
+function plateauRelief(x: number, z: number): { broad: number; detail: number } {
+  let broad = 1.2 * fbm2(x * 0.12, z * 0.12, SEED + 50);
   const past = -z - (PLATEAU_LENGTH_M - 2);
-  if (past > 0) y -= past * past * 1.5;
-  return y;
+  if (past > 0) broad -= past * past * 1.5;
+  return { broad, detail: 0.45 * fbm2(x * 0.6, z * 0.6, SEED + 51, 3) };
 }
 
-function buildPlateau(): THREE.BufferGeometry {
+function plateauY(x: number, z: number): number {
+  const { broad, detail } = plateauRelief(x, z);
+  return broad + detail;
+}
+
+function buildPlateau(): { rock: THREE.BufferGeometry; fans: FanPlacement[] } {
   const ground = new THREE.PlaneGeometry(PLATEAU_WIDTH_M, PLATEAU_DEPTH_EXTENT_M, 200, 120);
   ground.deleteAttribute('uv');
   ground.rotateX(-Math.PI / 2);
@@ -197,70 +243,62 @@ function buildPlateau(): THREE.BufferGeometry {
   const pos = ground.getAttribute('position');
   for (let i = 0; i < pos.count; i++) pos.setY(i, plateauY(pos.getX(i), pos.getZ(i)));
   ground.computeVertexNormals();
-  setColour(ground, (x, _y, z) => reefColour(x, z, SEED + 60));
+  // Dark clumps of living coral among paler rubble, as reference 2's reef
+  // tops are (7:16, 7:40) — not an even pale floor.
+  setColour(ground, (x, _y, z) => {
+    const clump = smoothstep(0.0, 0.3, fbm2(x * 0.5, z * 0.5, SEED + 61, 3));
+    const shade = occlusion(plateauRelief(x, z).detail, 0.9, 0.55) * (1 - 0.5 * clump);
+    return scale3(reefColour(x, z, SEED + 60), shade);
+  });
 
+  // Low coral mounds and rubble, not pebbles (round 2 critique: small,
+  // saturated heads read as sweets on sand): wide, flat, half-buried,
+  // mostly the colour of the rock around them.
   const parts: THREE.BufferGeometry[] = [ground];
-  for (let i = 0; i < 160; i++) {
+  for (let i = 0; i < 380; i++) {
     const x = (hash1(i, SEED + 70) - 0.5) * (PLATEAU_WIDTH_M - 8);
     const z = -hash1(i, SEED + 71) * (PLATEAU_LENGTH_M - 3);
-    const r = 0.3 + 1.1 * hash1(i, SEED + 72) ** 2;
+    const r = 0.3 + 1.7 * hash1(i, SEED + 72) ** 2;
     const coral = CORALS[Math.floor(hash1(i, SEED + 73) * CORALS.length)];
-    const head = coralHead(r, 0.42, 'y', 1000 + i, mix3(reefColour(x, z, SEED + 60), coral, 0.5));
-    head.translate(x, plateauY(x, z) + r * 0.05, z);
+    const squash = 0.32 + 0.12 * hash1(i, SEED + 74);
+    const head = coralHead(r, squash, 'y', 1000 + i, mix3(reefColour(x, z, SEED + 60), coral, 0.12 + 0.18 * hash1(i, SEED + 75)));
+    head.translate(x, plateauY(x, z) - r * squash * 0.35, z);
     parts.push(head);
   }
-  for (let i = 0; i < 26; i++) {
+  for (let i = 0; i < 18; i++) {
     const x = (hash1(i, SEED + 80) - 0.5) * (PLATEAU_WIDTH_M - 10);
     const z = -hash1(i, SEED + 81) * (PLATEAU_LENGTH_M - 4);
-    const colour = mix3(CORALS[2], CORALS[5], hash1(i, SEED + 82));
+    const colour = mix3(reefColour(x, z, SEED + 60), mix3(CORALS[2], CORALS[5], hash1(i, SEED + 82)), 0.35);
     const table = tableCoral(0.9 + 1.4 * hash1(i, SEED + 83), colour);
     table.rotateY(hash1(i, SEED + 84) * Math.PI);
     table.translate(x, plateauY(x, z), z);
     // mergeGeometries needs every part indexed or none; weld the tables.
     parts.push(mergeVertices(table));
   }
-  return mergeGeometries(parts)!;
-}
 
-// Caustics: two warped ripple fields, bright where they agree, laid on
-// upward-facing surfaces. Strength is water.caustics (gone by 25 m).
-const CAUSTIC_GLSL = /* glsl */ `
-  uniform float uCausticTime;
-  uniform float uCaustics;
-  varying vec3 vCausticWorld;
-  varying float vCausticUp;
-  float causticLayer(vec2 p, float t) {
-    vec2 q = p + vec2(sin(p.y * 1.3 + t * 0.7), cos(p.x * 1.1 - t * 0.6)) * 0.6;
-    float a = abs(sin(q.x * 2.2 + t * 0.9) + sin(q.y * 2.6 - t * 0.8));
-    return pow(max(0.0, 1.0 - a * 0.6), 6.0);
+  const fans: FanPlacement[] = [];
+  for (let i = 0; i < 46; i++) {
+    const x = (hash1(i, SEED + 90) - 0.5) * (PLATEAU_WIDTH_M - 10);
+    const z = -hash1(i, SEED + 91) * (PLATEAU_LENGTH_M - 4);
+    fans.push({
+      position: new THREE.Vector3(x, plateauY(x, z) - 0.05, z),
+      width: 0.6 + 1.3 * hash1(i, SEED + 92) ** 2,
+      yaw: hash1(i, SEED + 93) * Math.PI,
+      tilt: (hash1(i, SEED + 94) - 0.5) * 0.3,
+      colour: FANS[Math.floor(hash1(i, SEED + 95) * FANS.length)],
+    });
   }
-  float causticField(vec2 p, float t) {
-    return causticLayer(p, t) + 0.6 * causticLayer(p * 1.7 + 3.1, t * 1.3);
-  }
-`;
-
-function withCaustics(material: THREE.MeshStandardMaterial, uniforms: Record<string, THREE.IUniform>) {
-  material.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, uniforms);
-    shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vCausticWorld;\nvarying float vCausticUp;')
-      .replace(
-        '#include <begin_vertex>',
-        '#include <begin_vertex>\nvCausticWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvCausticUp = normalize(mat3(modelMatrix) * objectNormal).y;',
-      );
-    shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', `#include <common>\n${CAUSTIC_GLSL}`)
-      .replace(
-        '#include <map_fragment>',
-        '#include <map_fragment>\ndiffuseColor.rgb *= 1.0 + uCaustics * 2.2 * causticField(vCausticWorld.xz * 0.5, uCausticTime) * smoothstep(0.0, 0.6, vCausticUp);',
-      );
-  };
+  return { rock: mergeGeometries(parts)!, fans };
 }
 
 export default function createReefLayer(): Layer {
   let ctx: LayerContext;
+  let rockMaterial: THREE.MeshStandardMaterial;
+  let fansMaterial: THREE.MeshStandardMaterial;
+  let lace: THREE.Texture;
   let wall: THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
   let plateau: THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
+  const fanMeshes: THREE.Mesh[] = [];
   let sun: THREE.DirectionalLight;
   let sky: THREE.HemisphereLight;
   const uniforms = { uCausticTime: { value: 0 }, uCaustics: { value: 0 } };
@@ -269,11 +307,24 @@ export default function createReefLayer(): Layer {
     id: 'reef',
     init(c) {
       ctx = c;
-      const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 });
-      withCaustics(material, uniforms);
-      wall = new THREE.Mesh(buildWall(), material);
-      plateau = new THREE.Mesh(buildPlateau(), material);
-      wall.matrixAutoUpdate = true;
+      rockMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 });
+      withReefShading(rockMaterial, uniforms);
+      lace = laceTexture(SEED);
+      fansMaterial = fanMaterial(lace);
+      const w = buildWall();
+      const p = buildPlateau();
+      wall = new THREE.Mesh(w.rock, rockMaterial);
+      plateau = new THREE.Mesh(p.rock, rockMaterial);
+      for (const [parent, fans] of [
+        [wall, w.fans],
+        [plateau, p.fans],
+      ] as const) {
+        const mesh = new THREE.Mesh(fanGeometry(fans), fansMaterial);
+        // Fans are blended: after the rock, before the fish and snow.
+        mesh.renderOrder = 1;
+        parent.add(mesh);
+        fanMeshes.push(mesh);
+      }
       sun = new THREE.DirectionalLight(0xffffff, 1);
       sun.position.set(0.3, 1, 0.2);
       sky = new THREE.HemisphereLight(0xffffff, 0x000000, 1);
@@ -302,14 +353,14 @@ export default function createReefLayer(): Layer {
       // 0.8: matched to the footage's own reef brightness at 18–20 m
       // (round 1 critique: both cuts within ~12% in luminance) rather than
       // the fully absorbed value.
-      (wall.material as THREE.MeshStandardMaterial).color.setRGB(
-        lerp(t[0], 1, 0.8),
-        lerp(t[1], 1, 0.8),
-        lerp(t[2], 1, 0.8),
-        THREE.SRGBColorSpace,
-      );
+      rockMaterial.color.setRGB(lerp(t[0], 1, 0.8), lerp(t[1], 1, 0.8), lerp(t[2], 1, 0.8), THREE.SRGBColorSpace);
+      // The fans' saturated colour soaks into the blue faster, so the
+      // drop-off's fans are blue-grey lace, not purple and red (round 2).
+      fansMaterial.color.setRGB(lerp(t[0], 1, 0.5), lerp(t[1], 1, 0.5), lerp(t[2], 1, 0.5), THREE.SRGBColorSpace);
       uniforms.uCausticTime.value = frame.timeS;
-      uniforms.uCaustics.value = water.caustics;
+      // Halved: at the reef top's 19 m the full web read as a sunlit
+      // swimming-pool floor (round 2).
+      uniforms.uCaustics.value = water.caustics * 0.5;
 
       // Underwater light is mostly scattered, arriving from everywhere: a
       // gentle sun from above and a strong hemisphere whose "ground" is
@@ -327,7 +378,10 @@ export default function createReefLayer(): Layer {
     dispose() {
       wall.geometry.dispose();
       plateau.geometry.dispose();
-      wall.material.dispose();
+      for (const mesh of fanMeshes) mesh.geometry.dispose();
+      rockMaterial.dispose();
+      fansMaterial.dispose();
+      lace.dispose();
       ctx.scene.remove(wall, plateau, sun, sky);
     },
   };

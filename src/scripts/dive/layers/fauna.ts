@@ -57,8 +57,10 @@ function sharkGeometry(): THREE.BufferGeometry {
   const pos = g.getAttribute('position');
   const colours = new Float32Array(pos.count * 3);
   for (let i = 0; i < pos.count; i++) {
+    // A grey reef shark's pale bronze-grey back, white belly: against the
+    // deep blue it reads light, as the reference's shark does.
     const belly = pos.getY(i) / SHARK_LENGTH_M < -0.02 ? 1 : 0;
-    colours.set([lerp(0.42, 0.86, belly), lerp(0.47, 0.87, belly), lerp(0.52, 0.87, belly)], i * 3);
+    colours.set([lerp(0.62, 0.92, belly), lerp(0.64, 0.92, belly), lerp(0.66, 0.92, belly)], i * 3);
   }
   g.setAttribute('color', new THREE.BufferAttribute(colours, 3));
   return g;

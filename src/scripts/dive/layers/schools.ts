@@ -24,6 +24,9 @@ interface SchoolLook {
   /** The scroll pass s as a function of progress. */
   pass(progress: number): number;
   colour(y: number, z: number): [number, number, number];
+  /** Blue lengthwise stripes, drawn per pixel (vertex colours smeared
+   *  them into blotches — round 2 critique). */
+  stripes: boolean;
   /** How much of its own colour survives the depth tint (0 = fully
    *  absorbed, 1 = none). A white-balanced camera keeps snapper yellow. */
   keepColour: number;
@@ -39,17 +42,20 @@ const LOOKS: Record<SchoolSpec['id'], SchoolLook> = {
       const t = smoothstep(0.02, -0.03, y);
       return [lerp(0.34, 0.86, t), lerp(0.44, 0.9, t), lerp(0.55, 0.93, t)];
     },
+    stripes: false,
     keepColour: 0.6,
   },
   snapper: {
     length: 0.3,
     visible: [0.44, 0.6],
     pass: (p) => clamp((p - 0.46) / 0.12, 0, 1),
-    // Bright yellow with thin blue lengthwise stripes.
+    // Bluestripe snapper: golden yellow above, pale below; the four blue
+    // stripes are added per pixel in the shader.
     colour: (y) => {
-      const stripe = smoothstep(0.84, 0.9, (((y + 0.2) * 30) % 1 + 1) % 1);
-      return [lerp(0.98, 0.42, stripe), lerp(0.84, 0.64, stripe), lerp(0.2, 0.9, stripe)];
+      const t = smoothstep(-0.02, -0.07, y);
+      return [lerp(0.92, 0.9, t), lerp(0.74, 0.86, t), lerp(0.22, 0.7, t)];
     },
+    stripes: true,
     keepColour: 0.82,
   },
 };
@@ -94,18 +100,40 @@ function fishGeometry(length: number, colour: SchoolLook['colour']): THREE.Buffe
 }
 
 /** The tail wave: a travelling sine, stronger towards the tail, phase-
- *  offset per fish so a school never beats in unison. */
-function withTailWave(material: THREE.MeshStandardMaterial, uniforms: Record<string, THREE.IUniform>) {
+ *  offset per fish so a school never beats in unison. With `stripes`, four
+ *  thin blue lengthwise stripes, antialiased per pixel, on the body. */
+function withTailWave(material: THREE.MeshStandardMaterial, uniforms: Record<string, THREE.IUniform>, stripes: boolean) {
+  // Three caches programs by the hook's source text, which is the same for
+  // both schools; without a key the snapper reused the unstriped program.
+  material.customProgramCacheKey = () => (stripes ? 'fish-striped' : 'fish');
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nuniform float uTime;\nuniform float uLength;')
+      .replace('#include <common>', '#include <common>\nuniform float uTime;\nuniform float uLength;\nvarying vec3 vFish;')
       .replace(
         '#include <begin_vertex>',
         `#include <begin_vertex>
+        vFish = position / uLength;
         float tailW = smoothstep(0.1, -0.7, transformed.z / uLength);
         transformed.x += sin(uTime * 9.0 + float(gl_InstanceID) * 1.7 + transformed.z * 7.0 / uLength)
           * 0.08 * uLength * tailW;`,
+      );
+    if (!stripes) return;
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vFish;')
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+        {
+          // Stripes 4 cm apart (in body lengths) from the belly line up,
+          // a quarter of the spacing wide, on the body only (not the tail).
+          float k = (vFish.y + 0.05) / 0.038;
+          float d = abs(fract(k) - 0.5);
+          float aa = fwidth(k);
+          float line = 1.0 - smoothstep(0.12 - aa, 0.12 + aa, d);
+          line *= step(0.0, k) * step(k, 4.0) * smoothstep(-0.42, -0.3, vFish.z);
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.12, 0.32, 0.85), line);
+        }`,
       );
   };
 }
@@ -139,7 +167,7 @@ export default function createSchoolsLayer(): Layer {
           metalness: 0.1,
           side: THREE.DoubleSide,
         });
-        withTailWave(material, { uTime: time, uLength: { value: look.length } });
+        withTailWave(material, { uTime: time, uLength: { value: look.length } }, look.stripes);
         const count = Math.max(1, Math.floor(spec.count * ctx.settings.schoolScale));
         const mesh = new THREE.InstancedMesh(fishGeometry(look.length, look.colour), material, count);
         mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);

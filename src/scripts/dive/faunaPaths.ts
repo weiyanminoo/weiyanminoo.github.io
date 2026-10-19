@@ -31,8 +31,10 @@ function along(path: (s: number) => Vec3, s: number): { position: Vec3; heading:
 const manta = (s: number): Vec3 => [lerp(18, -18, s), 10 + Math.sin(Math.PI * s), -5 - s];
 
 // A slow pass across the haze ahead and to the left, where the camera turns
-// (yaw 0.4) in the shark shot: about 15 m away at its nearest.
-const shark = (s: number): Vec3 => [lerp(6, -18, s), lerp(-2, -1, s), lerp(-18, -10, s)];
+// (yaw 0.4) in the shark shot: about 12.7 m away at its nearest — still a
+// small shape in the blue, as in reference 2 at 3:20, but a readable one
+// (round 2: at 15 m it was a speck).
+const shark = (s: number): Vec3 => [lerp(8, -16, s), lerp(-1.5, -0.8, s), lerp(-15, -9, s)];
 
 export function mantaPath(s: number): { position: Vec3; heading: Vec3 } {
   return along(manta, s);

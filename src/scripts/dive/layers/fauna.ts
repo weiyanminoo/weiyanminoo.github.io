@@ -132,9 +132,9 @@ export default function createFaunaLayer(): Layer {
   const forward = new THREE.Vector3(0, 0, 1);
   const dir = new THREE.Vector3();
 
+  // Paths are in the dive site's coordinates (faunaPaths.ts).
   const place = (mesh: THREE.Object3D, pose: { position: Vec3; heading: Vec3 }) => {
-    const cam = ctx.camera.position;
-    mesh.position.set(cam.x + pose.position[0], cam.y + pose.position[1], cam.z + pose.position[2]);
+    mesh.position.set(...pose.position);
     mesh.quaternion.setFromUnitVectors(forward, dir.set(...pose.heading));
   };
 

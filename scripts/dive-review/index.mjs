@@ -35,10 +35,10 @@ const MOBILE = { width: 390, height: 844 };
 // Mid-exhale (breathAt(8).phase ≈ 0.61), so sheets show the rising bubbles.
 const TIME_S = 8;
 const SHOT_SAMPLES = [0.25, 0.5, 0.75];
-// Every blend in the storyboard: the wall forming out of the haze, its
-// turn to the left, the snapper crossing over the reef top, the drift out
-// into the blue for the manta, the shark's pass, and the thermocline.
-const STRIP_CENTRES = [0.22, 0.4, 0.52, 0.62, 0.69, 0.74];
+// Every move in the dive: the reef rising out of the blue on the descent,
+// arriving over the crest, going over the edge, the manta's and the
+// shark's passes, and the thermocline.
+const STRIP_CENTRES = [0.2, 0.3, 0.5, 0.62, 0.69, 0.74];
 const STRIP_HALF_WIDTH = 0.02;
 const STRIP_FRAMES = 12;
 const DEPTH_TOLERANCE_M = 0.5;

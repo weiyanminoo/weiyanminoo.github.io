@@ -35,7 +35,8 @@ interface SchoolLook {
 const LOOKS: Record<SchoolSpec['id'], SchoolLook> = {
   'open-blue': {
     length: 0.36,
-    visible: [0.2, 0.34],
+    // Over the crest; in from far enough out in the haze not to pop.
+    visible: [0.12, 0.38],
     pass: (p) => clamp((p - 0.24) / 0.08, 0, 1),
     // Countershaded: dark blue-grey back, silver belly.
     colour: (y) => {
@@ -47,8 +48,8 @@ const LOOKS: Record<SchoolSpec['id'], SchoolLook> = {
   },
   snapper: {
     length: 0.3,
-    visible: [0.44, 0.6],
-    pass: (p) => clamp((p - 0.46) / 0.12, 0, 1),
+    visible: [0.3, 0.52],
+    pass: (p) => clamp((p - 0.36) / 0.12, 0, 1),
     // Bluestripe snapper: golden yellow above, pale below; the four blue
     // stripes are added per pixel in the shader.
     colour: (y) => {
@@ -60,7 +61,7 @@ const LOOKS: Record<SchoolSpec['id'], SchoolLook> = {
   },
   jacks: {
     length: 0.6,
-    visible: [0.86, 1],
+    visible: [0.84, 1],
     pass: (p) => clamp((p - 0.88) / 0.12, 0, 1),
     // Silver, a little darker above: in the deep blue jacks read as pale
     // flashes (grey-blue at 20 m they were lost in the haze).
@@ -73,9 +74,8 @@ const LOOKS: Record<SchoolSpec['id'], SchoolLook> = {
   },
   anthias: {
     length: 0.13,
-    // With the wall, from far out in the haze to far out again.
-    visible: [0.2, 0.64],
-    // The anthias' paths read the wall's pose straight from progress.
+    // Down the face, from going over the edge to the deep wall.
+    visible: [0.46, 0.86],
     pass: (p) => p,
     // Orange, paler below: the colour a wall dive is remembered by.
     colour: (y) => {
@@ -234,7 +234,7 @@ export default function createSchoolsLayer(): Layer {
         const s = look.pass(progress);
         for (let i = 0; i < mesh.count; i++) {
           const pose = fishPose(spec, i, frame.timeS, s);
-          pos.set(cam.x + pose.position[0], cam.y + pose.position[1], cam.z + pose.position[2]);
+          pos.set(...pose.position);
           q.setFromUnitVectors(forward, dir.set(pose.heading[0], pose.heading[1], pose.heading[2]));
           const k = 0.8 + 0.4 * hash1(i, spec.seed + 9);
           m.compose(pos, q, scale.set(k, k, k));

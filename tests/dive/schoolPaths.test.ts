@@ -1,33 +1,37 @@
 import { describe, it, expect } from 'vitest';
-import { wallPose } from '../../src/scripts/dive/reefPaths';
 import { SCHOOLS, fishPose } from '../../src/scripts/dive/schoolPaths';
+import { positionAt } from '../../src/scripts/dive/timeline';
+import { EDGE_X, worldY } from '../../src/scripts/dive/world';
 
 const [blue, snapper, jacks, anthias] = SCHOOLS;
 
+// Depth along the camera's path at a given z (the path only heads south).
+function pathDepthAtZ(z: number): number {
+  let p = 0;
+  while (p < 1 && positionAt(p)[2] > z) p += 0.001;
+  return -positionAt(p)[1] - 3;
+}
+
 describe('the anthias', () => {
-  // Small reef fish hover just off the face, whichever way the wall has
-  // swung (reefPaths.ts): measured in the wall's own frame.
+  // Small reef fish hover just off the face, on the east side of the crest
+  // line (world.ts), in a band that follows the dive down the wall.
   it('hover within a few metres of the wall face', () => {
-    for (const p of [0.33, 0.38, 0.41, 0.46, 0.52]) {
-      const w = wallPose(p)!;
-      for (let i = 0; i < anthias.count; i += 11) {
-        const [x, , z] = fishPose(anthias, i, 15, p).position;
-        // Undo the wall's turn about the camera, then measure off its face.
-        const zWall = -x * Math.sin(-w.turn) + z * Math.cos(-w.turn);
-        const off = zWall + w.distance;
-        expect(off).toBeGreaterThanOrEqual(-0.5);
-        expect(off).toBeLessThanOrEqual(5);
-      }
+    for (let i = 0; i < anthias.count; i += 7) {
+      const [x] = fishPose(anthias, i, 15, 0.6).position;
+      expect(x - EDGE_X).toBeGreaterThanOrEqual(-0.5);
+      expect(x - EDGE_X).toBeLessThanOrEqual(5);
     }
   });
 
-  it('stay with the wall, not the camera, as the camera swims along it', () => {
-    const along = (p: number) => {
-      const w = wallPose(p)!;
-      const [x, , z] = anthias.centre(15, p);
-      return x * Math.cos(-w.turn) + z * Math.sin(-w.turn) - w.slide;
-    };
-    expect(along(0.56)).toBeCloseTo(along(0.46), 0);
+  it('follow the dive down the face', () => {
+    for (let i = 0; i < anthias.count; i += 7) {
+      const [, y, z] = fishPose(anthias, i, 15, 0.6).position;
+      expect(Math.abs(y - worldY(pathDepthAtZ(z)))).toBeLessThan(6);
+    }
+  });
+
+  it('stay put on the reef while the camera swims past', () => {
+    expect(anthias.centre(15, 0.5)).toEqual(anthias.centre(15, 0.7));
   });
 });
 
@@ -58,10 +62,13 @@ describe('fishPose', () => {
     }
   });
 
-  // Every centre is camera-relative.
-  it('crosses the snapper school over the lens at s = 0.5', () => {
+  // Centres are in the dive site's own coordinates (world.ts).
+  it('crosses the snapper school just ahead of the camera at s = 0.5', () => {
     const c = snapper.centre(10, 0.5);
-    expect(Math.hypot(c[0], c[2])).toBeLessThan(2);
+    const cam = positionAt(0.42);
+    expect(Math.hypot(c[0] - cam[0], c[2] - cam[2])).toBeLessThan(4);
+    // Over the reef top, at the camera's height, not in the coral.
+    expect(Math.abs(c[1] - cam[1])).toBeLessThan(1);
   });
 
   it('mills the jacks around their own vertical axis, all one way', () => {
@@ -81,11 +88,12 @@ describe('fishPose', () => {
     expect(along).toBeGreaterThan(20);
   });
 
-  it('holds the jacks above and ahead of the camera', () => {
+  it('holds the jacks above and ahead of the camera at the end of the dive', () => {
+    const cam = positionAt(1);
     for (let s = 0; s <= 1; s += 0.1) {
       const c = jacks.centre(20, s);
-      expect(c[1]).toBeGreaterThan(4);
-      expect(c[2]).toBeLessThan(-10);
+      expect(c[1] - cam[1]).toBeGreaterThan(4);
+      expect(c[2] - cam[2]).toBeLessThan(-4);
     }
   });
 

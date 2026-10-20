@@ -13,12 +13,13 @@ export type ShotId =
   | 'surface'
   | 'descent'
   | 'school'
-  | 'wall'
   | 'reef-top'
+  | 'dropoff'
+  | 'wall'
   | 'manta'
   | 'shark'
   | 'thermocline'
-  | 'dropoff'
+  | 'deep-wall'
   | 'deep';
 
 /** Radians. Positive pitch looks up. */
@@ -42,6 +43,8 @@ export interface DiveState {
   /** 0..1 through the current shot. */
   shotT: number;
   camera: CameraPose;
+  /** Where the camera is in the dive site (world.ts), metres. */
+  position: Vec3;
   events: DiveEvents;
 }
 

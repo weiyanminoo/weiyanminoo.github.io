@@ -1,13 +1,13 @@
-// The reef: a procedural wall with a shelf at its foot (reefPaths.ts says
-// where), built once from seeded noise. Seen from a distance through haze,
-// so it is shapes, light and colour rather than detail: a displaced rock
-// face with crevices and growth patches in its vertex colours, sea fans
-// standing off it, low coral mounds and table corals on the shelf, and the
-// shelf's outer edge plunging away into the blue. The shelf is a child of
-// the wall and moves with it.
+// The reef: one dive site, built once from seeded noise and fixed in place
+// (world.ts says where): a reef top with coral mounds, table corals and
+// spur-and-groove sand channels, rolling over a rounded crest into a single
+// long wall face, its rock creviced and hung with sea fans. The camera
+// swims through it; nothing here moves. Seen through haze, so it is shapes,
+// light and colour rather than detail.
 //
-// Colour is absorbed with depth (material colour × transmittance). The
-// surface — rock grain and caustics — is in reefShading.ts, the fans in
+// Colour is absorbed with depth (material colour × transmittance), and the
+// face darkens the further below the camera it falls. The surface — rock
+// grain, caustics, that depth fall-off — is in reefShading.ts, the fans in
 // reefFans.ts. This layer also owns the scene's lights, which the fish and
 // animals share.
 
@@ -15,25 +15,33 @@ import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { clamp, lerp, smoothstep } from '../math';
 import { hash1 } from '../noise';
-import {
-  PLATEAU_LENGTH_M,
-  PLATEAU_TOP_DEPTH_M,
-  SHELF_INSET_M,
-  WALL_BOTTOM_DEPTH_M,
-  WALL_HALF_LENGTH_M,
-  WALL_TOP_DEPTH_M,
-  wallPose,
-} from '../reefPaths';
-import { SURFACE_CLEARANCE_M, type Layer, type LayerContext } from '../scene';
+import type { Layer, LayerContext } from '../scene';
 import type { DiveFrame } from '../types';
+import {
+  EDGE_X,
+  REEF_NORTH_Z,
+  REEF_SOUTH_Z,
+  REEF_TOP_DEPTH_M,
+  REEF_WEST_X,
+  WALL_BOTTOM_DEPTH_M,
+  worldY,
+} from '../world';
 import { fanGeometry, fanMaterial, laceTexture, type FanPlacement } from './reefFans';
-import { withEmerge, withReefShading } from './reefShading';
+import { withReefShading } from './reefShading';
 
 const SEED = 606;
-const WALL_WIDTH_M = WALL_HALF_LENGTH_M * 2;
-// The shelf runs the wall's whole length (it is the wall's foot).
-const PLATEAU_WIDTH_M = WALL_WIDTH_M + 10;
-const PLATEAU_DEPTH_EXTENT_M = 48;
+const REEF_LENGTH_M = REEF_NORTH_Z - REEF_SOUTH_Z;
+const REEF_MID_Z = (REEF_NORTH_Z + REEF_SOUTH_Z) / 2;
+// The face's top rolls back over the crest into a rim standing a little
+// proud of the reef top, which tucks in under it: one surface turns the
+// corner, so there is no seam where two meet.
+const WALL_TOP_DEPTH_M = REEF_TOP_DEPTH_M - 1.5;
+// The reef top stops this far west of the crest line, under the rim.
+const REEF_TOP_EAST_U = -4;
+// Where the camera's dive passes (timeline.ts CAMERA_PATH): growth is
+// densest here, as the reef a diver remembers is the stretch they swam.
+const PATH_NORTH_Z = -10;
+const PATH_SOUTH_Z = -170;
 
 type RGBTuple = [number, number, number];
 
@@ -58,8 +66,6 @@ const FANS: readonly RGBTuple[] = [
   [0.72, 0.3, 0.22],
   [0.55, 0.32, 0.55],
 ];
-
-const worldY = (depthM: number) => -(depthM + SURFACE_CLEARANCE_M);
 
 function vnoise2(x: number, y: number, seed: number): number {
   const ix = Math.floor(x);
@@ -166,13 +172,30 @@ function tableCoral(radius: number, colour: RGBTuple): THREE.BufferGeometry {
   return g;
 }
 
-/** The wall face's surface, split into its broad shape and its local
- *  relief (which also drives the occlusion): z offset towards the camera
- *  at (x, y). The top rounds back into a lip instead of a straight edge. */
+/** How far east of EDGE_X the crest runs at world z: bays and promontories,
+ *  shared by the face and the reef top so they always meet. */
+function meander(z: number): number {
+  return 2.0 * fbm2(z * 0.025, 3.7, SEED + 55, 3) + 0.8 * Math.sin(z * 0.11 + 1.3);
+}
+
+/** The wall face's surface in its own frame (x along the wall, y up, z out
+ *  of the rock), split into its broad shape and its local relief (which
+ *  also drives the occlusion). The top rolls back west over the crest into
+ *  the rim; the buttresses grow in below it, so the rim follows the crest
+ *  line exactly and the reef top always tucks in under it. */
 function wallRelief(x: number, y: number, top: number): { broad: number; detail: number } {
-  // Vertical buttresses and gullies.
-  let broad = 2.8 * fbm2(x * 0.08, y * 0.08, SEED + 20) + 1.4 * Math.sin(x * 0.21 + 2.0 * fbm2(x * 0.05, y * 0.03, SEED + 22));
   const lip = top - y;
+  // Vertical buttresses and gullies, and big spurs tens of metres apart that
+  // break the face's silhouette when seen along it.
+  let broad =
+    (1.8 * fbm2(x * 0.08, y * 0.08, SEED + 20) +
+      0.8 * Math.sin(x * 0.21 + 2.0 * fbm2(x * 0.05, y * 0.03, SEED + 22)) +
+      2.0 * fbm2(x * 0.025, y * 0.015, SEED + 26, 2)) *
+    smoothstep(0, 6, lip);
+  broad += meander(REEF_MID_Z - x);
+  // Leaning back as it drops, so the face falls away beneath you rather
+  // than standing as a vertical slab.
+  broad -= 0.15 * Math.max(0, lip - 4);
   if (lip < 3) broad -= (3 - lip) ** 2 * 0.9;
   // Crevices: narrow grooves along the zero lines of a stretched noise
   // field (ridged noise), with the finer knobbly relief.
@@ -186,10 +209,12 @@ function wallZ(x: number, y: number, top: number): number {
   return broad + detail;
 }
 
-function buildWall(): { rock: THREE.BufferGeometry; fans: FanPlacement[] } {
+/** The face, built in its own frame (see wallRelief): the layer turns it to
+ *  run north–south along the crest, facing east into the blue. */
+function buildWall(): { rock: THREE.BufferGeometry; fans: FanPlacement[]; height: number } {
   const height = WALL_BOTTOM_DEPTH_M - WALL_TOP_DEPTH_M;
-  // Three vertices a metre, enough for the 1 m relief term to show.
-  const face = new THREE.PlaneGeometry(WALL_WIDTH_M, height, WALL_WIDTH_M * 3, Math.round(height * 3));
+  // Two vertices a metre: the rock grain in the shader carries the rest.
+  const face = new THREE.PlaneGeometry(REEF_LENGTH_M, height, REEF_LENGTH_M * 2, Math.round(height * 2));
   face.deleteAttribute('uv');
   const top = height / 2;
   const pos = face.getAttribute('position');
@@ -197,96 +222,128 @@ function buildWall(): { rock: THREE.BufferGeometry; fans: FanPlacement[] } {
   face.computeVertexNormals();
   setColour(face, (x, y) => scale3(reefColour(x, y, SEED + 30), occlusion(wallRelief(x, y, top).detail, 0.5, 0.45)));
 
-  // No coral heads on the wall (round 2 critique: they read as floating
+  // No coral heads on the face (round 2 critique: they read as floating
   // potatoes); its growth is sea fans standing off the rock at an angle,
-  // densest across the middle, where the camera faces it, and down to the
-  // drop-off's depths.
+  // densest down the camera's line of descent (wall-local x is north–south
+  // reversed: x = REEF_MID_Z − z).
   const fans: FanPlacement[] = [];
-  for (let i = 0; i < 900; i++) {
-    // Two in five crowd the stretch the camera swims along (wall-local
-    // -30..60 m; reefPaths.ts slide), the rest anywhere along the face.
-    const x =
-      i % 5 < 2 ? -30 + 90 * hash1(i, SEED + 40) : (hash1(i, SEED + 40) - 0.5) * (WALL_WIDTH_M - 10);
-    const y = top - 1.5 - hash1(i, SEED + 41) ** 1.2 * 40;
+  for (let i = 0; i < 1100; i++) {
+    const onPath = i % 5 < 3;
+    const z = onPath
+      ? lerp(PATH_NORTH_Z - 40, PATH_SOUTH_Z, hash1(i, SEED + 40))
+      : lerp(REEF_NORTH_Z - 5, REEF_SOUTH_Z + 5, hash1(i, SEED + 40));
+    const x = REEF_MID_Z - z;
+    const below = onPath ? 1 + hash1(i, SEED + 41) ** 1.3 * 26 : 1 + hash1(i, SEED + 41) ** 1.2 * 45;
+    const y = top - below;
     const width = 0.9 + 2.3 * hash1(i, SEED + 42) ** 2;
     const side = hash1(i, SEED + 43) < 0.5 ? -1 : 1;
     const yaw = side * (0.35 + 0.75 * hash1(i, SEED + 44));
     // Out from the rock by however far the turned fan's back edge swings
     // in, so that edge just meets it.
-    const z = wallZ(x, y, top) + 0.5 * width * Math.abs(Math.sin(yaw)) + 0.05;
+    const out = wallZ(x, y, top) + 0.5 * width * Math.abs(Math.sin(yaw)) + 0.05;
     fans.push({
-      position: new THREE.Vector3(x, y, z),
+      position: new THREE.Vector3(x, y, out),
       width,
       yaw,
       tilt: -0.1 - 0.35 * hash1(i, SEED + 45),
       colour: FANS[Math.floor(hash1(i, SEED + 46) * FANS.length)],
     });
   }
-  return { rock: face, fans };
+  return { rock: face, fans, height };
 }
 
-/** The plateau's surface height at (x, z), split into broad shape and
- *  local relief; z runs from 0 (near edge) to -PLATEAU_DEPTH_EXTENT_M.
- *  Past the far edge it plunges away. */
-function plateauRelief(x: number, z: number): { broad: number; detail: number } {
-  let broad = 1.2 * fbm2(x * 0.12, z * 0.12, SEED + 50);
-  const past = -z - (PLATEAU_LENGTH_M - 2);
-  if (past > 0) broad -= past * past * 1.5;
-  return { broad, detail: 0.45 * fbm2(x * 0.6, z * 0.6, SEED + 51, 3) };
+// The reef top is laid out in (u, z): u is metres east of the crest line
+// (negative: west of it, on the reef top), so it follows the meander.
+const crestX = (u: number, z: number) => EDGE_X + u + meander(z);
+
+/** Spur-and-groove: sand channels running out to the edge between coral
+ *  spurs, as on the seaward side of real reef tops. 0 on a spur, 1 in a
+ *  channel. */
+function channel(u: number, z: number): number {
+  const wave = 0.5 + 0.5 * Math.sin(z * 0.28 + 1.6 * fbm2(u * 0.04, z * 0.04, SEED + 52, 3));
+  return smoothstep(0.62, 0.92, wave) * smoothstep(-36, -8, u);
 }
 
-function plateauY(x: number, z: number): number {
-  const { broad, detail } = plateauRelief(x, z);
+/** The reef top's height at (u, z), split into broad shape and local
+ *  relief. It dips gently as it reaches the crest, to run in under the
+ *  face's rim. */
+function reefTopRelief(u: number, z: number): { broad: number; detail: number } {
+  let broad = worldY(REEF_TOP_DEPTH_M) + 1.2 * fbm2(u * 0.12, z * 0.12, SEED + 50) - 1.0 * channel(u, z);
+  const under = u - (REEF_TOP_EAST_U - 2);
+  if (under > 0) broad -= under * 0.4;
+  return { broad, detail: 0.45 * fbm2(u * 0.6, z * 0.6, SEED + 51, 3) * (1 - 0.7 * channel(u, z)) };
+}
+
+function reefTopY(u: number, z: number): number {
+  const { broad, detail } = reefTopRelief(u, z);
   return broad + detail;
 }
 
-function buildPlateau(): { rock: THREE.BufferGeometry; fans: FanPlacement[] } {
-  const ground = new THREE.PlaneGeometry(PLATEAU_WIDTH_M, PLATEAU_DEPTH_EXTENT_M, 340, 120);
+// Sand in the channels.
+const SAND: RGBTuple = [0.8, 0.76, 0.64];
+
+function buildReefTop(): { rock: THREE.BufferGeometry; fans: FanPlacement[] } {
+  const width = REEF_TOP_EAST_U - REEF_WEST_X;
+  const ground = new THREE.PlaneGeometry(width, REEF_LENGTH_M, Math.round(width * 1.6), Math.round(REEF_LENGTH_M * 1.6));
   ground.deleteAttribute('uv');
   ground.rotateX(-Math.PI / 2);
-  ground.translate(0, 0, -PLATEAU_DEPTH_EXTENT_M / 2);
+  ground.translate((REEF_TOP_EAST_U + REEF_WEST_X) / 2, 0, REEF_MID_Z);
+  // Colours are set from (u, z) below, before the vertices move to x.
   const pos = ground.getAttribute('position');
-  for (let i = 0; i < pos.count; i++) pos.setY(i, plateauY(pos.getX(i), pos.getZ(i)));
-  ground.computeVertexNormals();
+  for (let i = 0; i < pos.count; i++) pos.setY(i, reefTopY(pos.getX(i), pos.getZ(i)));
   // Dark clumps of living coral among paler rubble, as reference 2's reef
-  // tops are (7:16, 7:40) — not an even pale floor.
-  setColour(ground, (x, _y, z) => {
-    const clump = smoothstep(0.0, 0.3, fbm2(x * 0.5, z * 0.5, SEED + 61, 3));
-    const shade = occlusion(plateauRelief(x, z).detail, 0.9, 0.55) * (1 - 0.5 * clump);
-    return scale3(reefColour(x, z, SEED + 60), shade);
+  // tops are (7:16, 7:40), and pale sand in the channels.
+  setColour(ground, (u, _y, z) => {
+    const clump = smoothstep(0.0, 0.3, fbm2(u * 0.5, z * 0.5, SEED + 61, 3));
+    const shade = occlusion(reefTopRelief(u, z).detail, 0.9, 0.55) * (1 - 0.5 * clump);
+    return mix3(scale3(reefColour(u, z, SEED + 60), shade), SAND, 0.8 * channel(u, z));
   });
+  for (let i = 0; i < pos.count; i++) pos.setX(i, crestX(pos.getX(i), pos.getZ(i)));
+  ground.computeVertexNormals();
+
+  // Where the camera swims over the reef top: u −25..−5, z −10..−90 (u as
+  // above). Every placement is chosen in (u, z) and set down at crestX.
+  const near = (i: number, seed: number): [number, number] => [
+    lerp(-25, REEF_TOP_EAST_U - 1, hash1(i, seed)),
+    lerp(PATH_NORTH_Z, -90, hash1(i, seed + 1)),
+  ];
+  const anywhere = (i: number, seed: number): [number, number] => [
+    lerp(REEF_WEST_X + 4, REEF_TOP_EAST_U - 1, hash1(i, seed)),
+    lerp(REEF_NORTH_Z - 4, REEF_SOUTH_Z + 4, hash1(i, seed + 1)),
+  ];
 
   // Low coral mounds and rubble, not pebbles (round 2 critique: small,
   // saturated heads read as sweets on sand): wide, flat, half-buried,
-  // mostly the colour of the rock around them.
+  // mostly the colour of the rock around them, and on the spurs, not in the
+  // sand channels.
   const parts: THREE.BufferGeometry[] = [ground];
-  for (let i = 0; i < 640; i++) {
-    const x = (hash1(i, SEED + 70) - 0.5) * (PLATEAU_WIDTH_M - 8);
-    const z = -hash1(i, SEED + 71) * (PLATEAU_LENGTH_M - 3);
+  for (let i = 0; i < 760; i++) {
+    const [u, z] = i % 10 < 7 ? near(i, SEED + 70) : anywhere(i, SEED + 70);
+    if (channel(u, z) > 0.4) continue;
     const r = 0.3 + 1.7 * hash1(i, SEED + 72) ** 2;
     const coral = CORALS[Math.floor(hash1(i, SEED + 73) * CORALS.length)];
     const squash = 0.32 + 0.12 * hash1(i, SEED + 74);
-    const head = coralHead(r, squash, 'y', 1000 + i, mix3(reefColour(x, z, SEED + 60), coral, 0.12 + 0.18 * hash1(i, SEED + 75)));
-    head.translate(x, plateauY(x, z) - r * squash * 0.35, z);
+    const head = coralHead(r, squash, 'y', 1000 + i, mix3(reefColour(u, z, SEED + 60), coral, 0.12 + 0.18 * hash1(i, SEED + 75)));
+    head.translate(crestX(u, z), reefTopY(u, z) - r * squash * 0.35, z);
     parts.push(head);
   }
-  for (let i = 0; i < 30; i++) {
-    const x = (hash1(i, SEED + 80) - 0.5) * (PLATEAU_WIDTH_M - 10);
-    const z = -hash1(i, SEED + 81) * (PLATEAU_LENGTH_M - 4);
-    const colour = mix3(reefColour(x, z, SEED + 60), mix3(CORALS[2], CORALS[5], hash1(i, SEED + 82)), 0.35);
+  for (let i = 0; i < 44; i++) {
+    const [u, z] = i % 4 < 3 ? near(i, SEED + 80) : anywhere(i, SEED + 80);
+    if (channel(u, z) > 0.3 || u > REEF_TOP_EAST_U - 3) continue;
+    const colour = mix3(reefColour(u, z, SEED + 60), mix3(CORALS[2], CORALS[5], hash1(i, SEED + 82)), 0.35);
     const table = tableCoral(0.9 + 1.4 * hash1(i, SEED + 83), colour);
     table.rotateY(hash1(i, SEED + 84) * Math.PI);
-    table.translate(x, plateauY(x, z), z);
+    table.translate(crestX(u, z), reefTopY(u, z), z);
     // mergeGeometries needs every part indexed or none; weld the tables.
     parts.push(mergeVertices(table));
   }
 
   const fans: FanPlacement[] = [];
-  for (let i = 0; i < 80; i++) {
-    const x = (hash1(i, SEED + 90) - 0.5) * (PLATEAU_WIDTH_M - 10);
-    const z = -hash1(i, SEED + 91) * (PLATEAU_LENGTH_M - 4);
+  for (let i = 0; i < 110; i++) {
+    const [u, z] = i % 4 < 3 ? near(i, SEED + 90) : anywhere(i, SEED + 90);
+    if (channel(u, z) > 0.4) continue;
     fans.push({
-      position: new THREE.Vector3(x, plateauY(x, z) - 0.05, z),
+      position: new THREE.Vector3(crestX(u, z), reefTopY(u, z) - 0.05, z),
       width: 0.6 + 1.3 * hash1(i, SEED + 92) ** 2,
       yaw: hash1(i, SEED + 93) * Math.PI,
       tilt: (hash1(i, SEED + 94) - 0.5) * 0.3,
@@ -302,11 +359,11 @@ export default function createReefLayer(): Layer {
   let fansMaterial: THREE.MeshStandardMaterial;
   let lace: THREE.Texture;
   let wall: THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
-  let plateau: THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
+  let reefTop: THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
   const fanMeshes: THREE.Mesh[] = [];
   let sun: THREE.DirectionalLight;
   let sky: THREE.HemisphereLight;
-  const uniforms = { uCausticTime: { value: 0 }, uCaustics: { value: 0 }, uEmerge: { value: 1 } };
+  const uniforms = { uCausticTime: { value: 0 }, uCamY: { value: 0 } };
 
   return {
     id: 'reef',
@@ -316,21 +373,18 @@ export default function createReefLayer(): Layer {
       withReefShading(rockMaterial, uniforms);
       lace = laceTexture(SEED);
       fansMaterial = fanMaterial(lace);
-      withEmerge(fansMaterial, uniforms);
+      withReefShading(fansMaterial, uniforms, { grain: false });
       const w = buildWall();
-      const p = buildPlateau();
+      const t = buildReefTop();
       wall = new THREE.Mesh(w.rock, rockMaterial);
-      plateau = new THREE.Mesh(p.rock, rockMaterial);
-      // The shelf is the wall's foot, so it rides with the wall: turned to
-      // run out from the face (its own -z away from the rock), starting a
-      // little inside it.
-      const height = WALL_BOTTOM_DEPTH_M - WALL_TOP_DEPTH_M;
-      plateau.rotation.y = Math.PI;
-      plateau.position.set(0, worldY(PLATEAU_TOP_DEPTH_M) - (worldY(WALL_TOP_DEPTH_M) - height / 2), -SHELF_INSET_M);
-      wall.add(plateau);
+      // Its own frame turned so the face runs north–south along the crest,
+      // facing east (wall-local +z → world +x, wall-local x → world −z).
+      wall.rotation.y = Math.PI / 2;
+      wall.position.set(EDGE_X, worldY(WALL_TOP_DEPTH_M) - w.height / 2, REEF_MID_Z);
+      reefTop = new THREE.Mesh(t.rock, rockMaterial);
       for (const [parent, fans] of [
         [wall, w.fans],
-        [plateau, p.fans],
+        [reefTop, t.fans],
       ] as const) {
         const mesh = new THREE.Mesh(fanGeometry(fans), fansMaterial);
         // Fans are blended: after the rock, before the fish and snow.
@@ -341,29 +395,12 @@ export default function createReefLayer(): Layer {
       sun = new THREE.DirectionalLight(0xffffff, 1);
       sun.position.set(0.3, 1, 0.2);
       sky = new THREE.HemisphereLight(0xffffff, 0x000000, 1);
-      ctx.scene.add(wall, sun, sky);
+      ctx.scene.add(wall, reefTop, sun, sky);
     },
     update(frame: DiveFrame) {
-      const { state, water } = frame;
-      const cam = ctx.camera.position;
-
-      // The wall's centre sits `slide` along the face and `distance` out in
-      // front, swung round the camera by `turn` (reefPaths.ts).
-      const pose = wallPose(state.progress);
-      wall.visible = pose !== null;
-      if (pose) {
-        const height = WALL_BOTTOM_DEPTH_M - WALL_TOP_DEPTH_M;
-        const c = Math.cos(pose.turn);
-        const s = Math.sin(pose.turn);
-        wall.rotation.y = pose.turn;
-        wall.position.set(
-          cam.x + pose.slide * c - pose.distance * s,
-          worldY(WALL_TOP_DEPTH_M) - height / 2,
-          cam.z - pose.slide * s - pose.distance * c,
-        );
-        plateau.visible = pose.shelf;
-        uniforms.uEmerge.value = pose.emerge;
-      }
+      const { water } = frame;
+      uniforms.uCamY.value = ctx.camera.position.y;
+      uniforms.uCausticTime.value = frame.timeS;
 
       // Red dies first: the reef's own colour is filtered by the water
       // between it and the surface, softened so a white-balanced camera's
@@ -373,13 +410,9 @@ export default function createReefLayer(): Layer {
       // reef at 18–20 m (the reference stills' reef tops, ~0.15 mean
       // luminance; round 1 critique).
       rockMaterial.color.setRGB(lerp(t[0], 1, 0.8), lerp(t[1], 1, 0.8), lerp(t[2], 1, 0.8), THREE.SRGBColorSpace);
-      // The fans' saturated colour soaks into the blue faster, so the
-      // drop-off's fans are blue-grey lace, not purple and red (round 2).
+      // The fans' saturated colour soaks into the blue faster, so the deep
+      // fans are blue-grey lace, not purple and red (round 2).
       fansMaterial.color.setRGB(lerp(t[0], 1, 0.5), lerp(t[1], 1, 0.5), lerp(t[2], 1, 0.5), THREE.SRGBColorSpace);
-      uniforms.uCausticTime.value = frame.timeS;
-      // Halved: at the reef top's 19 m the full web read as a sunlit
-      // swimming-pool floor (round 2).
-      uniforms.uCaustics.value = water.caustics * 0.5;
 
       // Underwater light is mostly scattered, arriving from everywhere: a
       // gentle sun from above and a strong hemisphere whose "ground" is
@@ -396,12 +429,12 @@ export default function createReefLayer(): Layer {
     },
     dispose() {
       wall.geometry.dispose();
-      plateau.geometry.dispose();
+      reefTop.geometry.dispose();
       for (const mesh of fanMeshes) mesh.geometry.dispose();
       rockMaterial.dispose();
       fansMaterial.dispose();
       lace.dispose();
-      ctx.scene.remove(wall, sun, sky);
+      ctx.scene.remove(wall, reefTop, sun, sky);
     },
   };
 }

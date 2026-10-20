@@ -4,13 +4,19 @@
 // never reads as a flat card, with a scrolling noise mask breaking it up.
 // Opacity follows water.shafts and is capped so beams never wash out the
 // text in front of them (plan Task 8).
+//
+// The beams stand still in the water while the camera swims past: each has
+// a fixed place in a tile of water that repeats around the camera, and
+// fades out towards the tile's edge (deep in the haze), where it wraps.
 
 import * as THREE from 'three';
+import { smoothstep } from '../math';
 import { hash1, noise1 } from '../noise';
 import type { Layer, LayerContext } from '../scene';
 import type { DiveFrame } from '../types';
 
-const COUNT = 9;
+const COUNT = 12;
+const TILE_M = 48;
 const LENGTH_M = 46;
 const MAX_OPACITY = 0.25;
 const SEED = 404;
@@ -117,13 +123,18 @@ export default function createShaftsLayer(): Layer {
       const visible = shafts > 0.001;
       const cam = ctx.camera.position;
       colour.setRGB(0.55 + 0.35 * transmittance[0], 0.85, 0.95, THREE.SRGBColorSpace);
+      // Offset of a fixed place in the repeating tile from the camera.
+      const wrap = (v: number) => ((((v % TILE_M) + TILE_M) % TILE_M) - TILE_M / 2);
       beams.forEach((mesh, i) => {
         mesh.visible = visible;
         if (!visible) return;
-        const angle = hash1(i, SEED + 1) * Math.PI * 2;
-        const radius = 4 + 20 * hash1(i, SEED + 2);
         const sway = 0.4 * noise1(frame.timeS * 0.08 + i * 3.1, SEED + 3);
-        mesh.position.set(cam.x + Math.cos(angle) * radius + sway, 0, cam.z + Math.sin(angle) * radius);
+        const dx = wrap((hash1(i, SEED + 1) - 0.5) * TILE_M + sway - cam.x);
+        const dz = wrap((hash1(i, SEED + 2) - 0.5) * TILE_M - cam.z);
+        mesh.position.set(cam.x + dx, 0, cam.z + dz);
+        // Gone towards the tile's edge, and never through the lens.
+        const edge = 1 - smoothstep(TILE_M * 0.33, TILE_M * 0.48, Math.max(Math.abs(dx), Math.abs(dz)));
+        const near = smoothstep(1.5, 4, Math.hypot(dx, dz));
         // Face the camera around the beam's own leaning axis. A right-handed
         // basis: x across the beam, y up along it, z = x × y.
         toCam.copy(cam).sub(mesh.position);
@@ -134,7 +145,7 @@ export default function createShaftsLayer(): Layer {
         mesh.quaternion.setFromRotationMatrix(basis);
         const u = mesh.material.uniforms;
         u.uTime.value = frame.timeS;
-        u.uOpacity.value = Math.min(MAX_OPACITY, 0.25 * shafts);
+        u.uOpacity.value = Math.min(MAX_OPACITY, 0.25 * shafts) * edge * near;
         (u.uCam.value as THREE.Vector3).copy(cam);
         u.uFogDensity.value = fogDensity * 0.7;
       });

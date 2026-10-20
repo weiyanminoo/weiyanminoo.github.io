@@ -35,17 +35,11 @@ export interface DiveScene {
   dispose(): void;
 }
 
-// A handheld swimmer's sway: radians of drift, and how fast it wanders.
+// A swimmer's sway: radians of drift, and how fast it wanders.
 const DRIFT_RAD = 0.02;
 const DRIFT_RATE = 0.15;
 const DRIFT_SEED_PITCH = 11;
 const DRIFT_SEED_YAW = 23;
-// "0 m" is just under the surface, not in it. Snell's window is a disc of
-// radius depth·tan(48.6°): at under a metre it is smaller than the ripples
-// and breaks into blobs, while at 3 m it is a 6.8 m disc with a fringed
-// edge. The depth gauge still reads the timeline's depth; only the rendered
-// camera sits this much lower.
-export const SURFACE_CLEARANCE_M = 3;
 // The longest the pre-roll waits for shaders before drawing anyway (a draw
 // then finishes their compile itself, just synchronously).
 const WARM_COMPILE_MS = 5000;
@@ -88,7 +82,8 @@ export async function createScene(
 
   const render = (frame: DiveFrame) => {
     const { state, timeS } = frame;
-    camera.position.set(0, -(state.depth + SURFACE_CLEARANCE_M), 0);
+    // The camera swims a real path through the dive site (timeline.ts).
+    camera.position.set(...state.position);
     camera.rotation.set(
       state.camera.pitch + DRIFT_RAD * noise1(timeS * DRIFT_RATE, DRIFT_SEED_PITCH),
       state.camera.yaw + DRIFT_RAD * noise1(timeS * DRIFT_RATE, DRIFT_SEED_YAW),

@@ -297,14 +297,15 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
 
   /* The title sits over the brightest water in the film (just under the
      surface), so its scrim is the deepest. Projects is read while the
-     camera looks up at the surface glow for the manta, so it is next. */
+     camera looks up into the blue for the manta and turns back past the
+     lit face, so it is next. */
   .title {
     --scrim: 0.75;
   }
 
   .station[data-section='projects'] {
-    --scrim: 0.7;
-    --band: 0.56;
+    --scrim: 0.74;
+    --band: 0.62;
   }
 
   /* Poster frames behind each station when the film is not running. Hidden

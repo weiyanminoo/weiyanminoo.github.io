@@ -1,66 +1,111 @@
 // The storyboard (spec §6) as data, and the pure function that reads it:
 // progress → DiveState. Scroll position is the director's timeline; nothing
 // here knows about the DOM, Three.js or the clock.
+//
+// One dive, told in order through one fixed reef (world.ts): the descent
+// half of a real wall dive. Back-roll beside the reef, free descent in the
+// blue with the reef rising out of the haze below, settle over the reef top
+// and fin along it, go over the edge looking down the face, then drift down
+// the wall with it on the left and the blue on the right — where the manta
+// and the shark pass — to 40 m, and look up.
 
 import { clamp, lerp } from './math';
-import type { CameraPose, DiveEvents, DiveState, SectionId, ShotId } from './types';
+import type { CameraPose, DiveEvents, DiveState, SectionId, ShotId, Vec3 } from './types';
+import { worldY } from './world';
 
 export const SHOTS: readonly { id: ShotId; from: number; to: number }[] = [
   { id: 'surface', from: 0, to: 0.06 },
   { id: 'descent', from: 0.06, to: 0.24 },
   { id: 'school', from: 0.24, to: 0.32 },
-  { id: 'wall', from: 0.32, to: 0.44 },
-  { id: 'reef-top', from: 0.44, to: 0.58 },
+  { id: 'reef-top', from: 0.32, to: 0.46 },
+  { id: 'dropoff', from: 0.46, to: 0.54 },
+  { id: 'wall', from: 0.54, to: 0.58 },
   { id: 'manta', from: 0.58, to: 0.66 },
   { id: 'shark', from: 0.66, to: 0.72 },
   { id: 'thermocline', from: 0.72, to: 0.76 },
-  { id: 'dropoff', from: 0.76, to: 0.88 },
+  { id: 'deep-wall', from: 0.76, to: 0.88 },
   { id: 'deep', from: 0.88, to: 1 },
 ];
 
-/** [progress, metres], piecewise linear. */
+/** [progress, metres], piecewise linear. Level over the reef top, hovering
+ *  ~5 m above it (it is 19.5 m deep); the drop down the face begins only
+ *  once the camera is out over the edge. */
 export const DEPTH_KEYS: readonly (readonly [number, number])[] = [
   [0, 0],
   [0.06, 0],
-  [0.24, 15],
-  [0.32, 18],
-  [0.46, 18],
-  [0.58, 20],
+  [0.24, 13],
+  [0.32, 14.5],
+  [0.46, 14.5],
+  [0.49, 14.8],
+  [0.54, 20],
+  [0.66, 24],
   [0.72, 26],
   [0.76, 28],
   [0.88, 35],
   [1, 40],
 ];
 
-/** [progress, pitch, yaw] in radians, smoothstep between neighbours.
- *  Starting values — tuned in the critique rounds. */
+/** [progress, x, z]: where the camera swims, in world metres (world.ts),
+ *  interpolated smoothly (monotone cubic), so it never stops dead, never
+ *  turns on a point and never swims back. About 200 m of swimming per unit
+ *  of progress once on the reef: a steady fin pace. */
+export const CAMERA_PATH: readonly (readonly [number, number, number])[] = [
+  // In the blue 10 m off the crest, under the boat.
+  [0, 10, 0],
+  [0.06, 10, -1],
+  // Free descent, drifting in towards the reef as it rises out of the haze.
+  [0.15, 8, -9],
+  [0.24, 4, -21],
+  // Over the crest and onto the reef top, a few metres in from the edge.
+  [0.32, -4, -37],
+  [0.46, -5, -64],
+  // Out over the edge…
+  [0.5, 2, -71],
+  [0.54, 8.5, -77],
+  // …and down the face, ~11 m off its line (its spurs and fans come within
+  // a few metres).
+  [0.66, 11, -103],
+  [0.76, 11, -125],
+  [0.88, 11, -151],
+  // Levelling off at 40 m, easing away from the face into the blue.
+  [1, 14, -163],
+];
+
+/** [progress, pitch, yaw] in radians, smoothstep between neighbours. Yaw is
+ *  relative to the swim (−z); positive looks left, towards the wall. */
 export const CAMERA_KEYS: readonly (readonly [number, number, number])[] = [
   // Up at the surface, but only ~26°: Snell's window and the sun glare sit
   // in the top quarter of the frame, behind the menu's gradient, and the
   // title reads over blue water below them.
   [0, 0.45, 0],
   [0.06, 0.45, 0],
-  [0.2, -0.35, 0],
-  [0.28, -0.1, 0.15],
-  [0.34, -0.25, 0],
-  // The wall swings to the left (reefPaths.ts) while the camera looks a
-  // little further down; then, swimming along it, a glance left keeps the
-  // face in the left third and the shelf filling the frame below.
-  [0.44, -0.36, 0.1],
-  [0.5, -0.42, 0.28],
-  // Over the reef top for most of its shot before turning up to the manta
-  // (round 4: half the shot was open water).
-  [0.555, -0.32, 0.12],
-  [0.6, 1.0, 0],
-  // Down from the manta in good time to be level, turned left, for the
-  // whole of the shark's pass (round 2: it crossed while the camera still
-  // looked up).
-  [0.64, 1.0, 0],
-  [0.685, 0, 0.4],
-  [0.74, 0, 0],
-  [0.8, -0.45, 0],
-  [0.92, -0.2, 0],
-  [1, 0.6, 0],
+  // Looking down and left at the reef rising out of the blue.
+  [0.15, -0.35, 0.25],
+  [0.24, -0.4, 0.15],
+  // Level for the fusiliers over the crest.
+  [0.3, -0.2, 0],
+  // Over the reef top, glancing right towards the edge.
+  [0.38, -0.3, -0.1],
+  [0.44, -0.3, -0.3],
+  // Over the edge: looking down the face as it drops away on the left.
+  [0.5, -0.7, 0.45],
+  // Drifting along it, the face in the left third.
+  [0.55, -0.3, 0.3],
+  // Up and out into the blue, following the manta as it glides across
+  // above, from the blue in towards the reef (faunaPaths.ts).
+  [0.595, 0.45, -0.7],
+  [0.62, 0.62, -0.28],
+  [0.65, 0.53, 0.4],
+  // Level and out to the right, into the haze, as the shark closes.
+  [0.69, -0.03, -0.8],
+  [0.72, 0, -1.15],
+  // Back to the wall for the thermocline.
+  [0.76, 0, 0],
+  // Down the deep face.
+  [0.8, -0.45, 0.35],
+  [0.92, -0.2, -0.3],
+  // At 40 m, looking up at the last of the light.
+  [1, 0.6, -0.2],
 ];
 
 /** Where each section's centre sits in the dive. The page's scroll mapping
@@ -88,6 +133,39 @@ function linearAt(keys: readonly (readonly [number, number])[], p: number): numb
   return keys[keys.length - 1][1];
 }
 
+/** Monotone cubic (Fritsch–Butland) through keys[i][0] → keys[i][channel]:
+ *  smooth velocity, and no overshoot past any key, so a path that only ever
+ *  heads south never swings north between keys. */
+function monotoneAt(keys: readonly (readonly number[])[], channel: number, p: number): number {
+  const n = keys.length;
+  let i = 0;
+  while (i < n - 2 && p > keys[i + 1][0]) i++;
+  const secant = (k: number) => (keys[k + 1][channel] - keys[k][channel]) / (keys[k + 1][0] - keys[k][0]);
+  const tangent = (k: number) => {
+    if (k === 0) return secant(0);
+    if (k === n - 1) return secant(n - 2);
+    const d0 = secant(k - 1);
+    const d1 = secant(k);
+    if (d0 * d1 <= 0) return 0;
+    const h0 = keys[k][0] - keys[k - 1][0];
+    const h1 = keys[k + 1][0] - keys[k][0];
+    const w0 = 2 * h1 + h0;
+    const w1 = h1 + 2 * h0;
+    return (w0 + w1) / (w0 / d0 + w1 / d1);
+  };
+  const [p0, p1] = [keys[i][0], keys[i + 1][0]];
+  const h = p1 - p0;
+  const t = clamp((p - p0) / h, 0, 1);
+  const t2 = t * t;
+  const t3 = t2 * t;
+  return (
+    (2 * t3 - 3 * t2 + 1) * keys[i][channel] +
+    (t3 - 2 * t2 + t) * h * tangent(i) +
+    (-2 * t3 + 3 * t2) * keys[i + 1][channel] +
+    (t3 - t2) * h * tangent(i + 1)
+  );
+}
+
 function cameraAt(p: number): CameraPose {
   for (let i = 0; i < CAMERA_KEYS.length - 1; i++) {
     const [p0, pitch0, yaw0] = CAMERA_KEYS[i];
@@ -100,6 +178,12 @@ function cameraAt(p: number): CameraPose {
   }
   const [, pitch, yaw] = CAMERA_KEYS[CAMERA_KEYS.length - 1];
   return { pitch, yaw };
+}
+
+/** The camera's place in the dive site at progress p, world metres. */
+export function positionAt(progress: number): Vec3 {
+  const p = clamp(progress, 0, 1);
+  return [monotoneAt(CAMERA_PATH, 1, p), worldY(linearAt(DEPTH_KEYS, p)), monotoneAt(CAMERA_PATH, 2, p)];
 }
 
 function shotIndexAt(p: number): number {
@@ -123,11 +207,15 @@ function ramp(p: number, from: number, to: number): number {
   return clamp((p - from) / (to - from), 0, 1);
 }
 
+/** [from, to] progress of each big animal's pass (events.manta, .shark). */
+export const MANTA_PASS: readonly [number, number] = [0.58, 0.66];
+export const SHARK_PASS: readonly [number, number] = [0.66, 0.72];
+
 function eventsAt(p: number): DiveEvents {
   return {
-    snapperCross: triangle(p, 0.52, 0.015),
-    manta: ramp(p, 0.58, 0.66),
-    shark: ramp(p, 0.66, 0.72),
+    snapperCross: triangle(p, 0.42, 0.015),
+    manta: ramp(p, ...MANTA_PASS),
+    shark: ramp(p, ...SHARK_PASS),
     thermocline: ramp(p, 0.72, 0.76),
   };
 }
@@ -142,6 +230,7 @@ export function diveStateAt(progress: number): DiveState {
     shot: shot.id,
     shotT,
     camera: cameraAt(p),
+    position: positionAt(p),
     events: eventsAt(p),
   };
 }

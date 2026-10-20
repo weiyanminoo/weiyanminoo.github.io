@@ -1,5 +1,5 @@
 // The water's optics as a pure function of depth. Every layer reads its
-// colour and light from here, so the 3D water and the graded footage agree.
+// colour and light from here, so every part of the water agrees.
 //
 // Fog stops are measured from reference 2's stills (spec §2): bright
 // sky-blue near the surface, cobalt by 15 m, navy-black in the deep.

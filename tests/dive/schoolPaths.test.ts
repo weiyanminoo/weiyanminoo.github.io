@@ -1,7 +1,35 @@
 import { describe, it, expect } from 'vitest';
+import { wallPose } from '../../src/scripts/dive/reefPaths';
 import { SCHOOLS, fishPose } from '../../src/scripts/dive/schoolPaths';
 
-const [blue, snapper, jacks] = SCHOOLS;
+const [blue, snapper, jacks, anthias] = SCHOOLS;
+
+describe('the anthias', () => {
+  // Small reef fish hover just off the face, whichever way the wall has
+  // swung (reefPaths.ts): measured in the wall's own frame.
+  it('hover within a few metres of the wall face', () => {
+    for (const p of [0.33, 0.38, 0.41, 0.46, 0.52]) {
+      const w = wallPose(p)!;
+      for (let i = 0; i < anthias.count; i += 11) {
+        const [x, , z] = fishPose(anthias, i, 15, p).position;
+        // Undo the wall's turn about the camera, then measure off its face.
+        const zWall = -x * Math.sin(-w.turn) + z * Math.cos(-w.turn);
+        const off = zWall + w.distance;
+        expect(off).toBeGreaterThanOrEqual(-0.5);
+        expect(off).toBeLessThanOrEqual(5);
+      }
+    }
+  });
+
+  it('stay with the wall, not the camera, as the camera swims along it', () => {
+    const along = (p: number) => {
+      const w = wallPose(p)!;
+      const [x, , z] = anthias.centre(15, p);
+      return x * Math.cos(-w.turn) + z * Math.sin(-w.turn) - w.slide;
+    };
+    expect(along(0.56)).toBeCloseTo(along(0.46), 0);
+  });
+});
 
 describe('fishPose', () => {
   it('is deterministic', () => {

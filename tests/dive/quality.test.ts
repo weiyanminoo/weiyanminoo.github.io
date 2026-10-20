@@ -21,23 +21,21 @@ describe('pickTier', () => {
 
 describe('settingsFor', () => {
   it('matches the spec for the low tier', () => {
-    expect(settingsFor('low', { originals: true, isMobile: false })).toEqual({
+    expect(settingsFor('low')).toEqual({
       tier: 'low',
       maxDpr: 1,
       snowCount: 700,
       schoolScale: 0.35,
       post: false,
-      footage: '540',
     });
   });
 
-  it('uses 1080 footage only with camera originals', () => {
-    expect(settingsFor('high', { originals: false, isMobile: false }).footage).toBe('720');
-    expect(settingsFor('high', { originals: true, isMobile: false }).footage).toBe('1080');
-  });
-
-  it('always gives mobile 540 footage', () => {
-    expect(settingsFor('medium', { originals: true, isMobile: true }).footage).toBe('540');
+  it('gives each tier down less to draw', () => {
+    const [high, medium, low] = (['high', 'medium', 'low'] as const).map(settingsFor);
+    expect(high.snowCount).toBeGreaterThan(medium.snowCount);
+    expect(medium.snowCount).toBeGreaterThan(low.snowCount);
+    expect(high.schoolScale).toBeGreaterThan(medium.schoolScale);
+    expect(medium.schoolScale).toBeGreaterThan(low.schoolScale);
   });
 });
 

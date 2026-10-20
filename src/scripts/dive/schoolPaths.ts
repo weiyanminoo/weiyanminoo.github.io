@@ -9,10 +9,11 @@
 
 import { lerp } from './math';
 import { hash1, noise1 } from './noise';
+import { wallPose } from './reefPaths';
 import type { Vec3 } from './types';
 
 export interface SchoolSpec {
-  id: 'open-blue' | 'snapper' | 'jacks';
+  id: 'open-blue' | 'snapper' | 'jacks' | 'anthias';
   count: number;
   /** Half-extent of the school around its centre, metres. */
   radius: Vec3;
@@ -27,7 +28,13 @@ export interface SchoolSpec {
   orbit?: number;
   /** How far a fish wanders from its place, as a share of the radius. */
   wander?: number;
+  /** Radians the school's own frame is swung about the vertical at pass s,
+   *  for a school laid out along something that turns (the wall). */
+  turn?(s: number): number;
 }
+
+// Where a school with nowhere to be is put (the layer parks it anyway).
+const NOWHERE: Vec3 = [0, 0, -1000];
 
 export const SCHOOLS: readonly SchoolSpec[] = [
   {
@@ -45,14 +52,14 @@ export const SCHOOLS: readonly SchoolSpec[] = [
     swim: [0, 0, 0],
   },
   {
-    // Yellow snapper streaming across the lens: right to left at eye level,
-    // the whole school just in front of the camera at s = 0.5 so it fills
-    // the frame for the cut (ref 2, 2:05).
+    // Yellow snapper streaming across the lens over the reef top: right to
+    // left at eye level, the whole school just in front of the camera at
+    // s = 0.5 (ref 2, 2:05), turning off before the wall on the left.
     id: 'snapper',
     count: 150,
     radius: [3, 1.0, 1.4],
     seed: 808,
-    centre: (t, s) => [lerp(14, -14, s) + 0.6 * Math.sin(0.4 * t), -0.4 + 0.3 * Math.sin(0.5 * t), -1.6],
+    centre: (t, s) => [lerp(10, -8, s) + 0.6 * Math.sin(0.4 * t), -0.4 + 0.3 * Math.sin(0.5 * t), -1.6],
     swim: [-1.5, 0, 0],
   },
   {
@@ -67,6 +74,31 @@ export const SCHOOLS: readonly SchoolSpec[] = [
     swim: [0, 0, 0],
     orbit: 0.18,
     wander: 0.05,
+  },
+  {
+    // Anthias: a cloud of small orange reef fish hovering just off the
+    // wall face, as on every wall in the tropics. Laid out in the wall's
+    // own frame (x along the face, z out from it) and swung round with it,
+    // anchored to the rock, so the camera swims past them along the wall.
+    // s is raw progress (the wall's pose is a function of it).
+    id: 'anthias',
+    count: 420,
+    radius: [8, 3.5, 1.8],
+    seed: 1010,
+    centre: (t, s) => {
+      const w = wallPose(s);
+      if (!w) return NOWHERE;
+      // 9 m along from the camera when the turn ends (slide 20), passing
+      // it as the slide runs down, 2.5 m off the face.
+      const along = 9 + (w.slide - 20) + 1.5 * Math.sin(0.05 * t);
+      const out = -w.distance + 2.5;
+      const c = Math.cos(w.turn);
+      const sn = Math.sin(w.turn);
+      return [along * c + out * sn, -1 + 0.8 * Math.sin(0.07 * t), -along * sn + out * c];
+    },
+    swim: [0, 0, 0],
+    wander: 0.2,
+    turn: (s) => wallPose(s)?.turn ?? 0,
   },
 ];
 
@@ -95,9 +127,16 @@ function position(spec: SchoolSpec, i: number, t: number, s: number): Vec3 {
   const c = spec.centre(t, s);
   const u = place(spec, i, t);
   const wander = spec.wander ?? WANDER;
-  return [0, 1, 2].map(
-    (k) => c[k] + spec.radius[k] * (u[k] + wander * noise1(t * WANDER_RATE + i * (1.31 + k), spec.seed + 4 + k)),
-  ) as unknown as Vec3;
+  const o = [0, 1, 2].map(
+    (k) => spec.radius[k] * (u[k] + wander * noise1(t * WANDER_RATE + i * (1.31 + k), spec.seed + 4 + k)),
+  );
+  if (spec.turn) {
+    const a = spec.turn(s);
+    const cos = Math.cos(a);
+    const sin = Math.sin(a);
+    [o[0], o[2]] = [o[0] * cos + o[2] * sin, -o[0] * sin + o[2] * cos];
+  }
+  return [c[0] + o[0], c[1] + o[1], c[2] + o[2]];
 }
 
 export function fishPose(

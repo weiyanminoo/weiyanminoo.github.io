@@ -133,7 +133,7 @@ export default function createSurfaceLayer(): Layer {
       const { depth } = frame.state;
       const { fog, fogDensity, ambient } = frame.water;
       const fade = 1 - smoothstep(10, 30, depth);
-      mesh.visible = fade > 0.001 && frame.state.insert === null;
+      mesh.visible = fade > 0.001;
       if (!mesh.visible) return;
       const u = mesh.material.uniforms;
       const cam = ctx.camera.position;

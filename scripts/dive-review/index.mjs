@@ -11,7 +11,6 @@
 //   resize        rotating a phone mid-dive keeps sections on their depth
 //   context-loss  a lost WebGL context drops back to the stills
 //   early-context-loss  one lost during the warm-up still ends the mount
-//   blocked-video with every .mp4 refused, the inserts show their posters
 //
 // Flags: --round N  --strips  --stills (write public/dive/stills/*.jpg)
 //        --flash (entry-burst flash check, added with the bubbles)
@@ -36,10 +35,10 @@ const MOBILE = { width: 390, height: 844 };
 // Mid-exhale (breathAt(8).phase ≈ 0.61), so sheets show the rising bubbles.
 const TIME_S = 8;
 const SHOT_SAMPLES = [0.25, 0.5, 0.75];
-// Every cut and blend in the storyboard: the exhale-burst cut into clip 4,
-// clip 4 → clip 3, the snapper cut back to wide, the manta and shark
-// passes, and the thermocline.
-const STRIP_CENTRES = [0.36, 0.46, 0.52, 0.62, 0.69, 0.74];
+// Every blend in the storyboard: the wall forming out of the haze, its
+// turn to the left, the snapper crossing over the reef top, the drift out
+// into the blue for the manta, the shark's pass, and the thermocline.
+const STRIP_CENTRES = [0.22, 0.4, 0.52, 0.62, 0.69, 0.74];
 const STRIP_HALF_WIDTH = 0.02;
 const STRIP_FRAMES = 12;
 const DEPTH_TOLERANCE_M = 0.5;
@@ -329,54 +328,6 @@ async function flashCheck(browser) {
   else fail(`flash: entry burst has ${flashes} flashes in 1.2 s (limit 3/s)`);
 }
 
-function meanColour(buf) {
-  const png = PNG.sync.read(buf);
-  const sum = [0, 0, 0];
-  let count = 0;
-  for (let y = 0; y < png.height; y += 6) {
-    for (let x = 0; x < png.width; x += 6) {
-      const i = (y * png.width + x) * 4;
-      for (let c = 0; c < 3; c++) sum[c] += png.data[i + c];
-      count++;
-    }
-  }
-  return sum.map((v) => v / count);
-}
-
-function hueOf([r, g, b]) {
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  if (max === min) return 0;
-  const d = max - min;
-  const h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
-  return h * 60;
-}
-
-// Review Focus 3: autoplay refused or the network fails. The insert must
-// fall back to its poster still — never black, never a frozen frame.
-async function blockedVideoCheck(browser) {
-  const context = await browser.newContext({ viewport: DESKTOP, deviceScaleFactor: 1 });
-  const page = await context.newPage();
-  const errors = [];
-  page.on('pageerror', (e) => errors.push(e.message));
-  await page.route('**/*.mp4', (route) => route.abort());
-  await page.goto(`${BASE}/?notext`, { waitUntil: 'load' });
-  await page.waitForFunction(() => document.documentElement.classList.contains('has-dive'));
-  await page.evaluate(() => document.getElementById('work').scrollIntoView({ block: 'center' }));
-  await page.waitForTimeout(2000);
-  const rgb = meanColour(await page.screenshot());
-  const lum = 0.2126 * srgbToLinear(rgb[0] / 255) + 0.7152 * srgbToLinear(rgb[1] / 255) + 0.0722 * srgbToLinear(rgb[2] / 255);
-  const hue = hueOf(rgb);
-  // The blank fallback (deep #0a2135) reads ~0.015; the graded poster ~0.056.
-  if (lum > 0.03 && hue >= 190 && hue <= 220) {
-    ok(`blocked-video: poster shown (luminance ${lum.toFixed(3)}, hue ${hue.toFixed(0)}°)`);
-  } else {
-    fail(`blocked-video: frame luminance ${lum.toFixed(3)}, hue ${hue.toFixed(0)}° — expected the poster (> 0.03, 190–220°)`);
-  }
-  if (errors.length) fail(`blocked-video: page errors: ${errors.join(' | ')}`);
-  await context.close();
-}
-
 // Dive in and Surface from the keyboard (plan Task 16).
 async function keyboardCheck(browser) {
   const { context, page, errors } = await openPage(browser, DESKTOP, '');
@@ -619,7 +570,6 @@ async function main() {
     await resizeCheck(browser);
     await contextLossCheck(browser);
     await earlyContextLossCheck(browser);
-    await blockedVideoCheck(browser);
     await keyboardCheck(browser);
     await soundCheck(browser);
     await reducedMotionCheck(browser);

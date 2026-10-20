@@ -9,10 +9,8 @@ export const SHOTS: readonly { id: ShotId; from: number; to: number }[] = [
   { id: 'surface', from: 0, to: 0.06 },
   { id: 'descent', from: 0.06, to: 0.24 },
   { id: 'school', from: 0.24, to: 0.32 },
-  { id: 'wall', from: 0.32, to: 0.36 },
-  { id: 'insert-wall', from: 0.36, to: 0.46 },
-  { id: 'insert-slope', from: 0.46, to: 0.52 },
-  { id: 'reef-top', from: 0.52, to: 0.58 },
+  { id: 'wall', from: 0.32, to: 0.44 },
+  { id: 'reef-top', from: 0.44, to: 0.58 },
   { id: 'manta', from: 0.58, to: 0.66 },
   { id: 'shark', from: 0.66, to: 0.72 },
   { id: 'thermocline', from: 0.72, to: 0.76 },
@@ -45,12 +43,14 @@ export const CAMERA_KEYS: readonly (readonly [number, number, number])[] = [
   [0.2, -0.35, 0],
   [0.28, -0.1, 0.15],
   [0.34, -0.25, 0],
-  // Out of the slope clip still looking down at the reef, as its camera
-  // was: the cut carries the angle, and the floor fills the frame.
-  [0.52, -0.42, 0],
+  // The wall swings to the left (reefPaths.ts) while the camera looks a
+  // little further down; then, swimming along it, a glance left keeps the
+  // face in the left third and the shelf filling the frame below.
+  [0.44, -0.36, 0.1],
+  [0.5, -0.42, 0.28],
   // Over the reef top for most of its shot before turning up to the manta
   // (round 4: half the shot was open water).
-  [0.555, -0.32, 0],
+  [0.555, -0.32, 0.12],
   [0.6, 1.0, 0],
   // Down from the manta in good time to be level, turned left, for the
   // whole of the shark's pass (round 2: it crossed while the camera still
@@ -125,7 +125,6 @@ function ramp(p: number, from: number, to: number): number {
 
 function eventsAt(p: number): DiveEvents {
   return {
-    exhaleBurst: triangle(p, 0.36, 0.012),
     snapperCross: triangle(p, 0.52, 0.015),
     manta: ramp(p, 0.58, 0.66),
     shark: ramp(p, 0.66, 0.72),
@@ -137,19 +136,12 @@ export function diveStateAt(progress: number): DiveState {
   const p = clamp(progress, 0, 1);
   const shot = SHOTS[shotIndexAt(p)];
   const shotT = (p - shot.from) / (shot.to - shot.from);
-  const insert =
-    shot.id === 'insert-wall'
-      ? { clip: 'wall' as const, pushIn: shotT }
-      : shot.id === 'insert-slope'
-        ? { clip: 'slope' as const, pushIn: shotT }
-        : null;
   return {
     progress: p,
     depth: linearAt(DEPTH_KEYS, p),
     shot: shot.id,
     shotT,
     camera: cameraAt(p),
-    insert,
     events: eventsAt(p),
   };
 }

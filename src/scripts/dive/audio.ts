@@ -1,11 +1,14 @@
 // The dive's sound (spec §7), as a Web Audio graph that starts only on the
 // Dive-in gesture:
 //
-//   bed        ~20 s of clip 4's own housing-and-water ambience, looped,
-//              low-passed and quietened with depth (audioMath.depthFilter)
+//   bed        generated, like everything else on the landing: the low
+//              rumble of water past the ears (seamless brown noise),
+//              low-passed and quietened with depth (audioMath.depthFilter),
+//              and the crackle of snapping shrimp — the sound of every reef,
+//              heard from far off
 //   breathing  synthesized regulator breaths on the shared breath clock
 //              (breath.ts), so the exhale bubbles on screen and the exhale
-//              you hear coincide; closer during the point-of-view inserts
+//              you hear coincide
 //   cues       a splash on entry, a low swell for the manta and another at
 //              the thermocline
 //
@@ -22,7 +25,6 @@ export type Cue = 'splash' | 'manta' | 'thermocline';
 export interface DiveAudio {
   start(): Promise<void>;
   setDepth(m: number): void;
-  setInsert(active: boolean): void;
   cue(name: Cue): void;
   setMuted(m: boolean): void;
   readonly muted: boolean;
@@ -33,12 +35,12 @@ export interface DiveAudio {
 // Mix. MASTER is set from a measured offline render (see renderPreview and
 // scripts/dive-review --loudness): about −16 LUFS integrated at 20 m,
 // quieter than video, because this is ambience under reading. Measured
-// through the limiter: 0.8 → −30.7 LUFS, 4.3 → −14.1, so 3.4.
-const MASTER = 3.4;
+// through the limiter with the generated bed: 4.6 → −16.8 LUFS, 5.0 →
+// −16.3. The rumble sits well under the breathing (the bed at full level
+// held the short-term loudness flat to ±1.5 dB, breaths and all).
+const MASTER = 5.0;
 const BED_LEVEL = 0.5;
 const BREATH_LEVEL = 0.5;
-// +3 dB: the breath comes close during the inserts.
-const INSERT_BOOST = 1.41;
 const LOOKAHEAD_S = 2;
 const SCHEDULE_EVERY_MS = 250;
 const SCAN_STEP_S = 0.02;
@@ -47,11 +49,18 @@ const SCAN_STEP_S = 0.02;
 const NOISE_S = 4;
 const SEED = 909;
 const RAMP_S = 0.3;
+// The bed's loops: long enough not to be heard repeating under reading.
+const BED_S = 8;
+const CROSSFADE_S = 0.5;
+const CRACKLE_PER_S = 70;
+const CRACKLE_LEVEL = 0.35;
+const CRACKLE_HZ = 2000;
 
 interface Graph {
   master: GainNode;
   bedFilter: BiquadFilterNode;
   bedGain: GainNode;
+  crackleGain: GainNode;
   breathGain: GainNode;
   noise: AudioBuffer;
 }
@@ -63,7 +72,56 @@ function makeNoise(ctx: BaseAudioContext): AudioBuffer {
   return buffer;
 }
 
-function buildGraph(ctx: BaseAudioContext, bed: AudioBuffer | null): Graph {
+/** Brown noise, its loop point hidden by an equal-power crossfade of its
+ *  head with what would have followed its tail. */
+function makeRumble(ctx: BaseAudioContext): AudioBuffer {
+  const rate = ctx.sampleRate;
+  const n = Math.floor(rate * BED_S);
+  const fade = Math.floor(rate * CROSSFADE_S);
+  const raw = new Float32Array(n + fade);
+  let b = 0;
+  for (let i = 0; i < raw.length; i++) {
+    b = (b + 0.02 * (hash1(i, SEED + 10) * 2 - 1)) / 1.02;
+    raw[i] = b * 0.6;
+  }
+  const buffer = ctx.createBuffer(1, n, rate);
+  const data = buffer.getChannelData(0);
+  data.set(raw.subarray(0, n));
+  for (let i = 0; i < fade; i++) {
+    const t = (i / fade) * (Math.PI / 2);
+    data[i] = raw[i] * Math.sin(t) + raw[n + i] * Math.cos(t);
+  }
+  return buffer;
+}
+
+/** Snapping shrimp: sparse, tiny clicks, mostly faint and a few close and
+ *  sharp, wrapping round the loop so it has no seam. */
+function makeCrackle(ctx: BaseAudioContext): AudioBuffer {
+  const rate = ctx.sampleRate;
+  const n = Math.floor(rate * BED_S);
+  const buffer = ctx.createBuffer(1, n, rate);
+  const data = buffer.getChannelData(0);
+  const clicks = Math.floor(CRACKLE_PER_S * BED_S);
+  for (let k = 0; k < clicks; k++) {
+    const at = Math.floor(hash1(k, SEED + 20) * n);
+    const amp = 0.15 + 0.85 * hash1(k, SEED + 21) ** 3;
+    const len = Math.max(8, Math.floor(rate * (0.0008 + 0.0015 * hash1(k, SEED + 22))));
+    for (let j = 0; j < len; j++) {
+      data[(at + j) % n] += amp * Math.exp(-j / (len * 0.3)) * (hash1(k * 4099 + j, SEED + 23) * 2 - 1);
+    }
+  }
+  return buffer;
+}
+
+function loop(ctx: BaseAudioContext, buffer: AudioBuffer, out: AudioNode) {
+  const src = ctx.createBufferSource();
+  src.buffer = buffer;
+  src.loop = true;
+  src.connect(out);
+  src.start();
+}
+
+function buildGraph(ctx: BaseAudioContext): Graph {
   const master = ctx.createGain();
   // A limiter after the master: the mix is brought up to its loudness
   // target, and breath bursts must not clip on the way.
@@ -84,17 +142,20 @@ function buildGraph(ctx: BaseAudioContext, bed: AudioBuffer | null): Graph {
   bedFilter.frequency.value = surface.lowpassHz;
   bedGain.gain.value = BED_LEVEL * surface.gain;
   bedFilter.connect(bedGain).connect(master);
+  loop(ctx, makeRumble(ctx), bedFilter);
+  // The crackle is all high frequencies: it skips the bed's depth low-pass
+  // (which would remove it) and only quietens with depth.
+  const crackleFilter = ctx.createBiquadFilter();
+  crackleFilter.type = 'highpass';
+  crackleFilter.frequency.value = CRACKLE_HZ;
+  const crackleGain = ctx.createGain();
+  crackleGain.gain.value = CRACKLE_LEVEL * surface.gain;
+  crackleFilter.connect(crackleGain).connect(master);
+  loop(ctx, makeCrackle(ctx), crackleFilter);
   const breathGain = ctx.createGain();
   breathGain.gain.value = BREATH_LEVEL;
   breathGain.connect(master);
-  if (bed) {
-    const src = ctx.createBufferSource();
-    src.buffer = bed;
-    src.loop = true;
-    src.connect(bedFilter);
-    src.start();
-  }
-  return { master, bedFilter, bedGain, breathGain, noise: makeNoise(ctx) };
+  return { master, bedFilter, bedGain, crackleGain, breathGain, noise: makeNoise(ctx) };
 }
 
 /** Filtered noise through an envelope of [time offset, level] points. */
@@ -190,29 +251,20 @@ function scheduleBreaths(ctx: BaseAudioContext, g: Graph, from: number, to: numb
   }
 }
 
-async function loadBed(ctx: BaseAudioContext, url: string): Promise<AudioBuffer | null> {
-  try {
-    const res = await fetch(url);
-    return await ctx.decodeAudioData(await res.arrayBuffer());
-  } catch {
-    // No bed is still a dive: breathing and cues carry on.
-    return null;
-  }
-}
-
 /** An offline render of the mix at one depth, for measuring loudness. */
-export async function renderPreview(bedUrl: string, seconds: number, depthM: number): Promise<AudioBuffer> {
+export async function renderPreview(seconds: number, depthM: number): Promise<AudioBuffer> {
   const ctx = new OfflineAudioContext(2, Math.floor(seconds * 48000), 48000);
-  const g = buildGraph(ctx, await loadBed(ctx, bedUrl));
+  const g = buildGraph(ctx);
   const f = depthFilter(depthM);
   g.bedFilter.frequency.value = f.lowpassHz;
   g.bedGain.gain.value = BED_LEVEL * f.gain;
+  g.crackleGain.gain.value = CRACKLE_LEVEL * f.gain;
   g.master.gain.value = MASTER;
   scheduleBreaths(ctx, g, 0, seconds, 0);
   return ctx.startRendering();
 }
 
-export function createAudio(opts: { bed: string; clock(): number; muted: boolean }): DiveAudio {
+export function createAudio(opts: { clock(): number; muted: boolean }): DiveAudio {
   let ctx: AudioContext | null = null;
   let g: Graph | null = null;
   let muted = opts.muted;
@@ -224,7 +276,6 @@ export function createAudio(opts: { bed: string; clock(): number; muted: boolean
   let timer = 0;
   let lastHz = -1;
   let lastGain = -1;
-  let insert = false;
 
   const schedule = () => {
     if (!ctx || !g || ctx.state !== 'running') return;
@@ -251,17 +302,8 @@ export function createAudio(opts: { bed: string; clock(): number; muted: boolean
       try {
         if (!ctx) {
           ctx = new AudioContext();
-          g = buildGraph(ctx, null);
+          g = buildGraph(ctx);
           g.master.gain.value = muted ? 0 : MASTER;
-          const context = ctx;
-          void loadBed(context, opts.bed).then((bed) => {
-            if (!bed || !g || ctx !== context) return;
-            const src = context.createBufferSource();
-            src.buffer = bed;
-            src.loop = true;
-            src.connect(g.bedFilter);
-            src.start();
-          });
           document.addEventListener('visibilitychange', onVisibility);
           timer = window.setInterval(schedule, SCHEDULE_EVERY_MS);
         }
@@ -281,12 +323,8 @@ export function createAudio(opts: { bed: string; clock(): number; muted: boolean
         lastGain = gain;
         g.bedFilter.frequency.setTargetAtTime(f.lowpassHz, ctx.currentTime, RAMP_S);
         g.bedGain.gain.setTargetAtTime(gain, ctx.currentTime, RAMP_S);
+        g.crackleGain.gain.setTargetAtTime(CRACKLE_LEVEL * f.gain, ctx.currentTime, RAMP_S);
       }
-    },
-    setInsert(active) {
-      if (!ctx || !g || active === insert) return;
-      insert = active;
-      g.breathGain.gain.setTargetAtTime(BREATH_LEVEL * (active ? INSERT_BOOST : 1), ctx.currentTime, RAMP_S);
     },
     cue(name) {
       if (ctx && g && ctx.state === 'running') playCue(ctx, g, name, ctx.currentTime + 0.02);
@@ -311,15 +349,14 @@ export function createAudio(opts: { bed: string; clock(): number; muted: boolean
   };
 }
 
-/** Per-frame bridge from the film to the sound: depth, inserts, and the
- *  cues edge-triggered by the storyboard's events. */
+/** Per-frame bridge from the film to the sound: depth, and the cues
+ *  edge-triggered by the storyboard's events. */
 export function frameSync(audio: DiveAudio): (frame: DiveFrame) => void {
   let prevManta = 0;
   let prevThermo = 0;
   return (frame) => {
-    const { depth, insert, events } = frame.state;
+    const { depth, events } = frame.state;
     audio.setDepth(depth);
-    audio.setInsert(insert !== null);
     if (prevManta < 0.1 && events.manta >= 0.1) audio.cue('manta');
     if (prevThermo < 0.5 && events.thermocline >= 0.5) audio.cue('thermocline');
     prevManta = events.manta;

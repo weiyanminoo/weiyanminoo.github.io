@@ -62,6 +62,25 @@ const FRAGMENT_GLSL = /* glsl */ `
   }
 `;
 
+// Fades a mesh in from (and back out to) the fog colour, uEmerge 0 → 1, so
+// a set piece arriving or leaving never pops even where the fog alone would
+// not hide it.
+const EMERGE_DECL = 'uniform float uEmerge;';
+const EMERGE_APPLY = /* glsl */ `#include <fog_fragment>
+  #ifdef USE_FOG
+    gl_FragColor.rgb = mix(fogColor, gl_FragColor.rgb, uEmerge);
+  #endif`;
+
+/** The fade from the fog alone, for the reef's other materials (fans). */
+export function withEmerge(material: THREE.Material, uniforms: Record<string, THREE.IUniform>) {
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uEmerge = uniforms.uEmerge;
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>\n${EMERGE_DECL}`)
+      .replace('#include <fog_fragment>', EMERGE_APPLY);
+  };
+}
+
 export function withReefShading(material: THREE.MeshStandardMaterial, uniforms: Record<string, THREE.IUniform>) {
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
@@ -75,7 +94,8 @@ export function withReefShading(material: THREE.MeshStandardMaterial, uniforms: 
         vCausticUp = normalize(mat3(modelMatrix) * objectNormal).y;`,
       );
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', `#include <common>\n${SHARED_GLSL}\n${FRAGMENT_GLSL}`)
+      .replace('#include <common>', `#include <common>\n${SHARED_GLSL}\n${FRAGMENT_GLSL}\n${EMERGE_DECL}`)
+      .replace('#include <fog_fragment>', EMERGE_APPLY)
       .replace(
         '#include <map_fragment>',
         `#include <map_fragment>

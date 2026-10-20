@@ -71,6 +71,20 @@ const LOOKS: Record<SchoolSpec['id'], SchoolLook> = {
     stripes: false,
     keepColour: 0.5,
   },
+  anthias: {
+    length: 0.13,
+    // With the wall, from far out in the haze to far out again.
+    visible: [0.2, 0.64],
+    // The anthias' paths read the wall's pose straight from progress.
+    pass: (p) => p,
+    // Orange, paler below: the colour a wall dive is remembered by.
+    colour: (y) => {
+      const t = smoothstep(0.0, -0.05, y);
+      return [lerp(0.98, 0.98, t), lerp(0.46, 0.68, t), lerp(0.26, 0.5, t)];
+    },
+    stripes: false,
+    keepColour: 0.75,
+  },
 };
 
 /** A fish pointing along +z, `length` long: lathe body flattened sideways

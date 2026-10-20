@@ -1,9 +1,9 @@
 // The lens. The scene renders to a target, then one full-screen pass gives
-// the 3D water and (Task 15) the footage the same optics: dome-port barrel
-// distortion, a touch of chromatic aberration towards the edges, vignette,
-// film grain, and the thermocline — a band of refraction shimmer swept
-// bottom to top by events.thermocline (plan Task 13). Grain is seeded by
-// the frame clock, so a seeked frame is still deterministic.
+// it a dive camera's optics: dome-port barrel distortion, a touch of
+// chromatic aberration towards the edges, vignette, film grain, and the
+// thermocline — a band of refraction shimmer swept bottom to top by
+// events.thermocline (plan Task 13). Grain is seeded by the frame clock,
+// so a seeked frame is still deterministic.
 
 import * as THREE from 'three';
 import type { DiveFrame } from './types';
@@ -37,7 +37,7 @@ const fragmentShader = /* glsl */ `
   const float BAND = 0.18;
   // The reference camera's punch (round 1 critique: our blue read grey next
   // to reference 2's cobalt): saturation in linear light, a gentle contrast
-  // curve after the sRGB conversion. One grade over CG and footage alike.
+  // curve after the sRGB conversion.
   const float SATURATION = 1.3;
   const float CONTRAST = 1.06;
 

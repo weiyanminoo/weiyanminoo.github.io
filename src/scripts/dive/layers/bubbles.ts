@@ -1,10 +1,9 @@
-// Bubbles, in three kinds, all closed-form in the frame (spec §5):
+// Bubbles, in two kinds, all closed-form in the frame (spec §5):
 //
 //   exhale  every breath (breath.ts), a stream rises from below the lens —
 //           the visitor's own regulator — along world up, so looking up you
 //           watch your bubbles climb towards the surface
 //   entry   the Dive-in back-roll: a dense cloud that clears (frame.entry)
-//   cut     the exhale burst that hides the cut into clip 4 (events.exhaleBurst)
 //
 // Positions are in camera space and projected directly, so the bubbles
 // travel with the lens. Each is drawn as a glass sphere — dark refractive
@@ -21,18 +20,12 @@ import type { DiveFrame } from '../types';
 
 const EXHALE_PER_BREATH = 18;
 const ENTRY_COUNT = 600;
-const CUT_COUNT = 450;
-const MAX = EXHALE_PER_BREATH * 2 + ENTRY_COUNT + CUT_COUNT;
+const MAX = EXHALE_PER_BREATH * 2 + ENTRY_COUNT;
 
 const ENTRY_S = 1.2;
-// The cut burst rises through the frame across this progress window,
-// centred on the cut at 0.36 (timeline.ts exhaleBurst).
-const CUT_FROM = 0.348;
-const CUT_SPAN = 0.024;
 const EXHALE_FROM = 0.4;
 const SEED_EXHALE = 101;
 const SEED_ENTRY = 202;
-const SEED_CUT = 303;
 
 const TAN_HALF_FOV = Math.tan((CAMERA_FOV_Y_DEG * Math.PI) / 360);
 
@@ -148,24 +141,6 @@ export default function createBubblesLayer(): Layer {
     }
   };
 
-  // The burst that covers the cut into clip 4: a tall column of big
-  // bubbles close to the lens, staggered so that at the cut itself (k = 0.5)
-  // they span the whole frame, sweeping up as the visitor scrolls through.
-  const writeCut = (frame: DiveFrame, aspect: number) => {
-    const e = frame.state.events.exhaleBurst;
-    if (e <= 0) return;
-    const k = clamp((frame.state.progress - CUT_FROM) / CUT_SPAN, 0, 1);
-    for (let j = 0; j < CUT_COUNT; j++) {
-      const z = -(0.2 + 1.0 * hash1(j, SEED_CUT));
-      const half = TAN_HALF_FOV * -z;
-      const x = (hash1(j, SEED_CUT + 1) * 2 - 1) * half * aspect * 1.1;
-      const start = -1.2 - 2.4 * hash1(j, SEED_CUT + 3);
-      const y = (start + 4.8 * k * (0.85 + 0.3 * hash1(j, SEED_CUT + 2))) * half;
-      const r = (0.03 + 0.1 * hash1(j, SEED_CUT + 4)) * -z;
-      put(x, y, z, r, r * 0.9, e);
-    }
-  };
-
   return {
     id: 'bubbles',
     init(c) {
@@ -206,7 +181,6 @@ export default function createBubblesLayer(): Layer {
       n = 0;
       writeExhale(frame.timeS);
       writeEntry(frame.entry, camera.aspect);
-      writeCut(frame, camera.aspect);
       mesh.geometry.instanceCount = n;
       centre.needsUpdate = true;
       radius.needsUpdate = true;

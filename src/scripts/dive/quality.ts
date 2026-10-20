@@ -1,7 +1,7 @@
 // Quality tiers. One dive, three budgets: the scene reads its particle
-// counts, pixel ratio, post pass and footage size from TierSettings, so a
-// slower device gets the same film with less in it rather than a different
-// design (spec §1, §11).
+// counts, pixel ratio and post pass from TierSettings, so a slower device
+// gets the same film with less in it rather than a different design
+// (spec §1, §11).
 
 export type Tier = 'high' | 'medium' | 'low';
 
@@ -18,7 +18,6 @@ export interface TierSettings {
   snowCount: number;
   schoolScale: number;
   post: boolean;
-  footage: '1080' | '720' | '540';
 }
 
 // Above this median frame time the tier steps down once.
@@ -35,16 +34,12 @@ export function pickTier(input: TierInput): Tier {
   return tier;
 }
 
-const BASE: Record<Tier, Omit<TierSettings, 'footage'>> = {
+const SETTINGS: Record<Tier, TierSettings> = {
   high: { tier: 'high', maxDpr: 1.5, snowCount: 2500, schoolScale: 1, post: true },
   medium: { tier: 'medium', maxDpr: 1.25, snowCount: 1500, schoolScale: 0.6, post: true },
   low: { tier: 'low', maxDpr: 1, snowCount: 700, schoolScale: 0.35, post: false },
 };
 
-export function settingsFor(tier: Tier, opts: { originals: boolean; isMobile: boolean }): TierSettings {
-  let footage: TierSettings['footage'];
-  if (opts.isMobile || tier === 'low') footage = '540';
-  else if (tier === 'high' && opts.originals) footage = '1080';
-  else footage = '720';
-  return { ...BASE[tier], footage };
+export function settingsFor(tier: Tier): TierSettings {
+  return { ...SETTINGS[tier] };
 }

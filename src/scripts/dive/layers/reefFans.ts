@@ -1,5 +1,5 @@
-// Sea fans for the reef: gorgonians, the lace that dominates the wall in
-// the footage (clip 4) and in silhouette on reference 2's reef tops. Each
+// Sea fans for the reef: gorgonians, the lace that dominates a tropical
+// wall and stands in silhouette on reference 2's reef tops. Each
 // fan is one quad cut out by a procedural lace alpha map — a branching
 // fan with a fine net between the branches, so close up it reads as lace
 // and at distance, where the mipmaps average the net, as a soft solid fan.

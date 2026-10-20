@@ -213,7 +213,6 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
   import { mountDive, type DiveHandle } from '../scripts/dive/index';
   import { wireUi } from '../scripts/dive/ui';
 
-  const BED_URL = '/dive/audio/bed.m4a';
   const root = document.querySelector('main');
   if (root) {
     // The controls and sound work with or without the film (reduced
@@ -228,7 +227,6 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
     })();
     let dive: DiveHandle | null = null;
     const audio = createAudio({
-      bed: BED_URL,
       clock: () => dive?.timeS ?? performance.now() / 1000,
       muted: readMuted(storage),
     });
@@ -245,7 +243,7 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
     if (new URLSearchParams(location.search).has('review')) {
       Object.assign(window, {
         __diveAudio: audio,
-        __diveAudioPreview: (seconds: number, depthM: number) => renderPreview(BED_URL, seconds, depthM),
+        __diveAudioPreview: (seconds: number, depthM: number) => renderPreview(seconds, depthM),
       });
     }
   }
@@ -277,7 +275,7 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
   /* Two layers: a radial centred behind the text column (left-aligned in
      the container, so not the page centre), and a feathered band across
      the station's full width, so labels at the far edge still hold AA over
-     the brightest footage. The film stays clear in the gaps between. */
+     the brightest water. The film stays clear in the gaps between. */
   .station::before {
     content: '';
     position: absolute;

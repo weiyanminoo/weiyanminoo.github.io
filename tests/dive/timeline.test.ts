@@ -43,18 +43,15 @@ describe('diveStateAt', () => {
     expect(diveStateAt(0.82).camera.pitch).toBeLessThan(-0.3);
   });
 
-  it('shows inserts only in their shots', () => {
-    expect(diveStateAt(0.4).insert?.clip).toBe('wall');
-    expect(diveStateAt(0.49).insert?.clip).toBe('slope');
-    expect(diveStateAt(0.3).insert).toBeNull();
-    expect(diveStateAt(0.55).insert).toBeNull();
-    expect(diveStateAt(0.37).insert!.pushIn).toBeLessThan(diveStateAt(0.45).insert!.pushIn);
+  it('fills the old footage stretch with generated shots', () => {
+    expect(diveStateAt(0.4).shot).toBe('wall');
+    expect(diveStateAt(0.5).shot).toBe('reef-top');
+    expect(diveStateAt(0.55).shot).toBe('reef-top');
   });
 
-  it('covers the cuts with events', () => {
-    expect(diveStateAt(0.36).events.exhaleBurst).toBe(1);
-    expect(diveStateAt(0.3).events.exhaleBurst).toBe(0);
+  it('times the snapper crossing to the reef top', () => {
     expect(diveStateAt(0.52).events.snapperCross).toBe(1);
+    expect(diveStateAt(0.3).events.snapperCross).toBe(0);
   });
 
   it('ramps events from 0 before to 1 after', () => {
@@ -75,7 +72,8 @@ describe('SECTION_PROGRESS', () => {
     const p = SECTION_PROGRESS;
     const order = [p.title, p.about, p.work, p.school, p.projects, p.hobbies, p.contact];
     expect(order).toEqual([...order].sort((a, b) => a - b));
-    expect(diveStateAt(p.work).insert?.clip).toBe('wall');
+    expect(diveStateAt(p.work).shot).toBe('wall');
+    expect(diveStateAt(p.school).shot).toBe('reef-top');
     expect(['manta', 'shark']).toContain(diveStateAt(p.projects).shot);
   });
 });

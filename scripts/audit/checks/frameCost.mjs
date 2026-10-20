@@ -148,7 +148,7 @@ async function collectWhileScrolling(page, durationMs) {
       new Promise((resolve) => {
         const start = performance.now();
         const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
-        // The dive's heaviest stretch: the reef, both schools, the inserts
+        // The dive's heaviest stretch: the wall and its shelf, the schools
         // and the animals sit roughly between a quarter and two thirds of
         // the way down.
         const from = 0.25 * maxScroll;

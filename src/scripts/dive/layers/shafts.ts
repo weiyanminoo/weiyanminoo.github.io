@@ -114,7 +114,7 @@ export default function createShaftsLayer(): Layer {
     },
     update(frame: DiveFrame) {
       const { shafts, fogDensity, transmittance } = frame.water;
-      const visible = shafts > 0.001 && frame.state.insert === null;
+      const visible = shafts > 0.001;
       const cam = ctx.camera.position;
       colour.setRGB(0.55 + 0.35 * transmittance[0], 0.85, 0.95, THREE.SRGBColorSpace);
       beams.forEach((mesh, i) => {

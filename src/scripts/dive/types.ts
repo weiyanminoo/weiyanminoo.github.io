@@ -14,16 +14,12 @@ export type ShotId =
   | 'descent'
   | 'school'
   | 'wall'
-  | 'insert-wall'
-  | 'insert-slope'
   | 'reef-top'
   | 'manta'
   | 'shark'
   | 'thermocline'
   | 'dropoff'
   | 'deep';
-
-export type ClipId = 'wall' | 'slope';
 
 /** Radians. Positive pitch looks up. */
 export interface CameraPose {
@@ -33,7 +29,6 @@ export interface CameraPose {
 
 /** Scroll-driven moments, each 0..1. */
 export interface DiveEvents {
-  exhaleBurst: number;
   snapperCross: number;
   manta: number;
   shark: number;
@@ -47,7 +42,6 @@ export interface DiveState {
   /** 0..1 through the current shot. */
   shotT: number;
   camera: CameraPose;
-  insert: { clip: ClipId; pushIn: number } | null;
   events: DiveEvents;
 }
 

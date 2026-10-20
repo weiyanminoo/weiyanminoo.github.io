@@ -15,9 +15,7 @@ import { createScene, type DiveScene, type Layer } from './scene';
 import { SECTION_PROGRESS, SHOTS, diveStateAt } from './timeline';
 import type { DiveFrame, DiveState, SectionId } from './types';
 import { waterAt } from './water';
-import { createFootage, type Footage } from './footage';
 import createVolumeLayer from './layers/volume';
-import createInsertLayer from './layers/insert';
 import createSurfaceLayer from './layers/surface';
 import createShaftsLayer from './layers/shafts';
 import createReefLayer from './layers/reef';
@@ -57,10 +55,6 @@ declare global {
 }
 
 const ENTRY_S = 1.2;
-// Footage is fetched once the dive passes this depth, so it has arrived
-// by the reef at 18 m (spec §8).
-const PRELOAD_DEPTH_M = 12;
-const FOOTAGE_BASE = '/dive/footage';
 // The depth event fires only when the reading changes by this much, so the
 // gauge and audit listeners are not woken at 60 Hz for an unchanged number.
 const DEPTH_EPSILON_M = 0.1;
@@ -74,12 +68,11 @@ const TIER_WARMUP_FRAMES = 10;
 const TIER_SAMPLE_FRAMES = 120;
 const SLOW_FRAME_MS = 22;
 
-// Back to front (plan Phase 3): volume, the footage insert, surface, shafts,
-// reef, schools, fauna, snow, bubbles.
-function buildLayers(footage: Footage): Layer[] {
+// Back to front: volume, surface, shafts, reef, schools, fauna, snow,
+// bubbles.
+function buildLayers(): Layer[] {
   return [
     createVolumeLayer(),
-    createInsertLayer(footage),
     createSurfaceLayer(),
     createShaftsLayer(),
     createReefLayer(),
@@ -136,7 +129,7 @@ export async function mountDive(root: HTMLElement, opts: MountOptions = {}): Pro
     dpr: window.devicePixelRatio,
     isMobile,
   });
-  let settings = settingsFor(tier, { originals: false, isMobile });
+  let settings = settingsFor(tier);
 
   // A context lost before the film is shown (driver reset, a mobile
   // browser's context cap) ends the mount: stills, in the compact layout.
@@ -146,13 +139,11 @@ export async function mountDive(root: HTMLElement, opts: MountOptions = {}): Pro
   };
   canvas.addEventListener('webglcontextlost', onEarlyLoss);
 
-  const footage = createFootage(FOOTAGE_BASE, settings.footage, { review });
   let scene: DiveScene;
   try {
-    scene = await createScene(canvas, settings, buildLayers(footage));
+    scene = await createScene(canvas, settings, buildLayers());
   } catch {
     canvas.removeEventListener('webglcontextlost', onEarlyLoss);
-    footage.dispose();
     fallBack(true);
     return null;
   }
@@ -194,7 +185,6 @@ export async function mountDive(root: HTMLElement, opts: MountOptions = {}): Pro
   canvas.removeEventListener('webglcontextlost', onEarlyLoss);
   if (lostEarly || scene.isLost()) {
     scene.dispose();
-    footage.dispose();
     fallBack(true);
     return null;
   }
@@ -211,19 +201,11 @@ export async function mountDive(root: HTMLElement, opts: MountOptions = {}): Pro
       // In review the entry is a seek argument, not a clock.
       startEntry() {},
       async seek(progress, timeS, entry = 1) {
-        const frame = frameAt(progress, timeS, entry);
-        // Frame-exact footage: the clip sits on the frame its push-in maps
-        // to before the scene is rendered.
-        const insert = frame.state.insert;
-        if (insert) {
-          await footage.seekTo(insert.clip, insert.pushIn * (footage.duration(insert.clip) - 0.05));
-        }
-        scene.render(frame);
+        scene.render(frameAt(progress, timeS, entry));
         await new Promise((r) => requestAnimationFrame(() => r(undefined)));
       },
       dispose() {
         scene.dispose();
-        footage.dispose();
         fallBack(false);
       },
     };
@@ -246,15 +228,15 @@ export async function mountDive(root: HTMLElement, opts: MountOptions = {}): Pro
   let rebuilding = false;
   let tierChecked = tier === 'low';
 
-  // One tier down, keeping the scroll position and the footage already
-  // fetched; the loop skips rendering while the new scene is built.
+  // One tier down, keeping the scroll position; the loop skips rendering
+  // while the new scene is built.
   const rebuild = async () => {
     rebuilding = true;
     tier = downgrade(tier);
-    settings = settingsFor(tier, { originals: false, isMobile });
+    settings = settingsFor(tier);
     scene.dispose();
     try {
-      scene = await createScene(canvas, settings, buildLayers(footage));
+      scene = await createScene(canvas, settings, buildLayers());
       resize();
     } catch {
       toStills();
@@ -289,8 +271,6 @@ export async function mountDive(root: HTMLElement, opts: MountOptions = {}): Pro
     const progress = progressFromScroll(scrollY, anchors);
     const entry = clamp((timeS - entryStartS) / ENTRY_S, 0, 1);
     const frame = frameAt(progress, timeS, entry);
-    if (frame.state.depth > PRELOAD_DEPTH_M) footage.preload();
-    footage.setActive(frame.state.insert?.clip ?? null);
     scene.render(frame);
     opts.onFrame?.(frame);
 
@@ -335,10 +315,9 @@ export async function mountDive(root: HTMLElement, opts: MountOptions = {}): Pro
   };
 
   // The film stops for good: the stills, in the film's layout, with no
-  // leftover focus blur and no clip playing unseen.
+  // leftover focus blur.
   const toStills = () => {
     stop();
-    footage.setActive(null);
     for (const el of stations) el.style.removeProperty('--pull');
     fallBack(false);
   };
@@ -365,7 +344,6 @@ export async function mountDive(root: HTMLElement, opts: MountOptions = {}): Pro
     dispose() {
       stop();
       scene.dispose();
-      footage.dispose();
       fallBack(false);
     },
   };

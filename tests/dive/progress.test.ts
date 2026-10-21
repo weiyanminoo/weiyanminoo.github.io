@@ -74,9 +74,23 @@ describe('anchorsFromLayout', () => {
 });
 
 describe('focusFor', () => {
-  it('is 1 at the centre, 0 at 0.6 viewport away, and falls between', () => {
-    expect(focusFor(450, 450, 900)).toBe(1);
-    expect(focusFor(450 + 540, 450, 900)).toBe(0);
-    expect(focusFor(600, 450, 900)).toBeGreaterThan(focusFor(800, 450, 900));
+  // focusFor(textTop, textBottom, viewportCentre, viewportH), viewport px.
+  it('is fully in focus whenever any of the text is at the viewport centre', () => {
+    expect(focusFor(300, 600, 450, 900)).toBe(1);
+    // A section taller than the screen (Work): sharp at its top and bottom.
+    expect(focusFor(400, 2400, 450, 900)).toBe(1);
+    expect(focusFor(-1500, 500, 450, 900)).toBe(1);
+  });
+
+  it('stays sharp just past its edges, then fades as the text leaves', () => {
+    expect(focusFor(450 + 80, 1200, 450, 900)).toBe(1);
+    expect(focusFor(450 + 300, 1200, 450, 900)).toBeGreaterThan(0);
+    expect(focusFor(450 + 300, 1200, 450, 900)).toBeLessThan(1);
+    expect(focusFor(450 + 500, 1500, 450, 900)).toBe(0);
+    expect(focusFor(-900, 450 - 500, 450, 900)).toBe(0);
+  });
+
+  it('falls steadily with distance', () => {
+    expect(focusFor(450 + 200, 1500, 450, 900)).toBeGreaterThan(focusFor(450 + 350, 1500, 450, 900));
   });
 });

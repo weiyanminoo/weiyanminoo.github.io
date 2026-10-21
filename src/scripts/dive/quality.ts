@@ -21,7 +21,7 @@ export interface TierSettings {
 }
 
 // Above this median frame time the tier steps down once.
-const SLOW_FRAME_MS = 22;
+const SLOW_FRAME_MS = 19;
 
 export function downgrade(tier: Tier): Tier {
   return tier === 'high' ? 'medium' : 'low';
@@ -35,8 +35,10 @@ export function pickTier(input: TierInput): Tier {
 }
 
 const SETTINGS: Record<Tier, TierSettings> = {
-  high: { tier: 'high', maxDpr: 1.5, snowCount: 2500, schoolScale: 1, post: true },
-  medium: { tier: 'medium', maxDpr: 1.25, snowCount: 1500, schoolScale: 0.6, post: true },
+  // Pixel ratio capped below a high-density display's own: under the film's
+  // grain and haze the difference is invisible, and it is most of the cost.
+  high: { tier: 'high', maxDpr: 1.25, snowCount: 2500, schoolScale: 1, post: true },
+  medium: { tier: 'medium', maxDpr: 1, snowCount: 1500, schoolScale: 0.6, post: true },
   low: { tier: 'low', maxDpr: 1, snowCount: 700, schoolScale: 0.35, post: false },
 };
 

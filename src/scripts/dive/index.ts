@@ -63,10 +63,13 @@ const PULL_EPSILON = 0.005;
 const MAX_FRAME_S = 0.1;
 // Runtime tier check (plan Task 19): after this many live frames (the
 // first few skipped as warm-up), a median frame time above SLOW_FRAME_MS
-// rebuilds the scene one tier down, once per page load.
+// rebuilds the scene one tier down, and checks again on the new tier, until
+// the dive holds its frame rate or reaches the lowest tier. 19 ms: anything
+// short of ~52 fps is felt as a stutter in a scroll-driven film (the 22 ms
+// it was let a laptop sit at 45–55 fps, visibly rough, without stepping).
 const TIER_WARMUP_FRAMES = 10;
 const TIER_SAMPLE_FRAMES = 120;
-const SLOW_FRAME_MS = 22;
+const SLOW_FRAME_MS = 19;
 
 // Back to front: volume, surface, shafts, reef, schools, fauna, snow,
 // bubbles.
@@ -155,6 +158,10 @@ export async function mountDive(root: HTMLElement, opts: MountOptions = {}): Pro
   // not read layout: interleaving those reads with its --pull writes forced
   // a style-and-layout pass per station per frame (~23 a frame, traced).
   let centres: number[] = [];
+  // Each station's text block, top and bottom, in document coordinates:
+  // the focus pull is measured from these, not from the station's centre,
+  // so a tall section stays sharp all the way through reading it.
+  let spans: (readonly [number, number])[] = [];
 
   // offsetTop, not getBoundingClientRect: the focus pull translates each
   // station's content, and the anchors must not move with it.
@@ -162,6 +169,11 @@ export async function mountDive(root: HTMLElement, opts: MountOptions = {}): Pro
     const vh = window.innerHeight;
     const maxScroll = Math.max(0, document.documentElement.scrollHeight - vh);
     centres = stations.map((el) => el.offsetTop + el.offsetHeight / 2);
+    spans = stations.map((el) => {
+      const text = el.querySelector<HTMLElement>('.content') ?? el;
+      const top = el.offsetTop + (text === el ? 0 : text.offsetTop);
+      return [top, top + text.offsetHeight] as const;
+    });
     anchors = anchorsFromLayout(
       stations.map((el, i) => ({ id: el.dataset.section as SectionId, centreY: centres[i] })),
       vh,
@@ -214,7 +226,9 @@ export async function mountDive(root: HTMLElement, opts: MountOptions = {}): Pro
     return handle;
   }
 
-  const lenis = new Lenis({ autoRaf: false });
+  // A touch more glide than Lenis's default (lerp 0.1): the film should
+  // feel like drifting, not like a page snapping to the wheel.
+  const lenis = new Lenis({ autoRaf: false, lerp: 0.08 });
   let timeS = 0;
   let last = performance.now();
   let rafId = 0;
@@ -238,6 +252,10 @@ export async function mountDive(root: HTMLElement, opts: MountOptions = {}): Pro
     try {
       scene = await createScene(canvas, settings, buildLayers());
       resize();
+      // Measure the new tier from scratch; the lowest is as far as it goes.
+      frames = 0;
+      frameMs.length = 0;
+      tierChecked = tier === 'low';
     } catch {
       toStills();
     }
@@ -276,7 +294,7 @@ export async function mountDive(root: HTMLElement, opts: MountOptions = {}): Pro
 
     const vh = window.innerHeight;
     for (const [i, el] of stations.entries()) {
-      const pull = focusFor(centres[i] - scrollY, vh / 2, vh);
+      const pull = focusFor(spans[i][0] - scrollY, spans[i][1] - scrollY, vh / 2, vh);
       if (Math.abs((pulls.get(el) ?? -1) - pull) > PULL_EPSILON) {
         pulls.set(el, pull);
         el.style.setProperty('--pull', pull.toFixed(3));

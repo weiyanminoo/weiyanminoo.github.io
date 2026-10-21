@@ -49,8 +49,12 @@ export function anchorsFromLayout(
   return anchors;
 }
 
-/** How in-focus a station's text is: 1 at the viewport's centre, 0 once its
- *  centre is 0.6 of a viewport away. */
-export function focusFor(sectionCentreY: number, viewportCentreY: number, viewportH: number): number {
-  return 1 - smoothstep(0, 0.6 * viewportH, Math.abs(sectionCentreY - viewportCentreY));
+/** How in-focus a station's text is, from where its text block spans
+ *  (textTop..textBottom, viewport px): 1 whenever any of it is at the
+ *  viewport's centre — however tall it is, so a long section is sharp all
+ *  the way through reading it — and still 1 just past its edges, falling to
+ *  0 once its nearest edge is just over half a viewport from the centre. */
+export function focusFor(textTop: number, textBottom: number, viewportCentreY: number, viewportH: number): number {
+  const away = Math.max(0, textTop - viewportCentreY, viewportCentreY - textBottom);
+  return 1 - smoothstep(0.1 * viewportH, 0.55 * viewportH, away);
 }

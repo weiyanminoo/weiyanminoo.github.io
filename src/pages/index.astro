@@ -1,18 +1,12 @@
 ---
 import DiveLayout from '../layouts/DiveLayout.astro';
-import SectionHead from '../components/SectionHead.astro';
-import RoleEntry from '../components/RoleEntry.astro';
-import SchoolCard from '../components/SchoolCard.astro';
-import ProjectCard from '../components/ProjectCard.astro';
-import PlaceholderCard from '../components/PlaceholderCard.astro';
 import SiteFooter from '../components/SiteFooter.astro';
+import { formatProjectPeriod, formatRolePeriod } from '../lib/dates';
 import { HOBBIES } from '../lib/hobbies';
 import { SCHOOL_SLOTS, PROJECT_SLOTS } from '../lib/slots';
 import { SECTION_PROGRESS, diveStateAt } from '../scripts/dive/timeline';
 import type { SectionId } from '../scripts/dive/types';
 import { getCollection } from 'astro:content';
-import { Image } from 'astro:assets';
-import portrait from '../assets/home-diving.png';
 
 const title = 'Wei Yan — Computer Science, NUS';
 const description =
@@ -69,71 +63,73 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
 
   <section class="station about" data-section="about" id="about" tabindex="-1">
     <img class="still" src={still('about')} alt="" loading="lazy" decoding="async" />
-    <div class="content container about-row">
-      <p class="lede">
-        Driven by curiousity and a growth mindset, I love tackling complex problems and working on
+    <div class="content container">
+      <p class="statement">
+        Driven by curiosity and a growth mindset, I love tackling complex problems and working on
         innovative solutions.
       </p>
-      <Image
-        class="portrait"
-        src={portrait}
-        alt="Wei Yan underwater in scuba gear, giving a shaka sign to the camera"
-        widths={[470, 700, 917]}
-        sizes="(max-width: 860px) min(100vw, 420px), 420px"
-        loading="lazy"
-      />
     </div>
   </section>
 
   <div class="gap" style={`--gap: ${GAP_VH.afterAbout}`} aria-hidden="true"></div>
 
-  <section class="station" data-section="work" id="work">
+  <section class="station" data-section="work" id="work" aria-labelledby="work-title">
     <img class="still" src={still('work')} alt="" loading="lazy" decoding="async" />
     <div class="content container">
-      <SectionHead label="DIVE LOG — WORK" depth={depthLabel('work')} />
-      <div class="roles">
+      <header class="chapter">
+        <h2 class="chapter-title" id="work-title">Work</h2>
+        <p class="chapter-depth">{depthLabel('work')}</p>
+      </header>
+      <ol class="log">
         {
           allRoles.map((entry) => (
-            <RoleEntry
-              org={entry.data.org}
-              role={entry.data.role}
-              team={entry.data.team}
-              discipline={entry.data.discipline}
-              start={entry.data.start}
-              end={entry.data.end}
-              current={entry.data.current}
-              depth={entry.data.depth}
-              tags={entry.data.tags}
-              expandable={false}
-            />
+            <li class="log-row">
+              <p class="log-depth">
+                <span class="log-mark" aria-hidden="true" />
+                <span class="visually-hidden">Logged at </span>
+                {entry.data.depth} m
+              </p>
+              <div class="log-main">
+                <h3 class="log-org">
+                  {entry.data.org}
+                  {entry.data.current && <span class="log-now">Now</span>}
+                </h3>
+                <p class="log-role">{entry.data.role}</p>
+              </div>
+              <p class="log-meta">
+                <span>{formatRolePeriod(entry.data.start, entry.data.end, entry.data.current)}</span>
+                <span>{entry.data.discipline}</span>
+              </p>
+            </li>
           ))
         }
-      </div>
-      <p class="more"><a href="/work">All five roles in detail</a></p>
+      </ol>
+      <p class="more"><a href="/work">All {allRoles.length} roles in detail</a></p>
     </div>
   </section>
 
   <div class="gap" style={`--gap: ${GAP_VH.afterWork}`} aria-hidden="true"></div>
 
-  <section class="station" data-section="school" id="school">
+  <section class="station" data-section="school" id="school" aria-labelledby="school-title">
     <img class="still" src={still('school')} alt="" loading="lazy" decoding="async" />
     <div class="content container">
-      <SectionHead label="DIVE LOG — SCHOOL" depth={depthLabel('school')} />
-      <div class="cards">
+      <header class="chapter">
+        <h2 class="chapter-title" id="school-title">School</h2>
+        <p class="chapter-depth">{depthLabel('school')}</p>
+      </header>
+      <div class="pair">
         {
           allSchool.map((entry) => (
-            <SchoolCard
-              institution={entry.data.institution}
-              qualification={entry.data.qualification}
-              period={entry.data.period}
-              summary={entry.data.summary}
-              notes={entry.data.notes}
-            />
+            <article class="entry">
+              <h3 class="entry-name">{entry.data.institution}</h3>
+              <p class="entry-line">{entry.data.qualification}</p>
+              <p class="entry-meta">{entry.data.period}</p>
+            </article>
           ))
         }
         {
           Array.from({ length: schoolBlanks }, () => (
-            <PlaceholderCard label="A second school, not yet added" />
+            <p class="entry entry--blank">A second school, not yet added</p>
           ))
         }
       </div>
@@ -143,28 +139,29 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
 
   <div class="gap" style={`--gap: ${GAP_VH.afterSchool}`} aria-hidden="true"></div>
 
-  <section class="station" data-section="projects" id="projects">
+  <section class="station" data-section="projects" id="projects" aria-labelledby="projects-title">
     <img class="still" src={still('projects')} alt="" loading="lazy" decoding="async" />
     <div class="content container">
-      <SectionHead label="BUILT ON MY OWN TIME" depth={depthLabel('projects')} />
-      <div class="cards">
+      <header class="chapter">
+        <h2 class="chapter-title" id="projects-title">Projects</h2>
+        <p class="chapter-depth">{depthLabel('projects')}</p>
+      </header>
+      <p class="chapter-dek">Built on my own time.</p>
+      <div class="pair">
         {
           allProjects.map((entry) => (
-            <ProjectCard
-              name={entry.data.name}
-              kind={entry.data.kind}
-              start={entry.data.start}
-              ongoing={entry.data.ongoing}
-              url={entry.data.url}
-              summary={entry.data.summary}
-              outcome={entry.data.outcome}
-              tags={entry.data.tags}
-            />
+            <article class="entry">
+              <h3 class="entry-name">{entry.data.name}</h3>
+              <p class="entry-meta">
+                {entry.data.kind} &middot; {formatProjectPeriod(entry.data.start, entry.data.ongoing)}
+              </p>
+              <p class="entry-line">{entry.data.summary}</p>
+            </article>
           ))
         }
         {
           Array.from({ length: projectBlanks }, () => (
-            <PlaceholderCard label="A project not yet added" />
+            <p class="entry entry--blank">A project not yet added</p>
           ))
         }
       </div>
@@ -174,20 +171,24 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
 
   <div class="gap" style={`--gap: ${GAP_VH.afterProjects}`} aria-hidden="true"></div>
 
-  <section class="station" data-section="hobbies" id="hobbies">
+  <section class="station" data-section="hobbies" id="hobbies" aria-labelledby="hobbies-title">
     <img class="still" src={still('hobbies')} alt="" loading="lazy" decoding="async" />
     <div class="content container">
-      <SectionHead label="OUTSIDE THE WORK" depth={depthLabel('hobbies')} />
-      <div class="hobbies">
+      <header class="chapter">
+        <h2 class="chapter-title" id="hobbies-title">Hobbies</h2>
+        <p class="chapter-depth">{depthLabel('hobbies')}</p>
+      </header>
+      <p class="chapter-dek">Outside the work.</p>
+      <ul class="pursuits">
         {
           HOBBIES.map((hobby) => (
-            <div class="hobby">
-              <h3>{hobby.title}</h3>
-              {hobby.line && <p class="line">{hobby.line}</p>}
-            </div>
+            <li class="pursuit">
+              <h3 class="pursuit-name">{hobby.title}</h3>
+              {hobby.line && <p class="pursuit-line">{hobby.line}</p>}
+            </li>
           ))
         }
-      </div>
+      </ul>
       <p class="more"><a href="/hobbies">More outside the work</a></p>
     </div>
   </section>
@@ -325,18 +326,23 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
     display: none;
   }
 
-  /* The focus pull (spec §6): text sharpens as its station reaches the
-     viewport's centre. --pull is set per station by index.ts; it defaults to
-     1 (sharp), so without the film nothing is ever blurred. Not named
-     --focus — that token is the focus-ring colour. */
+  /* The focus pull (spec §6): a station's text settles in as it reaches the
+     viewport's centre, and eases away as it leaves. --pull is set per
+     station by index.ts from where its text block is, so a long section is
+     fully there all the way through reading it; it defaults to 1, so
+     without the film nothing ever fades. A fade and a short drift, not a
+     blur: a blur filter on large text re-rasterised every frame and cost
+     the scroll its smoothness. Not named --focus — that token is the
+     focus-ring colour. */
   .content {
-    filter: blur(calc((1 - var(--pull, 1)) * 6px));
-    transform: translateY(calc((1 - var(--pull, 1)) * 24px));
+    opacity: calc(0.15 + 0.85 * var(--pull, 1));
+    transform: translateY(calc((1 - var(--pull, 1)) * 16px));
+    will-change: opacity, transform;
   }
 
   @media (prefers-reduced-motion: reduce) {
     .content {
-      filter: none;
+      opacity: 1;
       transform: none;
     }
   }
@@ -399,68 +405,304 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
     background: rgba(4, 16, 28, 0.68);
   }
 
-  .about-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 420px);
-    gap: 48px;
-    align-items: center;
+  /* About: one statement, at the scale of the film's own title cards. */
+  .statement {
+    margin: 0;
+    max-width: 21ch;
+    font-size: clamp(2rem, 4.6vw, 4rem);
+    font-weight: 560;
+    line-height: 1.08;
+    letter-spacing: -0.025em;
+    text-wrap: balance;
+    color: var(--on-deep);
   }
 
-  .lede {
-    font-size: clamp(20px, 2.2vw, 28px);
-    line-height: 1.45;
-    max-width: 30ch;
+  /* Every other section opens on a chapter card: its name set wide, in the
+     title's own face, and its depth read off the dive (a measurement, so
+     the mono). */
+  .chapter {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px clamp(18px, 2.4vw, 32px);
+    margin-bottom: clamp(26px, 3.6vw, 48px);
   }
 
-  .portrait {
-    width: 100%;
-    height: auto;
-    border-radius: 6px;
+  .chapter-title {
+    margin: 0;
+    font-stretch: 125%;
+    font-weight: 750;
+    font-size: clamp(2.75rem, 7vw, 5.75rem);
+    line-height: 0.9;
+    letter-spacing: -0.03em;
+    color: var(--on-deep);
   }
 
-  @media (max-width: 860px) {
-    .about-row {
-      grid-template-columns: minmax(0, 1fr);
-    }
-  }
-
-  .roles {
-    display: grid;
-    gap: 2px;
-    margin-top: 24px;
-  }
-
-  .more {
-    margin-top: 28px;
+  .chapter-depth {
+    margin: 0;
     font-family: var(--mono);
-    font-size: 13px;
+    font-size: clamp(0.95rem, 1.3vw, 1.15rem);
+    letter-spacing: 0.08em;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    color: var(--on-deep-2);
   }
 
-  .more a {
-    color: inherit;
-    text-underline-offset: 5px;
+  .chapter-dek {
+    margin: calc(-1 * clamp(14px, 2.4vw, 32px)) 0 clamp(28px, 4vw, 48px);
+    font-size: clamp(1.1rem, 1.6vw, 1.35rem);
+    color: var(--on-deep-2);
   }
 
-  .hobbies {
+  /* Work: the dive log. One line runs down through each role's logged
+     depth, each role a stop on the way down; the current one is the page's
+     one lit thing. */
+  .log {
+    max-width: 62rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .log-row {
+    position: relative;
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 24px 48px;
-    margin-top: 28px;
+    grid-template-columns: clamp(4.5rem, 8vw, 6.5rem) minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0 clamp(16px, 3vw, 40px);
+    padding: clamp(12px, 1.5vw, 18px) 0;
+    border-top: 1px solid var(--line-deep);
+  }
+
+  .log-row:last-child {
+    border-bottom: 1px solid var(--line-deep);
+  }
+
+  /* The profile line, one segment per row, joined mark to mark. */
+  .log-row::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0.3rem;
+    width: 1px;
+    background: rgba(234, 244, 246, 0.32);
+  }
+
+  .log-row:first-child::before {
+    top: 50%;
+  }
+
+  .log-row:last-child::before {
+    bottom: 50%;
+  }
+
+  .log-depth {
+    position: relative;
+    margin: 0;
+    padding-left: 1.4rem;
+    font-family: var(--mono);
+    font-size: 0.9rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--on-deep-2);
+  }
+
+  .log-mark {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: 0.6rem;
+    height: 0.6rem;
+    margin-top: -0.3rem;
+    border: 1px solid var(--on-deep-2);
+    border-radius: 50%;
+    background: #05141f;
+  }
+
+  .log-row:has(.log-now) .log-mark {
+    border-color: var(--mark);
+    background: var(--mark);
+  }
+
+  .log-org {
+    margin: 0;
+    font-stretch: 125%;
+    font-weight: 700;
+    font-size: clamp(1.45rem, 2.4vw, 2.1rem);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+  }
+
+  .log-now {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45em;
+    margin-left: 0.6em;
+    vertical-align: 0.3em;
+    font-family: var(--mono);
+    font-stretch: 100%;
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--mark);
+  }
+
+  .log-role {
+    margin: 0.3rem 0 0;
+    font-size: 1rem;
+    color: var(--on-deep-2);
+  }
+
+  .log-meta {
+    display: grid;
+    justify-items: end;
+    gap: 0.3rem;
+    margin: 0;
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    letter-spacing: 0.04em;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    color: var(--on-deep-2);
   }
 
   @media (max-width: 700px) {
-    .hobbies {
+    .log-row {
+      grid-template-columns: 3.9rem minmax(0, 1fr);
+      align-items: start;
+    }
+
+    .log-row::before {
+      top: 0;
+      bottom: 0;
+    }
+
+    .log-row:first-child::before {
+      top: calc(clamp(12px, 1.5vw, 18px) + 0.6em);
+    }
+
+    .log-row:last-child::before {
+      bottom: auto;
+      height: calc(clamp(12px, 1.5vw, 18px) + 0.6em);
+    }
+
+    .log-depth {
+      padding-top: 0.35rem;
+    }
+
+    .log-mark {
+      top: 0.35rem;
+      margin-top: 0.3rem;
+    }
+
+    .log-meta {
+      grid-column: 2;
+      display: flex;
+      flex-wrap: wrap;
+      justify-items: start;
+      gap: 0.2rem 0.9rem;
+      margin-top: 0.6rem;
+      text-align: left;
+    }
+  }
+
+  /* School and Projects: entries set as type on the water, two abreast. */
+  .pair {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: clamp(32px, 4.5vw, 60px) clamp(32px, 6vw, 96px);
+  }
+
+  .entry {
+    margin: 0;
+  }
+
+  .entry-name {
+    margin: 0;
+    font-stretch: 125%;
+    font-weight: 700;
+    font-size: clamp(1.5rem, 2.6vw, 2.25rem);
+    line-height: 1.02;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+
+  .entry-line {
+    max-width: 42ch;
+    margin: 0.6rem 0 0;
+    font-size: clamp(1rem, 1.2vw, 1.1rem);
+    line-height: 1.5;
+    color: var(--on-deep);
+  }
+
+  .entry-meta {
+    margin: 0.55rem 0 0;
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    letter-spacing: 0.06em;
+    font-variant-numeric: tabular-nums;
+    color: var(--on-deep-2);
+  }
+
+  .entry--blank {
+    padding-top: 0.6rem;
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    color: var(--on-deep-3);
+  }
+
+  /* Hobbies: the four pursuits, large, each with its one line. */
+  .pursuits {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: clamp(26px, 3.5vw, 48px) clamp(32px, 6vw, 96px);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .pursuit-name {
+    margin: 0;
+    font-stretch: 125%;
+    font-weight: 700;
+    font-size: clamp(2rem, 4.2vw, 3.5rem);
+    line-height: 0.95;
+    letter-spacing: -0.03em;
+  }
+
+  .pursuit-line {
+    max-width: 34ch;
+    margin: 0.6rem 0 0;
+    font-size: clamp(1rem, 1.3vw, 1.15rem);
+    line-height: 1.45;
+    color: var(--on-deep-2);
+  }
+
+  @media (max-width: 700px) {
+    .pair,
+    .pursuits {
       grid-template-columns: minmax(0, 1fr);
     }
   }
 
-  .hobby h3 {
-    margin: 0 0 6px;
-    font-size: 22px;
+  .more {
+    margin: clamp(28px, 4vw, 44px) 0 0;
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    letter-spacing: 0.06em;
   }
 
-  .hobby .line {
-    color: var(--on-deep-2);
+  .more a {
+    color: var(--on-deep);
+    text-decoration-thickness: 1px;
+    text-decoration-color: rgba(234, 244, 246, 0.45);
+    text-underline-offset: 6px;
+    transition: text-decoration-color 0.2s var(--ease);
+  }
+
+  .more a:hover {
+    text-decoration-color: var(--mark);
   }
 
   .contact :global(.site-footer) {

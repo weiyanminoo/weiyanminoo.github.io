@@ -13,7 +13,7 @@ import { lerp } from './math';
 import { hash1, noise1 } from './noise';
 import { positionAt } from './timeline';
 import type { Vec3 } from './types';
-import { EDGE_X } from './world';
+import { faceX } from './reefShape';
 
 export interface SchoolSpec {
   id: 'open-blue' | 'snapper' | 'jacks' | 'anthias';
@@ -29,11 +29,15 @@ export interface SchoolSpec {
   /** A milling school: fish hold places in a hollow column and circle its
    *  vertical axis at about this rate, rad/s, counter-clockwise from above. */
   orbit?: number;
-  /** How far a fish wanders from its place, as a share of the radius. */
-  wander?: number;
+  /** How far a fish wanders from its place, as a share of the radius:
+   *  one share for every axis, or one per axis. */
+  wander?: number | Vec3;
   /** Metres of rise per metre north (+z): tilts a long school so it
    *  follows a slope, such as the dive's line down the wall. */
   shear?: number;
+  /** Lays the school's x out from a surface instead of a plane: the
+   *  surface's x at a fish's home (z, depth), added to its offset. */
+  hug?(z: number, depthM: number): number;
 }
 
 // Where the camera is at each school's moment.
@@ -99,12 +103,16 @@ export const SCHOOLS: readonly SchoolSpec[] = [
     // tropical wall. Fixed to the rock; the camera drifts past them.
     id: 'anthias',
     count: 700,
-    radius: [1.8, 3.5, ANTHIAS_HALF_LENGTH],
+    radius: [1.6, 3.5, ANTHIAS_HALF_LENGTH],
     seed: 1010,
-    centre: (t) => [EDGE_X + 2.6, ANTHIAS_Y + 0.6 * Math.sin(0.07 * t), ANTHIAS_Z],
+    centre: (t) => [2.4, ANTHIAS_Y + 0.6 * Math.sin(0.07 * t), ANTHIAS_Z],
     swim: [0, 0, 0],
-    wander: 0.15,
+    // Flitting in and out from the rock and up and down it, but staying on
+    // their own stretch of it (the band is 50 m long).
+    wander: [0.15, 0.12, 0.02],
     shear: ANTHIAS_SHEAR,
+    // Just off the real rock, following its bays and spurs.
+    hug: (z, depthM) => faceX(z, depthM),
   },
 ];
 
@@ -129,14 +137,35 @@ function place(spec: SchoolSpec, i: number, t: number): number[] {
   return [(dx / len) * r, (dy / len) * r, (dz / len) * r];
 }
 
+// Each hugging fish's surface x at its home place, worked out once.
+const hugCache = new Map<SchoolSpec, Float64Array>();
+
+function hugAt(spec: SchoolSpec, i: number, s: number): number {
+  let cache = hugCache.get(spec);
+  if (!cache) {
+    cache = new Float64Array(spec.count).fill(Number.NaN);
+    hugCache.set(spec, cache);
+  }
+  if (Number.isNaN(cache[i])) {
+    const c = spec.centre(0, s);
+    const u = place(spec, i, 0);
+    const z = c[2] + spec.radius[2] * u[2];
+    const y = c[1] + spec.radius[1] * u[1] + (spec.shear ?? 0) * spec.radius[2] * u[2];
+    cache[i] = spec.hug!(z, -y - 3);
+  }
+  return cache[i];
+}
+
 function position(spec: SchoolSpec, i: number, t: number, s: number): Vec3 {
   const c = spec.centre(t, s);
   const u = place(spec, i, t);
-  const wander = spec.wander ?? WANDER;
+  const w = spec.wander ?? WANDER;
+  const wander = typeof w === 'number' ? [w, w, w] : w;
   const o = [0, 1, 2].map(
-    (k) => spec.radius[k] * (u[k] + wander * noise1(t * WANDER_RATE + i * (1.31 + k), spec.seed + 4 + k)),
+    (k) => spec.radius[k] * (u[k] + wander[k] * noise1(t * WANDER_RATE + i * (1.31 + k), spec.seed + 4 + k)),
   );
   if (spec.shear) o[1] += spec.shear * o[2];
+  if (spec.hug) o[0] += hugAt(spec, i, s);
   return [c[0] + o[0], c[1] + o[1], c[2] + o[2]];
 }
 

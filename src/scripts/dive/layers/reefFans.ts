@@ -159,3 +159,59 @@ export function fanMaterial(lace: THREE.Texture): THREE.MeshStandardMaterial {
     metalness: 0,
   });
 }
+
+/** A soft-coral tree (Dendronephthya), as on Komodo's walls: a pale trunk
+ *  forking into stalks, each ending in a dense cauliflower of polyps. One
+ *  canvas, two channels: green is coverage (the alphaMap), red marks the
+ *  polyps, where the colour goes (reefShading.ts `polyps`); the stalks stay
+ *  pale. */
+export function softCoralTexture(seed: number): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = LACE_PX;
+  canvas.height = LACE_PX;
+  const g = canvas.getContext('2d')!;
+  g.fillStyle = '#000';
+  g.fillRect(0, 0, LACE_PX, LACE_PX);
+  g.lineCap = 'round';
+  let n = 0;
+  const rand = (k: number) => hash1(n++, seed + k);
+
+  const clusters: [number, number, number][] = [];
+  const branch = (x: number, y: number, angle: number, len: number, width: number, depth: number) => {
+    const x2 = x + Math.cos(angle) * len;
+    const y2 = y - Math.sin(angle) * len;
+    g.strokeStyle = '#00ff00';
+    g.lineWidth = width;
+    g.beginPath();
+    g.moveTo(x, y);
+    g.quadraticCurveTo(x + Math.cos(angle + 0.2) * len * 0.5, y - Math.sin(angle + 0.2) * len * 0.5, x2, y2);
+    g.stroke();
+    if (depth === 0) {
+      clusters.push([x2, y2, 22 + 18 * rand(1)]);
+      return;
+    }
+    if (depth <= 2) clusters.push([x2, y2, 12 + 10 * rand(2)]);
+    const forks = 2 + (rand(3) < 0.35 ? 1 : 0);
+    for (let k = 0; k < forks; k++) {
+      const spread = (k - (forks - 1) / 2) * (0.5 + 0.3 * rand(4));
+      branch(x2, y2, angle + spread, len * (0.68 + 0.12 * rand(5)), Math.max(3, width * 0.66), depth - 1);
+    }
+  };
+  branch(LACE_PX / 2, LACE_PX - 10, Math.PI / 2, LACE_PX * 0.22, 26, 4);
+
+  // The polyps: overlapping round heads in each cluster, a few loose ones.
+  g.fillStyle = '#ffff00';
+  for (const [cx, cy, r] of clusters) {
+    const heads = Math.round(r * 0.9);
+    for (let k = 0; k < heads; k++) {
+      const a = rand(6) * Math.PI * 2;
+      const d = Math.sqrt(rand(7)) * r;
+      g.beginPath();
+      g.arc(cx + Math.cos(a) * d, cy + Math.sin(a) * d * 0.85, 3 + 4.5 * rand(8), 0, Math.PI * 2);
+      g.fill();
+    }
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.anisotropy = 4;
+  return texture;
+}

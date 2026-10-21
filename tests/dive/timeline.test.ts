@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { SHOTS, SECTION_PROGRESS, CAMERA_FOV_Y_DEG, diveStateAt } from '../../src/scripts/dive/timeline';
 import { EDGE_X, REEF_TOP_DEPTH_M } from '../../src/scripts/dive/world';
+import { GROWTH_REACH_M, faceX } from '../../src/scripts/dive/reefShape';
 
 describe('SHOTS', () => {
   it('tiles [0,1] with no gaps', () => {
@@ -93,11 +94,14 @@ describe('the dive path', () => {
     expect(at(0.53)[0]).toBeGreaterThan(EDGE_X);
   });
 
-  it('then drifts down the face with the wall close on the left', () => {
-    for (let p = 0.56; p <= 0.88; p += 0.01) {
-      const x = at(p)[0];
-      expect(x).toBeGreaterThanOrEqual(EDGE_X + 6);
-      expect(x).toBeLessThanOrEqual(EDGE_X + 12);
+  // A diver keeps a few metres off a wall: close enough for its colour to
+  // survive the water, never in its fans (reefShape.ts GROWTH_REACH_M).
+  it('then drifts down the face a few metres off the rock, on the left', () => {
+    for (let p = 0.56; p <= 0.88; p += 0.005) {
+      const [x, , z] = at(p);
+      const off = x - faceX(z, diveStateAt(p).depth);
+      expect(off).toBeGreaterThanOrEqual(GROWTH_REACH_M + 1);
+      expect(off).toBeLessThanOrEqual(9);
     }
   });
 

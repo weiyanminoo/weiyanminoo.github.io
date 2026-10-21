@@ -11,6 +11,7 @@
 
 import { clamp, lerp } from './math';
 import type { CameraPose, DiveEvents, DiveState, SectionId, ShotId, Vec3 } from './types';
+import { GROWTH_REACH_M, faceReach } from './reefShape';
 import { worldY } from './world';
 
 export const SHOTS: readonly { id: ShotId; from: number; to: number }[] = [
@@ -180,10 +181,48 @@ function cameraAt(p: number): CameraPose {
   return { pitch, yaw };
 }
 
+// Down the wall, the camera keeps a set distance off the real rock
+// (reefShape.ts), as a diver does: close enough that the wall's colour
+// survives the water between, never in its fans. The face's reach near
+// each point of the drift is sampled once, then held at its local maximum
+// and smoothed, so the camera follows the wall's bays and spurs without
+// wobbling.
+const WALL_CLEARANCE_M = 1.4;
+const FOLLOW_FROM = 0.5;
+const FOLLOW_TO = 1;
+const FOLLOW_STEP = 0.004;
+const FOLLOW: readonly number[] = (() => {
+  const n = Math.round((FOLLOW_TO - FOLLOW_FROM) / FOLLOW_STEP) + 1;
+  const reach = Array.from({ length: n }, (_, i) => {
+    const p = FOLLOW_FROM + i * FOLLOW_STEP;
+    return faceReach(monotoneAt(CAMERA_PATH, 2, p), linearAt(DEPTH_KEYS, p));
+  });
+  const held = reach.map((_, i) => Math.max(...reach.slice(Math.max(0, i - 3), i + 4)));
+  return held.map((_, i) => {
+    const near = held.slice(Math.max(0, i - 4), i + 5);
+    return near.reduce((a, b) => a + b, 0) / near.length + GROWTH_REACH_M + WALL_CLEARANCE_M;
+  });
+})();
+
+function followX(p: number): number {
+  const t = (clamp(p, FOLLOW_FROM, FOLLOW_TO) - FOLLOW_FROM) / FOLLOW_STEP;
+  const i = Math.min(FOLLOW.length - 2, Math.floor(t));
+  return lerp(FOLLOW[i], FOLLOW[i + 1], t - i);
+}
+
 /** The camera's place in the dive site at progress p, world metres. */
 export function positionAt(progress: number): Vec3 {
   const p = clamp(progress, 0, 1);
-  return [monotoneAt(CAMERA_PATH, 1, p), worldY(linearAt(DEPTH_KEYS, p)), monotoneAt(CAMERA_PATH, 2, p)];
+  // Onto the face's line once over the edge; away from it into the blue at
+  // the very end.
+  const onWall = smoothstep01((p - 0.5) / 0.06) * (1 - smoothstep01((p - 0.9) / 0.08));
+  const x = lerp(monotoneAt(CAMERA_PATH, 1, p), followX(p), onWall);
+  return [x, worldY(linearAt(DEPTH_KEYS, p)), monotoneAt(CAMERA_PATH, 2, p)];
+}
+
+function smoothstep01(t: number): number {
+  const u = clamp(t, 0, 1);
+  return u * u * (3 - 2 * u);
 }
 
 function shotIndexAt(p: number): number {

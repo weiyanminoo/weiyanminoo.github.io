@@ -11,6 +11,7 @@ import { hash1 } from '../noise';
 import { SCHOOLS, fishPose, type SchoolSpec } from '../schoolPaths';
 import type { Layer, LayerContext } from '../scene';
 import type { DiveFrame } from '../types';
+import { withViewAbsorption } from './absorb';
 
 // Where an out-of-window school parks its one still-drawn fish: well past
 // the camera's 400 m far plane.
@@ -44,7 +45,7 @@ const LOOKS: Record<SchoolSpec['id'], SchoolLook> = {
       return [lerp(0.34, 0.86, t), lerp(0.44, 0.9, t), lerp(0.55, 0.93, t)];
     },
     stripes: false,
-    keepColour: 0.6,
+    keepColour: 0.8,
   },
   snapper: {
     length: 0.3,
@@ -57,7 +58,7 @@ const LOOKS: Record<SchoolSpec['id'], SchoolLook> = {
       return [lerp(0.92, 0.9, t), lerp(0.74, 0.86, t), lerp(0.22, 0.7, t)];
     },
     stripes: true,
-    keepColour: 0.82,
+    keepColour: 0.9,
   },
   jacks: {
     length: 0.6,
@@ -70,7 +71,7 @@ const LOOKS: Record<SchoolSpec['id'], SchoolLook> = {
       return [lerp(0.5, 0.85, t), lerp(0.55, 0.87, t), lerp(0.6, 0.88, t)];
     },
     stripes: false,
-    keepColour: 0.5,
+    keepColour: 0.75,
   },
   anthias: {
     length: 0.13,
@@ -83,7 +84,7 @@ const LOOKS: Record<SchoolSpec['id'], SchoolLook> = {
       return [lerp(0.98, 0.98, t), lerp(0.46, 0.68, t), lerp(0.26, 0.5, t)];
     },
     stripes: false,
-    keepColour: 0.75,
+    keepColour: 0.9,
   },
 };
 
@@ -145,6 +146,8 @@ function withTailWave(material: THREE.MeshStandardMaterial, uniforms: Record<str
         transformed.x += sin(uTime * 9.0 + float(gl_InstanceID) * 1.7 + transformed.z * 7.0 / uLength)
           * 0.08 * uLength * tailW;`,
       );
+    // Colour lost over the water to the lens, as on the reef (absorb.ts).
+    shader.fragmentShader = withViewAbsorption(shader.fragmentShader);
     if (!stripes) return;
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vFish;')

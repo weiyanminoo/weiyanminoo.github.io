@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { SCHOOLS, fishPose } from '../../src/scripts/dive/schoolPaths';
 import { positionAt } from '../../src/scripts/dive/timeline';
-import { EDGE_X, worldY } from '../../src/scripts/dive/world';
+import { worldY } from '../../src/scripts/dive/world';
+import { faceX } from '../../src/scripts/dive/reefShape';
 
 const [blue, snapper, jacks, anthias] = SCHOOLS;
 
@@ -15,12 +16,20 @@ function pathDepthAtZ(z: number): number {
 describe('the anthias', () => {
   // Small reef fish hover just off the face, on the east side of the crest
   // line (world.ts), in a band that follows the dive down the wall.
-  it('hover within a few metres of the wall face', () => {
-    for (let i = 0; i < anthias.count; i += 7) {
-      const [x] = fishPose(anthias, i, 15, 0.6).position;
-      expect(x - EDGE_X).toBeGreaterThanOrEqual(-0.5);
-      expect(x - EDGE_X).toBeLessThanOrEqual(5);
+  it('hover within a few metres of the real rock face', () => {
+    const offs: number[] = [];
+    for (let i = 0; i < anthias.count; i += 3) {
+      const [x, y, z] = fishPose(anthias, i, 15, 0.6).position;
+      offs.push(x - faceX(z, -y - 3));
     }
+    offs.sort((p, q) => p - q);
+    const at = (q: number) => offs[Math.floor(q * (offs.length - 1))];
+    // Mostly a couple of metres out; the odd one tucked into a crevice or
+    // out over one (the face's grooves are sharper than a fish's wander).
+    expect(at(0.5)).toBeGreaterThanOrEqual(1);
+    expect(at(0.5)).toBeLessThanOrEqual(4);
+    expect(at(0.05)).toBeGreaterThanOrEqual(-1);
+    expect(at(0.95)).toBeLessThanOrEqual(5.5);
   });
 
   it('follow the dive down the face', () => {

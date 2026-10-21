@@ -15,6 +15,12 @@
 //             carries, so the sand channels stay sand.
 //   polyps    for the soft-coral trees: pale stalks, the colour in the
 //             polyp clusters (the alpha map's red channel marks them).
+//   photo     photographs of real rock, tri-planar: a lichen-crusted face
+//             on the sides, coral rubble on whatever faces up. Their
+//             colour (over its mean) modulates rock and cover alike, so the
+//             colonies are textured growth rather than flat paint; their
+//             normal maps add to the bump. Procedural cover alone read as
+//             stylised however it was tuned (round 7).
 //   caustics  rippling across upward-facing surfaces, as strong as each
 //             surface's own depth allows (gone by 25 m)
 //   depth     the reef darkens the further below the camera it falls, and
@@ -31,19 +37,43 @@ const BUMP_M = 0.45;
 /** Metres below the camera over which the reef's light falls by e. */
 const DARKEN_M = 30;
 
+/** A photographed surface: colour map, its mean linear colour, normal map,
+ *  and the metres of real surface one tile shows. */
+export interface ReefPhoto {
+  map: THREE.Texture;
+  mean: readonly [number, number, number];
+  normal: THREE.Texture;
+  tileM: number;
+  /** How much of the photo's own hue (over its mean's) the rock takes, 0..1;
+   *  its light and dark it takes in full. */
+  hue: number;
+}
+
+export interface ReefPhotos {
+  /** Sides and undersides. */
+  crust: ReefPhoto;
+  /** Whatever faces up. */
+  rubble: ReefPhoto;
+}
+
 const VERTEX_GLSL = /* glsl */ `
   attribute float life;
+  attribute float rock;
   varying vec3 vReefLocal;
+  varying vec3 vReefNormal;
   varying vec3 vCausticWorld;
   varying float vCausticUp;
   varying float vLife;
+  varying float vRock;
 `;
 
 const FRAGMENT_GLSL = /* glsl */ `
   varying vec3 vReefLocal;
+  varying vec3 vReefNormal;
   varying vec3 vCausticWorld;
   varying float vCausticUp;
   varying float vLife;
+  varying float vRock;
   uniform float uCausticTime;
   uniform float uCamY;
   float causticLayer(vec2 p, float t) {
@@ -131,9 +161,96 @@ const FRAGMENT_GLSL = /* glsl */ `
   }
 `;
 
+const glslVec3 = (c: readonly number[]) => `vec3(${c.map((v) => v.toFixed(4)).join(', ')})`;
+
+function photoHeadGlsl(photos: ReefPhotos): string {
+  return /* glsl */ `
+  uniform sampler2D uCrustMap;
+  uniform sampler2D uCrustNormal;
+  uniform sampler2D uRubbleMap;
+  uniform sampler2D uRubbleNormal;
+  const float CRUST_M = ${photos.crust.tileM.toFixed(2)};
+  const float RUBBLE_M = ${photos.rubble.tileM.toFixed(2)};
+  const vec3 CRUST_MEAN = ${glslVec3(photos.crust.mean)};
+  const vec3 RUBBLE_MEAN = ${glslVec3(photos.rubble.mean)};
+  const float CRUST_HUE = ${photos.crust.hue.toFixed(2)};
+  const float RUBBLE_HUE = ${photos.rubble.hue.toFixed(2)};
+  // A photo's colour over its mean: its light and dark in full, its hue in
+  // part. Over a warm mean, grey stones come out blue, and the rock's own
+  // colour should lead.
+  vec3 reefTone(vec3 c, vec3 mean, float hue) {
+    const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
+    return mix(vec3(dot(c, LUMA) / dot(mean, LUMA)), c / mean, hue);
+  }
+  // A photograph tiled without a visible grid (Quilez, "texture repetition",
+  // technique 3): two copies at offsets picked by a slow noise, cross-faded
+  // along the image's own light and dark, so the fade does not read as a
+  // blur. Explicit gradients: the offsets leave no mip seams. Returns the
+  // colour; 'slope' is the relief's rise per metre along u and v, from the
+  // normal map (tangent-space x and y over z).
+  vec3 reefPhoto(sampler2D map, sampler2D nmap, vec2 uv, vec2 gx, vec2 gy, out vec2 slope) {
+    float l = 8.0 * reefNoise2(uv * 0.15);
+    float ia = floor(l);
+    vec2 oa = vec2(reefHash(vec3(ia, 1.7, 3.1)), reefHash(vec3(ia, 5.3, 0.9)));
+    vec2 ob = vec2(reefHash(vec3(ia + 1.0, 1.7, 3.1)), reefHash(vec3(ia + 1.0, 5.3, 0.9)));
+    vec3 ca = textureGrad(map, uv + oa, gx, gy).rgb;
+    vec3 cb = textureGrad(map, uv + ob, gx, gy).rgb;
+    float b = smoothstep(0.3, 0.7, fract(l) - 0.15 * dot(ca - cb, vec3(1.0)));
+    vec3 n = mix(textureGrad(nmap, uv + oa, gx, gy).xyz, textureGrad(nmap, uv + ob, gx, gy).xyz, b) * 2.0 - 1.0;
+    slope = -n.xy / max(n.z, 0.3);
+    return mix(ca, cb, b);
+  }
+`;
+}
+
+// Tri-planar in the mesh's own frame (the wall's is turned to face east, so
+// its face is the z plane): each plane weighted by how squarely the surface
+// faces it, planes that barely count skipped. Up-facing planes are rubble,
+// the rest crust. It runs after the grain and the cover, so it textures the
+// colonies as well as the rock between them.
+const PHOTO_GLSL = /* glsl */ `
+  {
+    vec3 w = abs(normalize(vReefNormal));
+    w *= w;
+    w *= w;
+    w /= w.x + w.y + w.z;
+    vec3 dpx = dFdx(vReefLocal);
+    vec3 dpy = dFdy(vReefLocal);
+    vec3 photo = vec3(0.0);
+    vec2 slope;
+    if (w.z > 0.02) {
+      vec2 k = vec2(1.0 / CRUST_M);
+      vec3 c = reefPhoto(uCrustMap, uCrustNormal, vReefLocal.xy * k, dpx.xy * k, dpy.xy * k, slope);
+      photo += w.z * reefTone(c, CRUST_MEAN, CRUST_HUE);
+      reefPhotoDh += w.z * vec2(dot(slope, dpx.xy), dot(slope, dpy.xy));
+    }
+    if (w.x > 0.02) {
+      vec2 k = vec2(1.0 / CRUST_M);
+      vec3 c = reefPhoto(uCrustMap, uCrustNormal, vReefLocal.zy * k, dpx.zy * k, dpy.zy * k, slope);
+      photo += w.x * reefTone(c, CRUST_MEAN, CRUST_HUE);
+      reefPhotoDh += w.x * vec2(dot(slope, dpx.zy), dot(slope, dpy.zy));
+    }
+    if (w.y > 0.02) {
+      if (vReefNormal.y > 0.0) {
+        vec2 k = vec2(1.0 / RUBBLE_M);
+        vec3 c = reefPhoto(uRubbleMap, uRubbleNormal, vReefLocal.xz * k, dpx.xz * k, dpy.xz * k, slope);
+        photo += w.y * reefTone(c, RUBBLE_MEAN, RUBBLE_HUE);
+      } else {
+        vec2 k = vec2(1.0 / CRUST_M);
+        vec3 c = reefPhoto(uCrustMap, uCrustNormal, vReefLocal.xz * k, dpx.xz * k, dpy.xz * k, slope);
+        photo += w.y * reefTone(c, CRUST_MEAN, CRUST_HUE);
+      }
+      reefPhotoDh += w.y * vec2(dot(slope, dpx.xz), dot(slope, dpy.xz));
+    }
+    // Corals growing on the rock (plates, tables) keep their own smooth
+    // tissue: the 'rock' attribute says how much of a surface is bare.
+    diffuseColor.rgb *= mix(vec3(1.0), photo, vRock);
+    reefPhotoDh *= vRock;
+  }
+`;
+
 const GRAIN_GLSL = /* glsl */ `
-  float reefLift = 0.0;
-  float reefH = reefGrain(vReefLocal, length(fwidth(vReefLocal)));
+  reefH = reefGrain(vReefLocal, length(fwidth(vReefLocal)));
   diffuseColor.rgb *= max(0.35, 1.0 + 1.8 * reefH);
 `;
 
@@ -174,7 +291,7 @@ const BUMP_GLSL = /* glsl */ `
     vec3 r1 = cross(sy, normal);
     vec3 r2 = cross(normal, sx);
     float det = dot(sx, r1);
-    vec2 dh = vec2(dFdx(reefH), dFdy(reefH)) * ${BUMP_M.toFixed(2)} + vec2(dFdx(reefLift), dFdy(reefLift)) * vLife;
+    vec2 dh = vec2(dFdx(reefH), dFdy(reefH)) * ${BUMP_M.toFixed(2)} + vec2(dFdx(reefLift), dFdy(reefLift)) * vLife + reefPhotoDh;
     normal = normalize(abs(det) * normal - sign(det) * (dh.x * r1 + dh.y * r2));
   }
 `;
@@ -186,6 +303,9 @@ export interface ReefShadingOptions {
   mosaic?: boolean;
   /** Pale stalks, coloured polyps (soft-coral trees). */
   polyps?: boolean;
+  /** Photographed rock under the grain and cover (needs the `rock`
+   *  attribute). */
+  photos?: ReefPhotos;
 }
 
 export function withReefShading(
@@ -193,31 +313,48 @@ export function withReefShading(
   uniforms: Record<string, THREE.IUniform>,
   opts: ReefShadingOptions = {},
 ) {
-  const { grain = false, mosaic = false, polyps = false } = opts;
+  const { grain = false, mosaic = false, polyps = false, photos } = opts;
   // Three caches programs by the hook's source text, the same for every
   // variant; the key keeps them apart.
-  material.customProgramCacheKey = () => `reef-${+grain}${+mosaic}${+polyps}`;
+  material.customProgramCacheKey = () => `reef-${+grain}${+mosaic}${+polyps}${+!!photos}`;
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
+    if (photos) {
+      Object.assign(shader.uniforms, {
+        uCrustMap: { value: photos.crust.map },
+        uCrustNormal: { value: photos.crust.normal },
+        uRubbleMap: { value: photos.rubble.map },
+        uRubbleNormal: { value: photos.rubble.normal },
+      });
+    }
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>\n${VERTEX_GLSL}`)
       .replace(
         '#include <begin_vertex>',
         `#include <begin_vertex>
         vReefLocal = position;
+        vReefNormal = objectNormal;
         vCausticWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;
         vCausticUp = normalize(mat3(modelMatrix) * objectNormal).y;
-        vLife = ${mosaic ? 'life' : '0.0'};`,
+        vLife = ${mosaic ? 'life' : '0.0'};
+        vRock = ${photos ? 'rock' : '0.0'};`,
       );
     shader.fragmentShader = withViewAbsorption(
       shader.fragmentShader
-        .replace('#include <common>', `#include <common>\n${FRAGMENT_GLSL}`)
+        .replace(
+          '#include <common>',
+          `#include <common>\n${FRAGMENT_GLSL}${photos ? photoHeadGlsl(photos) : ''}`,
+        )
         .replace(
           '#include <color_fragment>',
-          `#include <color_fragment>\n${polyps ? POLYPS_GLSL : ''}${grain ? GRAIN_GLSL : ''}${mosaic ? MOSAIC_GLSL : ''}${DEPTH_GLSL}`,
+          `#include <color_fragment>
+          float reefH = 0.0;
+          float reefLift = 0.0;
+          vec2 reefPhotoDh = vec2(0.0);
+          ${polyps ? POLYPS_GLSL : ''}${grain ? GRAIN_GLSL : ''}${mosaic ? MOSAIC_GLSL : ''}${photos ? PHOTO_GLSL : ''}${DEPTH_GLSL}`,
         ),
     );
-    if (grain) {
+    if (grain || photos) {
       shader.fragmentShader = shader.fragmentShader.replace(
         '#include <normal_fragment_maps>',
         `#include <normal_fragment_maps>\n${BUMP_GLSL}`,

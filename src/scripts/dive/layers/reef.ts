@@ -27,7 +27,7 @@ import {
   worldY,
 } from '../world';
 import { fanGeometry, fanMaterial, laceTexture, softCoralTexture, type FanPlacement } from './reefFans';
-import { withReefShading } from './reefShading';
+import { withReefShading, type ReefPhotos } from './reefShading';
 import {
   REEF_LENGTH_M,
   REEF_MID_Z,
@@ -123,14 +123,20 @@ function reefColour(x: number, y: number, seed: number): RGBTuple {
  *  scattered light reaches into them less. */
 const occlusion = (detail: number, gain: number, lo: number) => clamp(0.82 + gain * detail, lo, 1.08);
 
-/** How much of the shader's living mosaic each vertex carries, 0..1. */
-function setLife(geometry: THREE.BufferGeometry, lifeAt: number | ((x: number, y: number, z: number) => number)) {
+/** A share, 0..1, the shader reads at each vertex: 'life', how much of the
+ *  living mosaic it carries; 'rock', how much of it is bare rock under the
+ *  photographs (coral tissue is not). */
+function setShare(
+  geometry: THREE.BufferGeometry,
+  name: 'life' | 'rock',
+  at: number | ((x: number, y: number, z: number) => number),
+) {
   const pos = geometry.getAttribute('position');
-  const life = new Float32Array(pos.count);
+  const share = new Float32Array(pos.count);
   for (let i = 0; i < pos.count; i++) {
-    life[i] = typeof lifeAt === 'number' ? lifeAt : lifeAt(pos.getX(i), pos.getY(i), pos.getZ(i));
+    share[i] = typeof at === 'number' ? at : at(pos.getX(i), pos.getY(i), pos.getZ(i));
   }
-  geometry.setAttribute('life', new THREE.BufferAttribute(life, 1));
+  geometry.setAttribute(name, new THREE.BufferAttribute(share, 1));
 }
 
 function setColour(geometry: THREE.BufferGeometry, colourAt: (x: number, y: number, z: number) => RGBTuple) {
@@ -170,7 +176,8 @@ function coralHead(radius: number, squash: number, axis: 'y' | 'z', seed: number
     const shade = lerp(0.6, 1, smoothstep(-0.6, 0.5, up));
     return scale3(mix3(colour, scale3(colour, 0.7), 0.5 + 0.5 * vnoise2(x * 6, (axis === 'y' ? z : y) * 6, seed)), shade);
   });
-  setLife(g, 0.55);
+  setShare(g, 'life', 0.55);
+  setShare(g, 'rock', 0.7);
   return g;
 }
 
@@ -184,7 +191,8 @@ function tableCoral(radius: number, colour: RGBTuple): THREE.BufferGeometry {
   const g = mergeGeometries([plate.toNonIndexed(), stalk.toNonIndexed()])!;
   g.deleteAttribute('uv');
   setColour(g, (_x, y) => (y > 0.95 ? colour : scale3(colour, 0.5)));
-  setLife(g, 0.5);
+  setShare(g, 'life', 0.5);
+  setShare(g, 'rock', 0.2);
   return g;
 }
 
@@ -221,7 +229,8 @@ function plateCoral(radius: number, seed: number, colour: RGBTuple): THREE.Buffe
   lower.computeVertexNormals();
   setColour(lower, () => scale3(colour, 0.42));
   const g = mergeGeometries([upper, lower])!;
-  setLife(g, 0.45);
+  setShare(g, 'life', 0.45);
+  setShare(g, 'rock', 0.15);
   return g;
 }
 
@@ -237,7 +246,8 @@ function buildWall(): { rock: THREE.BufferGeometry; fans: FanPlacement[]; bushes
   for (let i = 0; i < pos.count; i++) pos.setZ(i, wallZ(pos.getX(i), pos.getY(i), top));
   face.computeVertexNormals();
   setColour(face, (x, y) => scale3(reefColour(x, y, SEED + 30), occlusion(wallRelief(x, y, top).detail, 0.5, 0.45)));
-  setLife(face, 1);
+  setShare(face, 'life', 1);
+  setShare(face, 'rock', 1);
 
   // Plate corals in tiers of two to four, stacking out of the face down the
   // camera's line of descent, as on the reference wall (clip 4).
@@ -352,8 +362,10 @@ function buildReefTop(): { rock: THREE.BufferGeometry; fans: FanPlacement[]; bus
     const shade = occlusion(reefTopRelief(u, z).detail, 0.9, 0.55) * (1 - 0.5 * clump);
     return mix3(scale3(reefColour(u, z, SEED + 60), shade), SAND, 0.8 * channel(u, z));
   });
-  // Living cover on the spurs; the sand channels stay sand.
-  setLife(ground, (u, _y, z) => 1 - channel(u, z));
+  // Living cover on the spurs; the sand channels stay sand, with less of
+  // the rubble in them.
+  setShare(ground, 'life', (u, _y, z) => 1 - channel(u, z));
+  setShare(ground, 'rock', (u, _y, z) => 1 - 0.4 * channel(u, z));
   for (let i = 0; i < pos.count; i++) pos.setX(i, crestX(pos.getX(i), pos.getZ(i)));
   ground.computeVertexNormals();
 
@@ -421,8 +433,54 @@ function buildReefTop(): { rock: THREE.BufferGeometry; fans: FanPlacement[]; bus
   return { rock: mergeGeometries(parts)!, fans, bushes };
 }
 
+// Photographs of real rock (Poly Haven, CC0): mossy_rock, lichen crust on
+// granite, standing in for a wall's encrusting algae and sponge; and
+// coral_ground_02, porous coral rubble. Re-encoded small by
+// scripts/dive-textures.mjs, which also measures the means.
+const PHOTOS_URL = '/dive/textures';
+// Past this, the dive starts on the procedural surface rather than wait.
+const PHOTOS_WAIT_MS = 8000;
+
+async function loadPhotos(renderer: THREE.WebGLRenderer): Promise<ReefPhotos | null> {
+  const loader = new THREE.TextureLoader();
+  const anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
+  const load = async (file: string, colour: boolean) => {
+    const t = await loader.loadAsync(`${PHOTOS_URL}/${file}`);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.anisotropy = anisotropy;
+    if (colour) t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  };
+  const all = Promise.all([
+    load('crust.webp', true),
+    load('crust-normal.jpg', false),
+    load('rubble.webp', true),
+    load('rubble-normal.jpg', false),
+  ]);
+  const late = new Promise<null>((r) => setTimeout(() => r(null), PHOTOS_WAIT_MS));
+  try {
+    const got = await Promise.race([all, late]);
+    if (!got) {
+      // Too late to use: let them go when they do arrive.
+      all.then((ts) => ts.forEach((t) => t.dispose())).catch(() => {});
+      return null;
+    }
+    const [crust, crustNormal, rubble, rubbleNormal] = got;
+    return {
+      // The crust keeps half its hue (grey rock against yellow-green lichen
+      // is what makes it read as encrusted); the rubble's sandy orange,
+      // which the water takes, hardly any.
+      crust: { map: crust, mean: [0.161, 0.156, 0.101], normal: crustNormal, tileM: 3, hue: 0.5 },
+      rubble: { map: rubble, mean: [0.335, 0.209, 0.109], normal: rubbleNormal, tileM: 2, hue: 0.15 },
+    };
+  } catch {
+    return null;
+  }
+}
+
 export default function createReefLayer(): Layer {
   let ctx: LayerContext;
+  let photos: ReefPhotos | null = null;
   let rockMaterial: THREE.MeshStandardMaterial;
   let fansMaterial: THREE.MeshStandardMaterial;
   let softMaterial: THREE.MeshStandardMaterial;
@@ -437,10 +495,11 @@ export default function createReefLayer(): Layer {
 
   return {
     id: 'reef',
-    init(c) {
+    async init(c) {
       ctx = c;
+      photos = await loadPhotos(ctx.renderer);
       rockMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 });
-      withReefShading(rockMaterial, uniforms, { grain: true, mosaic: true });
+      withReefShading(rockMaterial, uniforms, { grain: true, mosaic: true, photos: photos ?? undefined });
       lace = laceTexture(SEED);
       fansMaterial = fanMaterial(lace);
       withReefShading(fansMaterial, uniforms);
@@ -512,6 +571,12 @@ export default function createReefLayer(): Layer {
       softMaterial.dispose();
       lace.dispose();
       softTexture.dispose();
+      if (photos) {
+        for (const p of [photos.crust, photos.rubble]) {
+          p.map.dispose();
+          p.normal.dispose();
+        }
+      }
       ctx.scene.remove(wall, reefTop, sun, sky);
     },
   };

@@ -141,22 +141,64 @@ export interface Bommie {
   h: number;
 }
 
-/** The bommie the dive's line passes: 3 m west of the camera as it nears
- *  the edge (timeline.ts CAMERA_PATH), on the spur nearest z = −67, so it
- *  is ahead of the lens, its chromis cloud in the frame, until the camera
- *  turns out over the edge. */
-export const PATH_BOMMIE: Bommie = (() => {
-  let z = -67;
+/** The reef-top place at world x nearest z that is on a spur, not in a
+ *  sand channel: within ±5 m of z, the least channel. */
+export function spurNear(x: number, z: number): { u: number; z: number } {
+  let best = z;
   let sand = Infinity;
-  for (let candidate = -62; candidate >= -72; candidate -= 0.5) {
-    const c = channel(-11 - meander(candidate), candidate);
+  for (let candidate = z + 5; candidate >= z - 5; candidate -= 0.5) {
+    const c = channel(x - meander(candidate), candidate);
     if (c < sand) {
       sand = c;
-      z = candidate;
+      best = candidate;
     }
   }
-  return { u: -11 - meander(z), z, r: 2.4, h: 1.7 };
-})();
+  return { u: x - meander(best), z: best };
+}
+
+/** The bommie the dive's line passes: 3 m west of the camera as it sinks
+ *  towards the reef top (timeline.ts DEPTH_KEYS), on the spur nearest
+ *  z = −63, ahead of the lens through that stretch, with its chromis cloud
+ *  and the reef's small fish about it. */
+export const PATH_BOMMIE: Bommie = { ...spurNear(-11.5, -63), r: 2.4, h: 1.7 };
+
+/** An anemone on the reef top, `r` its disc's radius. */
+export interface Anemone {
+  u: number;
+  z: number;
+  r: number;
+}
+
+/** The reef-top place at world x, between zFrom and zTo, where the crest
+ *  bulges furthest east (a promontory, where the open reef top runs
+ *  furthest out under the dive's line) and is on a spur. The rim stands
+ *  1.5 m proud of the reef top, which tucks in under it: anything within
+ *  a metre west of the rim line is in its shadow from the camera. */
+export function promontoryNear(x: number, zFrom: number, zTo: number): { u: number; z: number } {
+  let best = zFrom;
+  let bulge = -Infinity;
+  for (let z = zFrom; z >= zTo; z -= 0.5) {
+    const m = meander(z);
+    if (m > bulge && channel(x - m, z) < 0.3) {
+      bulge = m;
+      best = z;
+    }
+  }
+  return { u: x - meander(best), z: best };
+}
+
+/** Anemones beside the dive's line, the first with its clownfish
+ *  (schoolPaths.ts): half a metre west of the line, on promontories, so
+ *  the camera passes over them with nothing in the way. */
+export const ANEMONES: readonly Anemone[] = [
+  { ...promontoryNear(-8.8, -58, -72), r: 0.7 },
+  { ...promontoryNear(-9, -44, -54), r: 0.5 },
+];
+
+/** World position of an anemone's disc. */
+export function anemoneTop(a: Anemone): Vec3 {
+  return [crestX(a.u, a.z), reefTopY(a.u, a.z) + 0.15, a.z];
+}
 
 /** Bommies along the dive's line over the reef top, on the spurs, each
  *  standing clear of the camera's path (tests/dive/reefShape.test.ts). */

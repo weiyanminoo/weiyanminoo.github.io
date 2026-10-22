@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { BOMMIES, bommieTop, channel, crestX, reefTopY } from '../../src/scripts/dive/reefShape';
+import { ANEMONES, BOMMIES, anemoneTop, bommieTop, channel, crestX, reefTopY } from '../../src/scripts/dive/reefShape';
 import { positionAt } from '../../src/scripts/dive/timeline';
 
 // The camera's nearest approach to a point, over the reef-top stretch of
@@ -34,6 +34,17 @@ describe('the bommies', () => {
     });
     // But one close enough to swim past.
     expect(Math.min(...gaps)).toBeLessThan(9);
+  });
+
+  it('have anemones on the spurs beside the line', () => {
+    for (const a of ANEMONES) {
+      expect(channel(a.u, a.z)).toBeLessThan(0.3);
+      const [x, y, z] = anemoneTop(a);
+      const { horizontal, above } = nearest(x, y, z);
+      expect(horizontal).toBeLessThan(5);
+      // Tentacles stand 30 cm; the lens passes well over them.
+      expect(above).toBeGreaterThan(2);
+    }
   });
 
   it('rise from the ground where they stand', () => {

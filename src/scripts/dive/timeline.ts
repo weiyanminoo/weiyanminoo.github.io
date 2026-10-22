@@ -36,8 +36,11 @@ export const DEPTH_KEYS: readonly (readonly [number, number])[] = [
   [0.06, 0],
   [0.24, 13],
   [0.32, 14.5],
-  [0.46, 14.5],
-  [0.49, 14.8],
+  // Sinking to within 3 m of the reef top where its life is (reefShape.ts
+  // PATH_BOMMIE, ANEMONES) — from 5 m up, a parrotfish was a speck — and
+  // skimming the rim on the way over the edge.
+  [0.4, 16.3],
+  [0.5, 16.49],
   [0.54, 20],
   [0.66, 24],
   [0.72, 26],

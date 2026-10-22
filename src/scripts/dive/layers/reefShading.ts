@@ -265,12 +265,14 @@ const MOSAIC_GLSL = /* glsl */ `
     0.8 * vLife);
 `;
 
-// The tree's stalks are pale; the colour is in its polyps.
-const POLYPS_GLSL = /* glsl */ `
+// The tree's stalks are one colour for the whole mesh; the vertex colour
+// is in its polyps.
+const polypsGlsl = (stalk: readonly number[]) => /* glsl */ `
   #ifdef USE_ALPHAMAP
-    diffuseColor.rgb = mix(diffuse * vec3(0.93, 0.88, 0.86), diffuseColor.rgb, texture2D(alphaMap, vAlphaMapUv).r);
+    diffuseColor.rgb = mix(diffuse * ${glslVec3(stalk)}, diffuseColor.rgb, texture2D(alphaMap, vAlphaMapUv).r);
   #endif
 `;
+const PALE_STALK = [0.93, 0.88, 0.86] as const;
 
 // Caustics at the surface's own depth (halved: at 19 m the full web read as
 // a sunlit swimming-pool floor, round 2), and the fall-off with depth below
@@ -303,8 +305,9 @@ export interface ReefShadingOptions {
   grain?: boolean;
   /** The living cover (needs the `life` attribute). */
   mosaic?: boolean;
-  /** Pale stalks, coloured polyps (soft-coral trees). */
-  polyps?: boolean;
+  /** Stalks of one colour, the vertex colour in the polyps (soft-coral
+   *  trees, anemones): the stalk colour, or true for pale. */
+  polyps?: boolean | readonly [number, number, number];
   /** Photographed rock under the grain and cover (needs the `rock`
    *  attribute). */
   photos?: ReefPhotos;
@@ -316,9 +319,10 @@ export function withReefShading(
   opts: ReefShadingOptions = {},
 ) {
   const { grain = false, mosaic = false, polyps = false, photos } = opts;
+  const stalk = polyps === true ? PALE_STALK : polyps || null;
   // Three caches programs by the hook's source text, the same for every
   // variant; the key keeps them apart.
-  material.customProgramCacheKey = () => `reef-${+grain}${+mosaic}${+polyps}${+!!photos}`;
+  material.customProgramCacheKey = () => `reef-${+grain}${+mosaic}${stalk ? stalk.join(',') : 0}${+!!photos}`;
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
     if (photos) {
@@ -349,7 +353,7 @@ export function withReefShading(
         float reefH = 0.0;
         float reefLift = 0.0;
         vec2 reefPhotoDh = vec2(0.0);
-        ${polyps ? POLYPS_GLSL : ''}${grain ? GRAIN_GLSL : ''}${mosaic ? MOSAIC_GLSL : ''}${photos ? PHOTO_GLSL : ''}${DEPTH_GLSL}`,
+        ${stalk ? polypsGlsl(stalk) : ''}${grain ? GRAIN_GLSL : ''}${mosaic ? MOSAIC_GLSL : ''}${photos ? PHOTO_GLSL : ''}${DEPTH_GLSL}`,
       );
     withWaterOptics(shader);
     if (grain || photos) {

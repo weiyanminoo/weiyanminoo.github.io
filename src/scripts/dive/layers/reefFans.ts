@@ -220,6 +220,52 @@ export function fanMaterial(lace: THREE.Texture): THREE.MeshStandardMaterial {
   });
 }
 
+/** A carpet anemone's tentacles: a dense bed of short, wavy tentacles with
+ *  swollen tips, across the lower third of the canvas (the quad stands
+ *  0.95 of its width tall, so a metre-wide anemone is 30 cm high). Green is
+ *  coverage, red marks the tips, where the colour goes. */
+export function anemoneTexture(seed: number): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = LACE_PX;
+  canvas.height = LACE_PX;
+  const g = canvas.getContext('2d')!;
+  g.fillStyle = '#000';
+  g.fillRect(0, 0, LACE_PX, LACE_PX);
+  g.lineCap = 'round';
+  let n = 0;
+  const rand = (k: number) => hash1(n++, seed + k);
+  const base = LACE_PX - 4;
+  // The disc the tentacles rise from.
+  g.fillStyle = '#00ff00';
+  g.beginPath();
+  g.ellipse(LACE_PX / 2, base, LACE_PX * 0.48, 12, 0, 0, Math.PI * 2);
+  g.fill();
+  const tentacles = 150;
+  for (let i = 0; i < tentacles; i++) {
+    // Shorter towards the disc's edge, so the bed is domed.
+    const t = (i + 0.5) / tentacles;
+    const x0 = 12 + (LACE_PX - 24) * t + (rand(1) - 0.5) * 8;
+    const dome = Math.sin(Math.PI * t) ** 0.5;
+    const h = (0.14 + 0.16 * dome + 0.06 * rand(2)) * LACE_PX;
+    const lean = (rand(3) - 0.5) * 0.7;
+    const x1 = x0 + lean * h;
+    const y1 = base - h;
+    g.strokeStyle = '#00ff00';
+    g.lineWidth = 6 + 4 * rand(4);
+    g.beginPath();
+    g.moveTo(x0, base);
+    g.quadraticCurveTo(x0 + lean * h * 0.2 + (rand(5) - 0.5) * 24, base - h * 0.55, x1, y1);
+    g.stroke();
+    g.fillStyle = '#ffff00';
+    g.beginPath();
+    g.arc(x1, y1, 6 + 3 * rand(6), 0, Math.PI * 2);
+    g.fill();
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.anisotropy = 4;
+  return texture;
+}
+
 /** A soft-coral tree (Dendronephthya), as on Komodo's walls: a pale trunk
  *  forking into stalks, each ending in a dense cauliflower of polyps. One
  *  canvas, two channels: green is coverage (the alphaMap), red marks the

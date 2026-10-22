@@ -31,6 +31,12 @@ interface SchoolLook {
   /** How much of its own colour survives the depth tint (0 = fully
    *  absorbed, 1 = none). A white-balanced camera keeps snapper yellow. */
   keepColour: number;
+  /** Body height and width, as multiples of the fusiform body's: tall and
+   *  thin for a butterflyfish, low for a barracuda. */
+  height?: number;
+  width?: number;
+  /** Three bars across the body in this colour, drawn per pixel. */
+  bars?: readonly [number, number, number];
 }
 
 const LOOKS: Record<SchoolSpec['id'], SchoolLook> = {
@@ -101,11 +107,113 @@ const LOOKS: Record<SchoolSpec['id'], SchoolLook> = {
     stripes: false,
     keepColour: 0.9,
   },
+  // The reef's small fish are a size or two over life: from the camera's
+  // line, 3–5 m above the reef top, life-size would be specks.
+  clownfish: {
+    length: 0.25,
+    visible: [0.36, 0.5],
+    pass: (p) => p,
+    // Orange, three white bars.
+    colour: (y) => {
+      const t = smoothstep(0.0, -0.04, y);
+      return [0.98, lerp(0.48, 0.62, t), lerp(0.08, 0.3, t)];
+    },
+    stripes: false,
+    keepColour: 0.9,
+    height: 1.25,
+    width: 0.8,
+    bars: [0.96, 0.96, 0.94],
+  },
+  wrasse: {
+    length: 0.6,
+    visible: [0.3, 0.5],
+    pass: (p) => p,
+    // A parrotfish: turquoise back, pink below.
+    colour: (y) => {
+      const t = smoothstep(0.01, -0.04, y);
+      return [lerp(0.2, 0.74, t), lerp(0.64, 0.5, t), lerp(0.6, 0.62, t)];
+    },
+    stripes: false,
+    keepColour: 0.85,
+    height: 1.15,
+  },
+  butterfly: {
+    length: 0.28,
+    visible: [0.34, 0.5],
+    pass: (p) => p,
+    // Yellow, deep-bodied and thin, black bars.
+    colour: (y) => {
+      const t = smoothstep(0.0, -0.05, y);
+      return [lerp(0.95, 0.96, t), lerp(0.78, 0.9, t), lerp(0.2, 0.6, t)];
+    },
+    stripes: false,
+    keepColour: 0.9,
+    height: 1.9,
+    width: 0.5,
+    bars: [0.12, 0.1, 0.1],
+  },
+  napoleon: {
+    // A big one, as they get: seen from 9–13 m.
+    length: 1.9,
+    visible: [0.48, 0.62],
+    pass: (p) => clamp((p - 0.5) / 0.1, 0, 1),
+    // Dark green, paler below: a pale fish was lost against the blue.
+    colour: (y) => {
+      const t = smoothstep(0.0, -0.05, y);
+      return [lerp(0.16, 0.36, t), lerp(0.38, 0.56, t), lerp(0.36, 0.5, t)];
+    },
+    stripes: false,
+    keepColour: 0.7,
+    height: 1.4,
+    width: 1.1,
+  },
+  fusiliers: {
+    length: 0.3,
+    visible: [0.55, 0.74],
+    pass: (p) => clamp((p - 0.56) / 0.16, 0, 1),
+    // Yellowback fusilier: blue, the back yellow.
+    colour: (y) => (y > 0.03 ? [0.9, 0.78, 0.3] : [0.4, 0.58, 0.85]),
+    stripes: false,
+    keepColour: 0.5,
+  },
+  barracuda: {
+    length: 0.75,
+    // Off in the east behind the shark's pass.
+    visible: [0.62, 0.78],
+    pass: (p) => p,
+    // Dark silver: silhouettes against the light.
+    colour: (y) => {
+      const t = smoothstep(0.01, -0.03, y);
+      return [lerp(0.3, 0.5, t), lerp(0.34, 0.52, t), lerp(0.4, 0.56, t)];
+    },
+    stripes: false,
+    keepColour: 0.3,
+    height: 0.7,
+    width: 0.7,
+  },
+  deepRiver: {
+    length: 0.3,
+    visible: [0.9, 1],
+    pass: (p) => clamp((p - 0.9) / 0.1, 0, 1),
+    colour: () => [0.2, 0.26, 0.34],
+    stripes: false,
+    keepColour: 0.2,
+    height: 1.3,
+  },
+  deepBand: {
+    length: 0.5,
+    visible: [0.74, 1],
+    pass: (p) => p,
+    colour: () => [0.18, 0.24, 0.32],
+    stripes: false,
+    keepColour: 0.25,
+    height: 1.2,
+  },
 };
 
 /** A fish pointing along +z, `length` long: lathe body flattened sideways
  *  plus a forked tail fin, vertex-coloured by `colour`. */
-function fishGeometry(length: number, colour: SchoolLook['colour']): THREE.BufferGeometry {
+function fishGeometry(length: number, colour: SchoolLook['colour'], height = 1, width = 1): THREE.BufferGeometry {
   const profile: THREE.Vector2[] = [];
   // Enough rings and sides that lengthwise stripes stay lines rather than
   // smearing across large faces.
@@ -120,7 +228,7 @@ function fishGeometry(length: number, colour: SchoolLook['colour']): THREE.Buffe
   body.deleteAttribute('uv');
   // Lathe axis is y; turn it to z (head forward), then flatten sideways.
   body.rotateX(Math.PI / 2);
-  body.scale(0.5, 1, 1);
+  body.scale(0.5 * width, height, 1);
 
   const fin = new THREE.BufferGeometry();
   fin.setAttribute(
@@ -144,11 +252,13 @@ function fishGeometry(length: number, colour: SchoolLook['colour']): THREE.Buffe
 
 /** The tail wave: a travelling sine, stronger towards the tail, phase-
  *  offset per fish so a school never beats in unison. With `stripes`, four
- *  thin blue lengthwise stripes, antialiased per pixel, on the body. */
-function withTailWave(material: THREE.MeshStandardMaterial, uniforms: Record<string, THREE.IUniform>, stripes: boolean) {
+ *  thin blue lengthwise stripes, antialiased per pixel, on the body; with
+ *  `bars`, three bars across it. */
+function withTailWave(material: THREE.MeshStandardMaterial, uniforms: Record<string, THREE.IUniform>, look: SchoolLook) {
+  const { stripes, bars } = look;
   // Three caches programs by the hook's source text, which is the same for
-  // both schools; without a key the snapper reused the unstriped program.
-  material.customProgramCacheKey = () => (stripes ? 'fish-striped' : 'fish');
+  // every school; without a key the snapper reused the unstriped program.
+  material.customProgramCacheKey = () => `fish-${+stripes}-${bars ? bars.join(',') : 0}`;
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
     shader.vertexShader = shader.vertexShader
@@ -163,13 +273,9 @@ function withTailWave(material: THREE.MeshStandardMaterial, uniforms: Record<str
       );
     // Colour lost over the water to the lens, as on the reef (absorb.ts).
     withWaterOptics(shader);
-    if (!stripes) return;
-    shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vFish;')
-      .replace(
-        '#include <color_fragment>',
-        `#include <color_fragment>
-        {
+    if (!stripes && !bars) return;
+    const pattern = stripes
+      ? `{
           // Stripes 4 cm apart (in body lengths) from the belly line up,
           // a quarter of the spacing wide, on the body only (not the tail).
           float k = (vFish.y + 0.05) / 0.038;
@@ -178,8 +284,22 @@ function withTailWave(material: THREE.MeshStandardMaterial, uniforms: Record<str
           float line = 1.0 - smoothstep(0.12 - aa, 0.12 + aa, d);
           line *= step(0.0, k) * step(k, 4.0) * smoothstep(-0.42, -0.3, vFish.z);
           diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.12, 0.32, 0.85), line);
-        }`,
-      );
+        }`
+      : `{
+          // Three bars across the body: behind the head, the middle, the
+          // tail stalk (in body lengths from the centre, nose at +0.5).
+          float bar = 0.0;
+          float aa = fwidth(vFish.z);
+          for (int i = 0; i < 3; i++) {
+            float c = 0.3 - 0.28 * float(i);
+            bar = max(bar, 1.0 - smoothstep(0.035 - aa, 0.035 + aa, abs(vFish.z - c)));
+          }
+          bar *= smoothstep(-0.42, -0.36, vFish.z);
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(${bars!.map((v) => v.toFixed(3)).join(', ')}), bar);
+        }`;
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vFish;')
+      .replace('#include <color_fragment>', `#include <color_fragment>\n${pattern}`);
   };
 }
 
@@ -212,9 +332,13 @@ export default function createSchoolsLayer(): Layer {
           metalness: 0.1,
           side: THREE.DoubleSide,
         });
-        withTailWave(material, { uTime: time, uLength: { value: look.length } }, look.stripes);
+        withTailWave(material, { uTime: time, uLength: { value: look.length } }, look);
         const count = Math.max(1, Math.floor(spec.count * ctx.settings.schoolScale));
-        const mesh = new THREE.InstancedMesh(fishGeometry(look.length, look.colour), material, count);
+        const mesh = new THREE.InstancedMesh(
+          fishGeometry(look.length, look.colour, look.height, look.width),
+          material,
+          count,
+        );
         mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
         mesh.frustumCulled = false;
         ctx.scene.add(mesh);

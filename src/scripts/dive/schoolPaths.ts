@@ -13,10 +13,26 @@ import { lerp } from './math';
 import { hash1, noise1 } from './noise';
 import { positionAt } from './timeline';
 import type { Vec3 } from './types';
-import { PATH_BOMMIE, bommieTop, faceX } from './reefShape';
+import { worldY } from './world';
+import { ANEMONES, PATH_BOMMIE, anemoneTop, bommieTop, faceX } from './reefShape';
+
+export type SchoolId =
+  | 'open-blue'
+  | 'snapper'
+  | 'jacks'
+  | 'anthias'
+  | 'chromis'
+  | 'clownfish'
+  | 'wrasse'
+  | 'butterfly'
+  | 'napoleon'
+  | 'fusiliers'
+  | 'barracuda'
+  | 'deepRiver'
+  | 'deepBand';
 
 export interface SchoolSpec {
-  id: 'open-blue' | 'snapper' | 'jacks' | 'anthias' | 'chromis';
+  id: SchoolId;
   count: number;
   /** Half-extent of the school around its centre, metres. */
   radius: Vec3;
@@ -56,6 +72,13 @@ const ANTHIAS_SHEAR = (ANTHIAS_NORTH[1] - ANTHIAS_SOUTH[1]) / (ANTHIAS_NORTH[2] 
 
 // The chromis cloud's home: the crown of the bommie beside the dive's line.
 const CHROMIS_HOME = bommieTop(PATH_BOMMIE);
+const CLOWN_HOME = anemoneTop(ANEMONES[0]);
+// Where the camera is along the wall, for the fish that pass it there, and
+// in the deep.
+const WALL_START = positionAt(0.6);
+const WALL_MID = positionAt(0.78);
+const DEEP_BAND = positionAt(0.84);
+const DEEP_RIVER = positionAt(0.92);
 
 export const SCHOOLS: readonly SchoolSpec[] = [
   {
@@ -132,6 +155,101 @@ export const SCHOOLS: readonly SchoolSpec[] = [
     ],
     swim: [0, 0, 0],
     wander: 0.3,
+  },
+  {
+    // Three clownfish darting over their anemone beside the line.
+    id: 'clownfish',
+    count: 3,
+    radius: [0.45, 0.3, 0.45],
+    seed: 1212,
+    centre: (t) => [CLOWN_HOME[0], CLOWN_HOME[1] + 0.5 + 0.08 * Math.sin(0.9 * t), CLOWN_HOME[2]],
+    swim: [0, 0, 0],
+    wander: 0.6,
+  },
+  {
+    // Parrotfish circling the bommie, grazing its flanks.
+    id: 'wrasse',
+    count: 4,
+    radius: [3.8, 0.6, 3.8],
+    seed: 1313,
+    centre: (t) => [CHROMIS_HOME[0], CHROMIS_HOME[1] + 0.6 + 0.3 * Math.sin(0.1 * t), CHROMIS_HOME[2]],
+    swim: [0, 0, 0],
+    orbit: 0.1,
+    wander: 0.1,
+  },
+  {
+    // A pair of butterflyfish working the bommie's east flank, under the
+    // line.
+    id: 'butterfly',
+    count: 2,
+    radius: [0.5, 0.3, 0.5],
+    seed: 1414,
+    centre: (t) => [
+      CHROMIS_HOME[0] + 2.6 + 0.3 * Math.sin(0.3 * t),
+      CHROMIS_HOME[1] - 0.6 + 0.15 * Math.sin(0.5 * t),
+      CHROMIS_HOME[2] + 1.0 + 0.4 * Math.sin(0.21 * t),
+    ],
+    swim: [0, 0, 0],
+    wander: 0.5,
+  },
+  {
+    // A Napoleon wrasse cruising south down the wall a few metres off the
+    // fans, ahead of and below the camera as it looks down the drop-off
+    // (0.5–0.55), drawing slowly away.
+    id: 'napoleon',
+    count: 1,
+    radius: [0.1, 0.1, 0.1],
+    seed: 1515,
+    centre: (t, s) => {
+      const z = lerp(-80, -96, s);
+      const depth = lerp(22, 26, s);
+      return [faceX(z, depth) + 3.5, worldY(depth) + 0.3 * Math.sin(0.2 * t), z];
+    },
+    swim: [0.05, -0.15, -0.6],
+    wander: 0,
+  },
+  {
+    // Yellowback fusiliers streaming north up the wall, above and out from
+    // the camera: against the light they are mostly silhouette.
+    id: 'fusiliers',
+    count: 350,
+    radius: [4, 1.5, 7],
+    seed: 1616,
+    centre: (t, s) => [WALL_START[0] + 8 + 1.5 * Math.sin(0.15 * t), WALL_START[1] + 6 + 0.5 * Math.sin(0.1 * t), lerp(-112, -84, s)],
+    swim: [0, 0, 1.5],
+  },
+  {
+    // A wall of chevron barracuda hanging in the blue off the face,
+    // turning slowly, dark against the light from the surface.
+    id: 'barracuda',
+    count: 140,
+    radius: [6, 3, 6],
+    seed: 1717,
+    centre: (t) => [WALL_MID[0] + 17 + 0.5 * Math.sin(0.05 * t), WALL_MID[1] + 5, WALL_MID[2] + 4],
+    swim: [0, 0, 0],
+    orbit: 0.035,
+    wander: 0.04,
+  },
+  {
+    // A river of surgeonfish high overhead in the deep, silhouettes
+    // crossing the last of the light as the final shot looks up.
+    id: 'deepRiver',
+    count: 300,
+    radius: [5, 2, 14],
+    seed: 1818,
+    centre: (t, s) => [DEEP_RIVER[0] + 2 + Math.sin(0.1 * t), DEEP_RIVER[1] + 15, DEEP_RIVER[2] - 6 + lerp(18, -18, s)],
+    swim: [0, 0, -1.5],
+  },
+  {
+    // A long, loose band of trevally out in the blue at the edge of
+    // sight, running the length of the deep wall: dark shapes streaming
+    // north past the camera the whole way down.
+    id: 'deepBand',
+    count: 320,
+    radius: [5, 3, 28],
+    seed: 1919,
+    centre: (t) => [DEEP_BAND[0] + 22 + 0.8 * Math.sin(0.06 * t), DEEP_BAND[1] + 2, -150],
+    swim: [0, 0, 0.8],
   },
 ];
 

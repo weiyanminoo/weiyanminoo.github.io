@@ -26,16 +26,27 @@ import {
   WALL_BOTTOM_DEPTH_M,
   worldY,
 } from '../world';
-import { FAN_VARIANTS, fanGeometry, fanMaterial, fanTexture, softCoralTexture, type FanPlacement } from './reefFans';
+import {
+  FAN_VARIANTS,
+  anemoneTexture,
+  fanGeometry,
+  fanMaterial,
+  fanTexture,
+  softCoralTexture,
+  type FanPlacement,
+} from './reefFans';
 import { TORCH } from './absorb';
 import { withReefShading, type ReefPhotos } from './reefShading';
 import {
+  ANEMONES,
   BOMMIES,
+  PATH_BOMMIE,
   REEF_LENGTH_M,
   REEF_MID_Z,
   REEF_SEED,
   REEF_TOP_EAST_U,
   WALL_TOP_DEPTH_M,
+  anemoneTop,
   channel,
   crestX,
   fbm2,
@@ -81,11 +92,11 @@ const FANS: readonly RGBTuple[] = [
 // Table corals: the tan, cream and pale brown of Acropora tables, one
 // lilac-tipped, one olive.
 const TABLES: readonly RGBTuple[] = [
-  [0.8, 0.7, 0.5],
-  [0.86, 0.8, 0.62],
-  [0.7, 0.58, 0.42],
-  [0.64, 0.6, 0.74],
-  [0.66, 0.66, 0.42],
+  [0.86, 0.72, 0.48],
+  [0.9, 0.82, 0.6],
+  [0.78, 0.62, 0.4],
+  [0.7, 0.64, 0.76],
+  [0.74, 0.7, 0.42],
 ];
 // Plate and foliose corals: the lime-yellow tiers that stack out of the
 // reference wall's ledges, a few olive and brown.
@@ -110,6 +121,12 @@ const TUBES: readonly RGBTuple[] = [
   [0.42, 0.36, 0.64],
   [0.86, 0.36, 0.3],
   [0.94, 0.6, 0.24],
+];
+// Anemones: tan-olive tentacles tipped pink or violet.
+const ANEMONE_STALK = [0.62, 0.6, 0.42] as const;
+const ANEMONE_TIPS: readonly RGBTuple[] = [
+  [0.92, 0.5, 0.68],
+  [0.66, 0.46, 0.84],
 ];
 // Soft-coral trees (Dendronephthya): the polyp colours of Komodo's walls
 // (Cannibal Rock; Mini Wall's pinks, purples and oranges).
@@ -220,7 +237,7 @@ function coralHead(radius: number, squash: number, axis: 'y' | 'z', seed: number
  *  photograph and a little relief carry — flat and smooth it read as a
  *  lily pad (round 8). Underside and stalk in shadow. */
 function tableCoral(radius: number, colour: RGBTuple, seed = 0): THREE.BufferGeometry {
-  const plate = new THREE.CylinderGeometry(radius, radius * 0.9, 0.14, 24, 3);
+  const plate = new THREE.CylinderGeometry(radius, radius * 0.9, 0.1, 24, 3);
   const pos = plate.getAttribute('position');
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i);
@@ -230,7 +247,7 @@ function tableCoral(radius: number, colour: RGBTuple, seed = 0): THREE.BufferGeo
     // The rim wanders in and out; the top is stubbled.
     const rim = 1 + 0.08 * Math.sin(a * 5 + seed) + 0.05 * Math.sin(a * 9 + seed * 1.7);
     const y = pos.getY(i);
-    const stubble = y > 0.06 ? 0.05 * fbm2(x * 4 + seed, z * 4, SEED + 11, 2) : 0;
+    const stubble = y > 0.04 ? 0.08 * fbm2(x * 4 + seed, z * 4, SEED + 11, 2) : 0;
     pos.setXYZ(i, x * rim, y + stubble, z * rim);
   }
   plate.translate(0, 0.45, 0);
@@ -246,7 +263,8 @@ function tableCoral(radius: number, colour: RGBTuple, seed = 0): THREE.BufferGeo
     return mix3(colour, [0.94, 0.9, 0.78], 0.5 * smoothstep(0.8, 1.05, r));
   });
   setShare(g, 'life', 0.3);
-  setShare(g, 'rock', 0.55);
+  // Mostly the rubble photograph: a flat tan disc read as a slab of slate.
+  setShare(g, 'rock', 0.9);
   return g;
 }
 
@@ -357,6 +375,144 @@ function tubeSponges(seed: number, colour: RGBTuple): THREE.BufferGeometry {
   return g;
 }
 
+/** Scales each ring of a tube about its own point on the curve, so the
+ *  tube tapers: `scale(t)` along the curve, 0 at its start. */
+function taperTube(tube: THREE.TubeGeometry, curve: THREE.Curve<THREE.Vector3>, scale: (t: number) => [number, number, number]) {
+  const { tubularSegments, radialSegments } = tube.parameters;
+  const pos = tube.getAttribute('position');
+  const c = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    const t = Math.floor(i / (radialSegments + 1)) / tubularSegments;
+    curve.getPointAt(t, c);
+    const [kx, ky, kz] = scale(t);
+    pos.setXYZ(i, c.x + (pos.getX(i) - c.x) * kx, c.y + (pos.getY(i) - c.y) * ky, c.z + (pos.getZ(i) - c.z) * kz);
+  }
+}
+
+function blob(radius: number, detail: number): THREE.BufferGeometry {
+  const raw = new THREE.IcosahedronGeometry(radius, detail);
+  raw.deleteAttribute('uv');
+  raw.deleteAttribute('normal');
+  return mergeVertices(raw);
+}
+
+/** A giant moray out of a hole in the face, in the wall's frame (z out of
+ *  the rock): its neck from inside the rock out and up to the head, which
+ *  is thicker, flattened a little sideways, and dark under the snout where
+ *  the mouth gapes. Tan, dark-speckled, pale below; a big one, as it has
+ *  to read from the camera's line 5 m off the face. */
+function moray(seed: number): THREE.BufferGeometry {
+  const curve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0, 0, -0.6),
+    new THREE.Vector3(0.08, 0.03, -0.2),
+    new THREE.Vector3(-0.06, 0.16, 0.25),
+    new THREE.Vector3(0.04, 0.2, 0.62),
+  ]);
+  // Vertices every 7 cm, so the pattern (per vertex) keeps its blotches.
+  const tube = new THREE.TubeGeometry(curve, 36, 0.1, 14, false);
+  tube.deleteAttribute('uv');
+  tube.deleteAttribute('normal');
+  taperTube(tube, curve, (t) => {
+    const k = lerp(0.85, 1.15, t) * (t > 0.9 ? lerp(1, 0.6, (t - 0.9) / 0.1) : 1);
+    return [k * 0.85, k, k];
+  });
+  const end = curve.getPointAt(1);
+  const tip = blob(0.075, 2);
+  tip.scale(0.85, 0.8, 1.3);
+  tip.translate(end.x, end.y, end.z);
+  // The lower jaw, dropped: a moray holds its mouth open to breathe, and
+  // the gape is what says moray from across the water.
+  const jaw = blob(0.06, 2);
+  jaw.scale(0.75, 0.45, 1.15);
+  jaw.translate(end.x, end.y - 0.13, end.z + 0.02);
+  const parts = [tube, tip, jaw];
+  const eyes = [-1, 1].map((side) => new THREE.Vector3(end.x + side * 0.06, end.y + 0.045, end.z - 0.03));
+  for (const at of eyes) {
+    const eye = blob(0.024, 1);
+    eye.translate(at.x, at.y, at.z);
+    parts.push(eye);
+  }
+  const SCALE = 2.2;
+  const g = mergeGeometries(parts)!;
+  g.scale(SCALE, SCALE, SCALE);
+  g.computeVertexNormals();
+  const pos = g.getAttribute('position');
+  const nor = g.getAttribute('normal');
+  const colours = new Float32Array(pos.count * 3);
+  const colour: RGBTuple = [0.84, 0.7, 0.4];
+  const jawTop = (end.y - 0.08) * SCALE;
+  const snout = 1.15;
+  const v = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i);
+    const { y, z } = v;
+    const ny = nor.getY(i);
+    const below = smoothstep(-0.2, -0.7, ny);
+    // Dark blotches over tan, 30 cm across: a leopard pattern that still
+    // reads at 8 m, where fine speckles averaged to mud.
+    const blotch = smoothstep(0.1, 0.4, vnoise2(v.x * 7 + seed, z * 4.5 + y * 3, seed));
+    let c = mix3(mix3(colour, [0.18, 0.12, 0.06], 0.9 * blotch), [0.92, 0.88, 0.72], below);
+    if (z > snout) {
+      const inJaw = y < jawTop;
+      // The inside of the mouth: the snout's underside, the jaw's top.
+      if (inJaw ? ny > 0.2 : ny < -0.35) c = [0.14, 0.08, 0.08];
+      else if (inJaw) c = [0.92, 0.88, 0.72];
+    }
+    if (eyes.some((e) => v.distanceToSquared(e.clone().multiplyScalar(SCALE)) < (0.024 * SCALE * 1.4) ** 2)) {
+      c = [0.05, 0.04, 0.03];
+    }
+    colours.set(c, i * 3);
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(colours, 3));
+  setShare(g, 'life', 0);
+  setShare(g, 'rock', 0.2);
+  return g;
+}
+
+/** An octopus settled on the rock: a mantle, two eyes, and eight arms
+ *  curling out and up from under it, each a tube tapering to its tip.
+ *  Mottled rust-brown, paler underneath. Upright, on the ground at the
+ *  origin. */
+function octopus(seed: number): THREE.BufferGeometry {
+  const colour: RGBTuple = [0.58, 0.3, 0.2];
+  const mantle = blob(0.24, 3);
+  mantle.scale(1, 0.8, 1.35);
+  mantle.translate(0, 0.22, -0.12);
+  const parts = [mantle];
+  for (const side of [-1, 1]) {
+    const eye = blob(0.035, 2);
+    eye.translate(side * 0.13, 0.36, 0.14);
+    parts.push(eye);
+  }
+  for (let k = 0; k < 8; k++) {
+    const a = (k / 8) * Math.PI * 2 + 0.2;
+    const spread = 0.6 + 0.35 * hash1(k, seed);
+    const curl = 0.5 + 0.8 * hash1(k, seed + 1);
+    const at = (r: number, turn: number, y: number) =>
+      new THREE.Vector3(r * spread * Math.cos(a + turn * curl), y, r * spread * Math.sin(a + turn * curl));
+    const curve = new THREE.CatmullRomCurve3([at(0.2, 0, 0.1), at(0.4, 0, 0.02), at(0.75, 0.25, 0), at(0.9, 0.7, 0.12 * curl)]);
+    const arm = new THREE.TubeGeometry(curve, 14, 0.055, 8, false);
+    arm.deleteAttribute('uv');
+    arm.deleteAttribute('normal');
+    taperTube(arm, curve, (t) => {
+      const k2 = lerp(1, 0.2, t);
+      return [k2, k2, k2];
+    });
+    parts.push(arm);
+  }
+  const g = mergeGeometries(parts)!;
+  g.computeVertexNormals();
+  setColour(g, (x, y, z) => {
+    // The eyes: a dull gold, dark where they face forward (the pupil).
+    if (y > 0.33 && Math.abs(x) > 0.09 && z > 0.1) return z > 0.165 ? [0.1, 0.08, 0.05] : [0.5, 0.42, 0.18];
+    const mottle = lerp(0.7, 1.15, 0.5 + 0.5 * vnoise2(x * 14 + seed, z * 14, seed));
+    return scale3(colour, mottle * (y < 0.03 ? 0.8 : 1));
+  });
+  setShare(g, 'life', 0);
+  setShare(g, 'rock', 0.25);
+  return g;
+}
+
 /** The face, built in its own frame (see wallRelief): the layer turns it to
  *  run north–south along the crest, facing east into the blue. */
 function buildWall(): { rock: THREE.BufferGeometry; fans: FanPlacement[]; bushes: FanPlacement[]; height: number } {
@@ -372,13 +528,39 @@ function buildWall(): { rock: THREE.BufferGeometry; fans: FanPlacement[]; bushes
   setShare(face, 'life', 1);
   setShare(face, 'rock', 1);
 
+  const parts: THREE.BufferGeometry[] = [face];
+
+  // Two giant morays looking out of the face where the camera looks at it
+  // (timeline.ts CAMERA_KEYS): down the wall ahead at the first from the
+  // drop-off (0.5–0.54), left at the second as the camera turns to the
+  // deep wall at its own depth (0.78–0.81). Each on the spur that comes
+  // nearest the camera's line, and nothing grows over its hole.
+  const holes: { x: number; y: number }[] = [];
+  for (const [i, zFrom, zTo, depth, yaw] of [
+    [0, -78, -84, 22.5, 0.3],
+    [1, -138, -144, 33, -0.25],
+  ] as const) {
+    const y = top - (depth - WALL_TOP_DEPTH_M);
+    let x = REEF_MID_Z - zFrom;
+    for (let z = zFrom; z >= zTo; z -= 0.5) {
+      if (wallZ(REEF_MID_Z - z, y, top) > wallZ(x, y, top)) x = REEF_MID_Z - z;
+    }
+    const eel = moray(70 + i);
+    eel.rotateY(yaw);
+    eel.rotateX(-0.15);
+    eel.translate(x, y, wallZ(x, y, top) - 0.05);
+    parts.push(eel);
+    holes.push({ x, y });
+  }
+  const overHole = (x: number, y: number) => holes.some((h) => Math.hypot(h.x - x, h.y - y) < 2.5);
+
   // Plate corals in tiers of two to four, stacking out of the face down the
   // camera's line of descent, as on the reference wall (clip 4).
-  const parts: THREE.BufferGeometry[] = [face];
   for (let i = 0; i < 80; i++) {
     const z = lerp(PATH_NORTH_Z - 50, PATH_SOUTH_Z, hash1(i, SEED + 100));
     const x = REEF_MID_Z - z;
     let y = top - 2 - hash1(i, SEED + 101) ** 1.2 * 24;
+    if (overHole(x, y)) continue;
     let r = 0.6 + 1.0 * hash1(i, SEED + 102) ** 1.5;
     const colour = PLATES[Math.floor(hash1(i, SEED + 103) * PLATES.length)];
     const tiers = 2 + Math.floor(hash1(i, SEED + 104) * 3);
@@ -399,6 +581,7 @@ function buildWall(): { rock: THREE.BufferGeometry; fans: FanPlacement[]; bushes
     const z = lerp(PATH_NORTH_Z - 45, PATH_SOUTH_Z, hash1(i, SEED + 140));
     const x = REEF_MID_Z - z;
     const y = top - 2 - hash1(i, SEED + 141) ** 1.2 * 26;
+    if (overHole(x, y)) continue;
     const r = 0.3 + 0.4 * hash1(i, SEED + 142);
     const barrel = barrelSponge(r, r * (1.4 + 0.8 * hash1(i, SEED + 143)), i, BARRELS[Math.floor(hash1(i, SEED + 144) * BARRELS.length)]);
     barrel.rotateX(Math.PI / 2 - 0.45 - 0.4 * hash1(i, SEED + 145));
@@ -410,6 +593,7 @@ function buildWall(): { rock: THREE.BufferGeometry; fans: FanPlacement[]; bushes
     const z = lerp(PATH_NORTH_Z - 45, PATH_SOUTH_Z, hash1(i, SEED + 150));
     const x = REEF_MID_Z - z;
     const y = top - 1.5 - hash1(i, SEED + 151) ** 1.2 * 27;
+    if (overHole(x, y)) continue;
     const tubes = tubeSponges(300 + i, TUBES[Math.floor(hash1(i, SEED + 152) * TUBES.length)]);
     tubes.rotateX(Math.PI / 2 - 0.6 - 0.5 * hash1(i, SEED + 153));
     tubes.rotateY((hash1(i, SEED + 154) - 0.5) * 0.8);
@@ -430,6 +614,7 @@ function buildWall(): { rock: THREE.BufferGeometry; fans: FanPlacement[]; bushes
     const x = REEF_MID_Z - z;
     const below = onPath ? 1 + hash1(i, SEED + 41) ** 1.3 * 26 : 1 + hash1(i, SEED + 41) ** 1.2 * 45;
     const y = top - below;
+    if (overHole(x, y)) continue;
     const width = 0.9 + 2.3 * hash1(i, SEED + 42) ** 2;
     const side = hash1(i, SEED + 43) < 0.5 ? -1 : 1;
     const yaw = side * (0.35 + 0.75 * hash1(i, SEED + 44));
@@ -452,6 +637,7 @@ function buildWall(): { rock: THREE.BufferGeometry; fans: FanPlacement[]; bushes
     const z = lerp(PATH_NORTH_Z - 45, PATH_SOUTH_Z, hash1(i, SEED + 110));
     const x = REEF_MID_Z - z;
     const y = top - 1.5 - hash1(i, SEED + 111) ** 1.2 * 28;
+    if (overHole(x, y)) continue;
     const width = 0.6 + 1.1 * hash1(i, SEED + 112) ** 2;
     const hanging = hash1(i, SEED + 113) < 0.4;
     const yaw = (hash1(i, SEED + 114) - 0.5) * 1.6;
@@ -467,7 +653,12 @@ function buildWall(): { rock: THREE.BufferGeometry; fans: FanPlacement[]; bushes
 // Sand in the channels.
 const SAND: RGBTuple = [0.8, 0.76, 0.64];
 
-function buildReefTop(): { rock: THREE.BufferGeometry; fans: FanPlacement[]; bushes: FanPlacement[] } {
+function buildReefTop(): {
+  rock: THREE.BufferGeometry;
+  fans: FanPlacement[];
+  bushes: FanPlacement[];
+  anemones: FanPlacement[];
+} {
   const width = REEF_TOP_EAST_U - REEF_WEST_X;
   const ground = new THREE.PlaneGeometry(width, REEF_LENGTH_M, Math.round(width * 1.6), Math.round(REEF_LENGTH_M * 1.6));
   ground.deleteAttribute('uv');
@@ -540,6 +731,30 @@ function buildReefTop(): { rock: THREE.BufferGeometry; fans: FanPlacement[]; bus
       parts.push(plate);
     }
   });
+  // Anemones beside the line (reefShape.ts): a low disc under four crossed
+  // quads of tentacles.
+  const anemones: FanPlacement[] = [];
+  ANEMONES.forEach((a, i) => {
+    const [x, y, z] = anemoneTop(a);
+    const colour = ANEMONE_TIPS[i % ANEMONE_TIPS.length];
+    for (let k = 0; k < 4; k++) {
+      anemones.push({ position: new THREE.Vector3(x, y - 0.12, z), width: 2 * a.r, yaw: (k * Math.PI) / 4, tilt: 0, colour });
+    }
+    const disc = coralHead(a.r * 0.9, 0.3, 'y', 3000 + i, [0.5, 0.46, 0.32]);
+    disc.translate(x, y - 0.25, z);
+    parts.push(disc);
+  });
+  // An octopus at the foot of the bommie beside the line, on its north
+  // side, facing the camera as it comes down over the reef top: the head
+  // behind it gives it a shape to stand against.
+  {
+    const u = PATH_BOMMIE.u + 0.3;
+    const z = PATH_BOMMIE.z + PATH_BOMMIE.r * 1.05 + 0.2;
+    const o = octopus(80);
+    o.rotateY(0.3);
+    o.translate(crestX(u, z), reefTopY(u, z) - 0.02, z);
+    parts.push(o);
+  }
   // Sponges on the spurs: barrels upright, tube clusters among them.
   for (let i = 0; i < 14; i++) {
     const [u, z] = near(i, SEED + 170);
@@ -561,8 +776,8 @@ function buildReefTop(): { rock: THREE.BufferGeometry; fans: FanPlacement[]; bus
   for (let i = 0; i < 44; i++) {
     const [u, z] = i % 4 < 3 ? near(i, SEED + 80) : anywhere(i, SEED + 80);
     if (channel(u, z) > 0.3 || u > REEF_TOP_EAST_U - 3) continue;
-    const colour = mix3(reefColour(u, z, SEED + 60), TABLES[Math.floor(hash1(i, SEED + 82) * TABLES.length)], 0.8);
-    const table = tableCoral(0.9 + 1.4 * hash1(i, SEED + 83), colour, i * 2.3);
+    const colour = mix3(reefColour(u, z, SEED + 60), TABLES[Math.floor(hash1(i, SEED + 82) * TABLES.length)], 0.9);
+    const table = tableCoral(0.7 + 1.0 * hash1(i, SEED + 83), colour, i * 2.3);
     table.rotateY(hash1(i, SEED + 84) * Math.PI);
     table.translate(crestX(u, z), reefTopY(u, z), z);
     // mergeGeometries needs every part indexed or none; weld the tables.
@@ -594,7 +809,7 @@ function buildReefTop(): { rock: THREE.BufferGeometry; fans: FanPlacement[]; bus
     bushes.push({ position, width, yaw, tilt, colour });
     bushes.push({ position: position.clone(), width: width * 0.92, yaw: yaw + Math.PI / 2, tilt, colour });
   }
-  return { rock: mergeGeometries(parts)!, fans, bushes };
+  return { rock: mergeGeometries(parts)!, fans, bushes, anemones };
 }
 
 // Photographs of real rock (Poly Haven, CC0): mossy_rock, lichen crust on
@@ -651,8 +866,10 @@ export default function createReefLayer(): Layer {
   let rockMaterial: THREE.MeshStandardMaterial;
   let fansMaterial: THREE.MeshStandardMaterial;
   let softMaterial: THREE.MeshStandardMaterial;
+  let anemoneMaterial: THREE.MeshStandardMaterial;
   let lace: THREE.Texture;
   let softTexture: THREE.Texture;
+  let anemoneTex: THREE.Texture;
   let wall: THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
   let reefTop: THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
   const fanMeshes: THREE.Mesh[] = [];
@@ -675,6 +892,10 @@ export default function createReefLayer(): Layer {
       softMaterial = fanMaterial(softTexture);
       softMaterial.roughness = 0.75;
       withReefShading(softMaterial, uniforms, { polyps: true });
+      anemoneTex = anemoneTexture(SEED + 11);
+      anemoneMaterial = fanMaterial(anemoneTex);
+      anemoneMaterial.roughness = 0.8;
+      withReefShading(anemoneMaterial, uniforms, { polyps: ANEMONE_STALK });
       const w = buildWall();
       const t = buildReefTop();
       wall = new THREE.Mesh(w.rock, rockMaterial);
@@ -688,6 +909,7 @@ export default function createReefLayer(): Layer {
         [reefTop, t.fans, fansMaterial, FAN_VARIANTS],
         [wall, w.bushes, softMaterial, 1],
         [reefTop, t.bushes, softMaterial, 1],
+        [reefTop, t.anemones, anemoneMaterial, 1],
       ] as const) {
         const mesh = new THREE.Mesh(fanGeometry(fans, variants), material);
         // Fans are blended: after the rock, before the fish and snow.
@@ -716,6 +938,7 @@ export default function createReefLayer(): Layer {
       cast(0.9, rockMaterial);
       cast(0.82, fansMaterial);
       cast(0.88, softMaterial);
+      cast(0.88, anemoneMaterial);
 
       // Underwater light is mostly scattered, arriving from everywhere: a
       // gentle sun from above and a strong hemisphere whose "ground" is
@@ -738,8 +961,10 @@ export default function createReefLayer(): Layer {
       rockMaterial.dispose();
       fansMaterial.dispose();
       softMaterial.dispose();
+      anemoneMaterial.dispose();
       lace.dispose();
       softTexture.dispose();
+      anemoneTex.dispose();
       if (photos) {
         for (const p of [photos.crust, photos.rubble]) {
           p.map.dispose();

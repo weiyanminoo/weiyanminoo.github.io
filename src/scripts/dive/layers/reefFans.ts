@@ -1,84 +1,138 @@
 // Sea fans for the reef: gorgonians, the lace that dominates a tropical
-// wall and stands in silhouette on reference 2's reef tops. Each
-// fan is one quad cut out by a procedural lace alpha map — a branching
-// fan with a fine net between the branches, so close up it reads as lace
-// and at distance, where the mipmaps average the net, as a soft solid fan.
+// wall and stands in silhouette on reference 2's reef tops. Each fan is
+// one quad cut out by an alpha map of a grown fan — branches that ramify
+// and rejoin into a mesh, as a real gorgonian's do — so close up it reads
+// as lace and at distance, where the mipmaps average the mesh, as a soft
+// solid fan.
 
 import * as THREE from 'three';
 import { hash1 } from '../noise';
 
 const LACE_PX = 512;
+/** Fans in the atlas, side by side: the same silhouette on every fan read
+ *  as stamped (round 8). */
+export const FAN_VARIANTS = 2;
 
-/** White lace on black, for use as an alphaMap (its green channel is the
- *  coverage, so mipmaps average it correctly — no dark fringes). */
-export function laceTexture(seed: number): THREE.CanvasTexture {
+/** Grown by space colonisation (Runions et al. 2007): points scattered
+ *  through the fan's outline draw the nearest branch tip towards them and
+ *  are consumed as it arrives, so the branches fill the outline evenly,
+ *  fork where the points spread, and thin outwards — the venation of a
+ *  real fan rather than a drawn tree. Widths follow the pipe model: each
+ *  branch as thick as what it carries. */
+function growFan(g: CanvasRenderingContext2D, ox: number, seed: number) {
+  let n = 0;
+  const rand = (k: number) => hash1(n++, seed + k);
+  const baseX = ox + LACE_PX / 2;
+  const baseY = LACE_PX - 6;
+  const rx = LACE_PX * 0.47;
+  const ry = LACE_PX * 0.9;
+
+  // The outline: a half-ellipse with a wobbled rim and a few deeper bays,
+  // so no two fans are the same shape.
+  const rim = (a: number) => 0.9 + 0.07 * Math.sin(a * 3 + seed) + 0.05 * Math.sin(a * 7.3 + seed * 2) - 0.06 * Math.max(0, Math.sin(a * 11 + seed * 3));
+  const attractors: { x: number; y: number; alive: boolean }[] = [];
+  for (let i = 0; i < 1600; i++) {
+    const a = Math.PI * (0.05 + 0.9 * rand(1));
+    const r = Math.sqrt(rand(2)) * rim(a);
+    if (r < 0.1) continue;
+    attractors.push({ x: baseX + rx * r * Math.cos(a), y: baseY - ry * r * Math.sin(a), alive: true });
+  }
+
+  const INFLUENCE = 44;
+  const KILL = 9;
+  const STEP = 4.5;
+  const CELL = INFLUENCE;
+  const nodes: { x: number; y: number; parent: number; width: number }[] = [];
+  const grid = new Map<number, number[]>();
+  const key = (x: number, y: number) => Math.floor(x / CELL) * 4096 + Math.floor(y / CELL);
+  const addNode = (x: number, y: number, parent: number) => {
+    const k = key(x, y);
+    let cell = grid.get(k);
+    if (!cell) grid.set(k, (cell = []));
+    cell.push(nodes.length);
+    nodes.push({ x, y, parent, width: 0 });
+  };
+  // A short stem before the fan spreads.
+  addNode(baseX, baseY, -1);
+  for (let i = 1; i <= 4; i++) addNode(baseX, baseY - i * STEP, i - 1);
+
+  for (let iteration = 0; iteration < 500; iteration++) {
+    const pull = new Map<number, [number, number]>();
+    for (const a of attractors) {
+      if (!a.alive) continue;
+      let best = -1;
+      let bestD = INFLUENCE;
+      const cx = Math.floor(a.x / CELL);
+      const cy = Math.floor(a.y / CELL);
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          const cell = grid.get((cx + dx) * 4096 + cy + dy);
+          if (!cell) continue;
+          for (const i of cell) {
+            const d = Math.hypot(nodes[i].x - a.x, nodes[i].y - a.y);
+            if (d < bestD) {
+              bestD = d;
+              best = i;
+            }
+          }
+        }
+      }
+      if (best < 0) continue;
+      if (bestD < KILL) {
+        a.alive = false;
+        continue;
+      }
+      const p = pull.get(best) ?? [0, 0];
+      p[0] += (a.x - nodes[best].x) / bestD;
+      p[1] += (a.y - nodes[best].y) / bestD;
+      pull.set(best, p);
+    }
+    if (pull.size === 0) break;
+    for (const [i, [px, py]] of pull) {
+      // A little jitter: two points pulling square against each other
+      // would otherwise hold a tip still for ever.
+      const jx = px + (rand(3) - 0.5) * 0.3;
+      const jy = py + (rand(4) - 0.5) * 0.3;
+      const len = Math.hypot(jx, jy) || 1;
+      addNode(nodes[i].x + (jx / len) * STEP, nodes[i].y + (jy / len) * STEP, i);
+    }
+  }
+
+  // Widths, tips to trunk: w = (Σ children w^2.6)^(1/2.6), a shade past
+  // Murray's law so the trunk stays a trunk and the fan stays lace.
+  const LEAF = 1.5;
+  for (let i = nodes.length - 1; i >= 0; i--) {
+    const node = nodes[i];
+    if (node.width === 0) node.width = LEAF;
+    if (node.parent >= 0) {
+      const parent = nodes[node.parent];
+      parent.width = (parent.width ** 2.6 + node.width ** 2.6) ** (1 / 2.6);
+    }
+  }
+  g.strokeStyle = '#fff';
+  g.lineCap = 'round';
+  for (const node of nodes) {
+    if (node.parent < 0) continue;
+    const parent = nodes[node.parent];
+    g.lineWidth = Math.min(14, 0.5 * (node.width + parent.width));
+    g.beginPath();
+    g.moveTo(parent.x, parent.y);
+    g.lineTo(node.x, node.y);
+    g.stroke();
+  }
+}
+
+/** White fans on black, FAN_VARIANTS side by side, for use as an alphaMap
+ *  (its green channel is the coverage, so mipmaps average it correctly —
+ *  no dark fringes). */
+export function fanTexture(seed: number): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
-  canvas.width = LACE_PX;
+  canvas.width = LACE_PX * FAN_VARIANTS;
   canvas.height = LACE_PX;
   const g = canvas.getContext('2d')!;
   g.fillStyle = '#000';
-  g.fillRect(0, 0, LACE_PX, LACE_PX);
-  g.lineCap = 'round';
-
-  const baseX = LACE_PX / 2;
-  const baseY = LACE_PX - 8;
-
-  // The net: two families of fine, slightly wavy lines, drawn on their own
-  // layer and faded out radially from the holdfast, so a fan has a soft
-  // edge — clipped to a hard outline (or filled) it read as a scrap of
-  // paper (round 2).
-  const netCanvas = document.createElement('canvas');
-  netCanvas.width = LACE_PX;
-  netCanvas.height = LACE_PX;
-  const net = netCanvas.getContext('2d')!;
-  net.strokeStyle = '#fff';
-  net.lineWidth = 1.6;
-  for (const dir of [1, -1]) {
-    for (let k = -LACE_PX; k < LACE_PX * 2; k += 6) {
-      net.beginPath();
-      for (let s = 0; s <= LACE_PX; s += 16) {
-        const wobble = 2.5 * Math.sin(s * 0.05 + k * 0.3 + seed);
-        net.lineTo(k + dir * s * 0.8 + wobble, s);
-      }
-      net.stroke();
-    }
-  }
-  const fade = net.createRadialGradient(baseX, baseY, 0, baseX, baseY, LACE_PX * 0.46);
-  fade.addColorStop(0, 'rgba(0,0,0,0)');
-  fade.addColorStop(0.15, 'rgba(0,0,0,1)');
-  fade.addColorStop(0.7, 'rgba(0,0,0,0.8)');
-  fade.addColorStop(1, 'rgba(0,0,0,0)');
-  net.globalCompositeOperation = 'destination-in';
-  net.fillStyle = fade;
-  net.fillRect(0, 0, LACE_PX, LACE_PX);
-  g.globalAlpha = 0.5;
-  g.drawImage(netCanvas, 0, 0);
-  g.globalAlpha = 1;
-
-  // The branches: a trunk splitting into ever finer twigs.
-  let n = 0;
-  const branch = (x: number, y: number, angle: number, len: number, width: number, depth: number) => {
-    const bend = (hash1(n++, seed + 1) - 0.5) * 0.3;
-    const x2 = x + Math.cos(angle + bend) * len;
-    const y2 = y - Math.sin(angle + bend) * len;
-    g.strokeStyle = '#fff';
-    g.lineWidth = width;
-    g.beginPath();
-    g.moveTo(x, y);
-    g.quadraticCurveTo(x + Math.cos(angle) * len * 0.5, y - Math.sin(angle) * len * 0.5, x2, y2);
-    g.stroke();
-    if (depth === 0) return;
-    const spread = 0.22 + 0.2 * hash1(n++, seed + 2);
-    const shrink = 0.74 + 0.1 * hash1(n++, seed + 3);
-    branch(x2, y2, angle + spread, len * shrink, Math.max(1.4, width * 0.72), depth - 1);
-    branch(x2, y2, angle - spread, len * shrink, Math.max(1.4, width * 0.72), depth - 1);
-  };
-  const trunks = 6;
-  for (let i = 0; i < trunks; i++) {
-    const a = Math.PI * (0.2 + 0.6 * (i / (trunks - 1))) + (hash1(i, seed + 4) - 0.5) * 0.15;
-    branch(baseX, baseY, a, LACE_PX * 0.09, 7, 7);
-  }
-
+  g.fillRect(0, 0, canvas.width, canvas.height);
+  for (let v = 0; v < FAN_VARIANTS; v++) growFan(g, v * LACE_PX, seed + v * 101);
   const texture = new THREE.CanvasTexture(canvas);
   texture.anisotropy = 4;
   return texture;
@@ -93,11 +147,13 @@ export interface FanPlacement {
   yaw: number;
   tilt: number;
   colour: [number, number, number];
+  /** Which of the atlas's fans, 0..variants−1 (default 0). */
+  variant?: number;
 }
 
 /** All the fans as one geometry: a quad each, holdfast at its bottom
- *  centre, vertex-coloured, uv'd for the lace. */
-export function fanGeometry(fans: readonly FanPlacement[]): THREE.BufferGeometry {
+ *  centre, vertex-coloured, uv'd for its fan in an atlas of `variants`. */
+export function fanGeometry(fans: readonly FanPlacement[], variants = 1): THREE.BufferGeometry {
   const quad = new THREE.PlaneGeometry(1, 0.95);
   quad.translate(0, 0.475, 0);
   const parts: THREE.BufferGeometry[] = [];
@@ -112,6 +168,10 @@ export function fanGeometry(fans: readonly FanPlacement[]): THREE.BufferGeometry
       new THREE.Vector3(fan.width, fan.width, fan.width),
     );
     g.applyMatrix4(m);
+    if (variants > 1) {
+      const uv = g.getAttribute('uv');
+      for (let i = 0; i < uv.count; i++) uv.setX(i, (uv.getX(i) + (fan.variant ?? 0)) / variants);
+    }
     const count = g.getAttribute('position').count;
     const colours = new Float32Array(count * 3);
     for (let i = 0; i < count; i++) colours.set(fan.colour, i * 3);

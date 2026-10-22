@@ -57,9 +57,12 @@ export const CAMERA_PATH: readonly (readonly [number, number, number])[] = [
   // Free descent, drifting in towards the reef as it rises out of the haze.
   [0.15, 8, -9],
   [0.24, 4, -21],
-  // Over the crest and onto the reef top, a few metres in from the edge.
-  [0.32, -4, -37],
-  [0.46, -5, -64],
+  // Over the crest and onto the reef top, well in from the edge: the top's
+  // own coral and bommies under the lens, the rim and the blue off to the
+  // right (along the crest line itself the rim was the whole foreground,
+  // round 8).
+  [0.32, -9, -37],
+  [0.46, -8, -63],
   // Out over the edge…
   [0.5, 2, -71],
   [0.54, 8.5, -77],
@@ -87,7 +90,7 @@ export const CAMERA_KEYS: readonly (readonly [number, number, number])[] = [
   [0.3, -0.2, 0],
   // Over the reef top, glancing right towards the edge.
   [0.38, -0.3, -0.1],
-  [0.44, -0.3, -0.3],
+  [0.44, -0.3, 0.05],
   // Over the edge: looking down the face as it drops away on the left.
   [0.5, -0.7, 0.45],
   // Drifting along it, the face in the left third.

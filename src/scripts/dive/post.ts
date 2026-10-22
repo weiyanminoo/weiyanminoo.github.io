@@ -40,6 +40,9 @@ const fragmentShader = /* glsl */ `
   // curve after the sRGB conversion.
   const float SATURATION = 1.3;
   const float CONTRAST = 1.06;
+  // A film's shoulder: nothing below it changes; above it the lit reef
+  // rolls off into white instead of clipping (the torch, round 8).
+  const float SHOULDER = 0.7;
 
   float hash(vec2 p) {
     return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
@@ -76,8 +79,13 @@ const fragmentShader = /* glsl */ `
         * (0.6 + 0.4 * sin(uv.x * 13.0 - uTime * 1.3));
       col = mix(col, col * 1.12 + 0.012, w * 0.6) + vec3(0.012, 0.018, 0.022) * shimmer * w;
     }
+    vec3 over = max(col - SHOULDER, 0.0);
+    col = min(col, SHOULDER) + (1.0 - SHOULDER) * (1.0 - exp(-over / (1.0 - SHOULDER)));
     float luma = dot(col, vec3(0.2126, 0.7152, 0.0722));
     col = max(mix(vec3(luma), col, SATURATION), 0.0);
+    // The grade's split: the lit foreground a touch warmer, the shadows a
+    // touch bluer, so the two read as the reef and the water they sit in.
+    col += vec3(0.02, 0.004, -0.016) * smoothstep(0.3, 0.8, luma) + vec3(-0.008, 0.0, 0.014) * (1.0 - smoothstep(0.0, 0.3, luma));
     col *= 1.0 - VIGNETTE * smoothstep(0.15, 1.0, r2 / rMax2);
     gl_FragColor = vec4(col, 1.0);
     #include <colorspace_fragment>

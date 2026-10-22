@@ -30,7 +30,7 @@
 
 import type * as THREE from 'three';
 import { SURFACE_CLEARANCE_M } from '../world';
-import { withViewAbsorption } from './absorb';
+import { withWaterOptics } from './absorb';
 
 /** Grain relief, metres, at full amplitude. */
 const BUMP_M = 0.45;
@@ -255,7 +255,9 @@ const GRAIN_GLSL = /* glsl */ `
 `;
 
 // Projected onto (x, y + z): a vertical face's own plane, and a level
-// reef top's plane, from one expression.
+// reef top's plane, from one expression. Any one projection streaks
+// somewhere on a round head, so the heads carry little of this and more
+// of the tri-planar photograph (reef.ts coralHead).
 const MOSAIC_GLSL = /* glsl */ `
   diffuseColor.rgb = mix(
     diffuseColor.rgb,
@@ -339,21 +341,17 @@ export function withReefShading(
         vLife = ${mosaic ? 'life' : '0.0'};
         vRock = ${photos ? 'rock' : '0.0'};`,
       );
-    shader.fragmentShader = withViewAbsorption(
-      shader.fragmentShader
-        .replace(
-          '#include <common>',
-          `#include <common>\n${FRAGMENT_GLSL}${photos ? photoHeadGlsl(photos) : ''}`,
-        )
-        .replace(
-          '#include <color_fragment>',
-          `#include <color_fragment>
-          float reefH = 0.0;
-          float reefLift = 0.0;
-          vec2 reefPhotoDh = vec2(0.0);
-          ${polyps ? POLYPS_GLSL : ''}${grain ? GRAIN_GLSL : ''}${mosaic ? MOSAIC_GLSL : ''}${photos ? PHOTO_GLSL : ''}${DEPTH_GLSL}`,
-        ),
-    );
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>\n${FRAGMENT_GLSL}${photos ? photoHeadGlsl(photos) : ''}`)
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+        float reefH = 0.0;
+        float reefLift = 0.0;
+        vec2 reefPhotoDh = vec2(0.0);
+        ${polyps ? POLYPS_GLSL : ''}${grain ? GRAIN_GLSL : ''}${mosaic ? MOSAIC_GLSL : ''}${photos ? PHOTO_GLSL : ''}${DEPTH_GLSL}`,
+      );
+    withWaterOptics(shader);
     if (grain || photos) {
       shader.fragmentShader = shader.fragmentShader.replace(
         '#include <normal_fragment_maps>',

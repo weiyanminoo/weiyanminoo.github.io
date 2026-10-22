@@ -11,7 +11,7 @@ import { hash1 } from '../noise';
 import { SCHOOLS, fishPose, type SchoolSpec } from '../schoolPaths';
 import type { Layer, LayerContext } from '../scene';
 import type { DiveFrame } from '../types';
-import { withViewAbsorption } from './absorb';
+import { withWaterOptics } from './absorb';
 
 // Where an out-of-window school parks its one still-drawn fish: well past
 // the camera's 400 m far plane.
@@ -72,6 +72,21 @@ const LOOKS: Record<SchoolSpec['id'], SchoolLook> = {
     },
     stripes: false,
     keepColour: 0.75,
+  },
+  chromis: {
+    length: 0.11,
+    // Ahead of the camera over the reef top until it turns out over the
+    // edge.
+    visible: [0.3, 0.5],
+    pass: (p) => clamp((p - 0.42) / 0.06, 0, 1),
+    // Pale green-silver, as a chromis cloud catches the light: blue-green
+    // fish were lost against the blue (round 8).
+    colour: (y) => {
+      const t = smoothstep(0.01, -0.03, y);
+      return [lerp(0.7, 0.9, t), lerp(0.92, 0.96, t), lerp(0.8, 0.9, t)];
+    },
+    stripes: false,
+    keepColour: 0.9,
   },
   anthias: {
     length: 0.13,
@@ -147,7 +162,7 @@ function withTailWave(material: THREE.MeshStandardMaterial, uniforms: Record<str
           * 0.08 * uLength * tailW;`,
       );
     // Colour lost over the water to the lens, as on the reef (absorb.ts).
-    shader.fragmentShader = withViewAbsorption(shader.fragmentShader);
+    withWaterOptics(shader);
     if (!stripes) return;
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vFish;')

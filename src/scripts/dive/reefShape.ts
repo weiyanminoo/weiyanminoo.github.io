@@ -1,11 +1,12 @@
-// The wall face's shape, as pure functions of position: the reef layer
-// builds its mesh from these, and the dive path and the anthias read the
-// same numbers to stay a set distance off the real rock. Nothing here
-// imports Three.js.
+// The reef's shape, as pure functions of position: the wall face and the
+// reef top, and the bommies standing on it. The reef layer builds its
+// meshes from these, and the dive path and the fish read the same numbers
+// to stay a set distance off the real rock. Nothing here imports Three.js.
 
 import { lerp, smoothstep } from './math';
 import { hash1 } from './noise';
-import { EDGE_X, REEF_NORTH_Z, REEF_SOUTH_Z, REEF_TOP_DEPTH_M, WALL_BOTTOM_DEPTH_M } from './world';
+import type { Vec3 } from './types';
+import { EDGE_X, REEF_NORTH_Z, REEF_SOUTH_Z, REEF_TOP_DEPTH_M, WALL_BOTTOM_DEPTH_M, worldY } from './world';
 
 export const REEF_SEED = 606;
 export const REEF_LENGTH_M = REEF_NORTH_Z - REEF_SOUTH_Z;
@@ -97,4 +98,82 @@ export function faceReach(z: number, depthM: number, window = 8, depthWindow = 4
     }
   }
   return reach;
+}
+
+// The reef top is laid out in (u, z): u is metres east of the crest line
+// (negative: west of it, on the reef top), so it follows the meander.
+
+/** The reef top stops this far west of the crest line, under the rim. */
+export const REEF_TOP_EAST_U = -4;
+
+export const crestX = (u: number, z: number) => EDGE_X + u + meander(z);
+
+/** Spur-and-groove: sand channels running out to the edge between coral
+ *  spurs, as on the seaward side of real reef tops. 0 on a spur, 1 in a
+ *  channel. */
+export function channel(u: number, z: number): number {
+  const wave = 0.5 + 0.5 * Math.sin(z * 0.28 + 1.6 * fbm2(u * 0.04, z * 0.04, REEF_SEED + 52, 3));
+  return smoothstep(0.62, 0.92, wave) * smoothstep(-36, -8, u);
+}
+
+/** The reef top's height at (u, z), split into broad shape and local
+ *  relief. It dips gently as it reaches the crest, to run in under the
+ *  face's rim. */
+export function reefTopRelief(u: number, z: number): { broad: number; detail: number } {
+  let broad = worldY(REEF_TOP_DEPTH_M) + 1.2 * fbm2(u * 0.12, z * 0.12, REEF_SEED + 50) - 1.0 * channel(u, z);
+  const under = u - (REEF_TOP_EAST_U - 2);
+  if (under > 0) broad -= under * 0.4;
+  return { broad, detail: 0.45 * fbm2(u * 0.6, z * 0.6, REEF_SEED + 51, 3) * (1 - 0.7 * channel(u, z)) };
+}
+
+export function reefTopY(u: number, z: number): number {
+  const { broad, detail } = reefTopRelief(u, z);
+  return broad + detail;
+}
+
+/** A bommie: one of the big coral heads that stand up from a reef top,
+ *  the landmarks it is remembered by. `r` is its radius, `h` how far its
+ *  crown stands above the ground at (u, z). */
+export interface Bommie {
+  u: number;
+  z: number;
+  r: number;
+  h: number;
+}
+
+/** The bommie the dive's line passes: 3 m west of the camera as it nears
+ *  the edge (timeline.ts CAMERA_PATH), on the spur nearest z = −67, so it
+ *  is ahead of the lens, its chromis cloud in the frame, until the camera
+ *  turns out over the edge. */
+export const PATH_BOMMIE: Bommie = (() => {
+  let z = -67;
+  let sand = Infinity;
+  for (let candidate = -62; candidate >= -72; candidate -= 0.5) {
+    const c = channel(-11 - meander(candidate), candidate);
+    if (c < sand) {
+      sand = c;
+      z = candidate;
+    }
+  }
+  return { u: -11 - meander(z), z, r: 2.4, h: 1.7 };
+})();
+
+/** Bommies along the dive's line over the reef top, on the spurs, each
+ *  standing clear of the camera's path (tests/dive/reefShape.test.ts). */
+export const BOMMIES: readonly Bommie[] = [
+  ...Array.from({ length: 14 }, (_, i) => {
+    const r = 1.5 + 1.2 * hash1(i, REEF_SEED + 132);
+    return {
+      u: lerp(-26, -7, hash1(i, REEF_SEED + 130)),
+      z: lerp(-14, -92, hash1(i, REEF_SEED + 131)),
+      r,
+      h: r * (0.55 + 0.25 * hash1(i, REEF_SEED + 133)),
+    };
+  }).filter((b) => channel(b.u, b.z) < 0.3 && Math.hypot(b.z - PATH_BOMMIE.z, b.u - PATH_BOMMIE.u) > 6),
+  PATH_BOMMIE,
+];
+
+/** World position of a bommie's crown. */
+export function bommieTop(b: Bommie): Vec3 {
+  return [crestX(b.u, b.z), reefTopY(b.u, b.z) + b.h, b.z];
 }

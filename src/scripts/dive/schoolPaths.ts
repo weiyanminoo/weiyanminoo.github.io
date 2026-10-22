@@ -13,10 +13,10 @@ import { lerp } from './math';
 import { hash1, noise1 } from './noise';
 import { positionAt } from './timeline';
 import type { Vec3 } from './types';
-import { faceX } from './reefShape';
+import { PATH_BOMMIE, bommieTop, faceX } from './reefShape';
 
 export interface SchoolSpec {
-  id: 'open-blue' | 'snapper' | 'jacks' | 'anthias';
+  id: 'open-blue' | 'snapper' | 'jacks' | 'anthias' | 'chromis';
   count: number;
   /** Half-extent of the school around its centre, metres. */
   radius: Vec3;
@@ -53,6 +53,9 @@ const ANTHIAS_Z = (ANTHIAS_NORTH[2] + ANTHIAS_SOUTH[2]) / 2;
 const ANTHIAS_Y = (ANTHIAS_NORTH[1] + ANTHIAS_SOUTH[1]) / 2;
 const ANTHIAS_HALF_LENGTH = (ANTHIAS_NORTH[2] - ANTHIAS_SOUTH[2]) / 2;
 const ANTHIAS_SHEAR = (ANTHIAS_NORTH[1] - ANTHIAS_SOUTH[1]) / (ANTHIAS_NORTH[2] - ANTHIAS_SOUTH[2]);
+
+// The chromis cloud's home: the crown of the bommie beside the dive's line.
+const CHROMIS_HOME = bommieTop(PATH_BOMMIE);
 
 export const SCHOOLS: readonly SchoolSpec[] = [
   {
@@ -113,6 +116,22 @@ export const SCHOOLS: readonly SchoolSpec[] = [
     shear: ANTHIAS_SHEAR,
     // Just off the real rock, following its bays and spurs.
     hug: (z, depthM) => faceX(z, depthM),
+  },
+  {
+    // Blue-green chromis hanging in a cloud over a bommie, as over every
+    // big head on a reef top, and sinking into it as the camera comes
+    // over.
+    id: 'chromis',
+    count: 360,
+    radius: [2.2, 1.3, 2.2],
+    seed: 1111,
+    centre: (t, s) => [
+      CHROMIS_HOME[0] + 0.3 * Math.sin(0.2 * t),
+      CHROMIS_HOME[1] + 1.4 - 0.8 * s + 0.2 * Math.sin(0.3 * t),
+      CHROMIS_HOME[2] + 0.3 * Math.cos(0.17 * t),
+    ],
+    swim: [0, 0, 0],
+    wander: 0.3,
   },
 ];
 

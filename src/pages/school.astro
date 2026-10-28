@@ -16,7 +16,7 @@ const rendered = await Promise.all(sorted.map((entry) => render(entry)));
 const blanks = Math.max(0, SCHOOL_SLOTS - sorted.length);
 ---
 
-<StaticLayout title={title} description={description} still="school">
+<StaticLayout title={title} description={description}>
   <section>
     <h1>School</h1>
     <SectionHead label="DIVE LOG — SCHOOL" />

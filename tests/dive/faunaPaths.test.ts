@@ -83,4 +83,12 @@ describe('sharkPath', () => {
   it('is near the middle of the frame when the camera turns out to it', () => {
     expect(offAxis(sharkP(0.5), sharkPath(0.5).position)).toBeLessThan(12);
   });
+
+  // In frame when it arrives (from the haze, not from the edge), and out
+  // of the right of the frame — past a 16:10 lens's 43° half-width, so
+  // past a phone's too — before its pass ends, so the cut is never seen.
+  it('comes in from the haze and swims out of frame before it is gone', () => {
+    expect(offAxis(sharkP(0.1), sharkPath(0.1).position)).toBeLessThan(35);
+    expect(offAxis(sharkP(0.95), sharkPath(0.95).position)).toBeGreaterThan(48);
+  });
 });

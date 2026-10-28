@@ -41,12 +41,15 @@ const manta = (s: number): Vec3 => {
   return [cam[0] + lerp(17, -9, s), cam[1] + 8 + Math.sin(Math.PI * s), cam[2] - 11];
 };
 
-// Closing slowly out of the haze on the right at the camera's depth: about
-// 15 m away at its nearest — a small shape in the blue, as in reference 2
-// at 3:20, but a readable one (round 2: at 15 m and dark it was a speck).
+// Out of the haze ahead on the right at the camera's depth, cruising north
+// the other way, about 14 m off: a small shape in the blue, as in
+// reference 2 at 3:20, but a readable one (round 2: at 15 m and dark it
+// was a speck). Abreast of the camera at mid-pass, where the camera has
+// turned to follow it, then on past and out of the right of the frame
+// before its pass ends — it used to vanish while still centred (round 9).
 const shark = (s: number): Vec3 => {
   const cam = positionAt(passP(SHARK_PASS, s));
-  return [cam[0] + 14, cam[1] + lerp(-1, 0, s), cam[2] + lerp(-22, -6, s)];
+  return [cam[0] + 14, cam[1] + lerp(-1, 0, s), cam[2] + lerp(-26, -14, s) + 26 * s * s];
 };
 
 export function mantaPath(s: number): { position: Vec3; heading: Vec3 } {

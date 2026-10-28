@@ -169,8 +169,9 @@ const LOOKS: Record<SchoolSpec['id'], SchoolLook> = {
   },
   fusiliers: {
     length: 0.3,
-    visible: [0.55, 0.74],
-    pass: (p) => clamp((p - 0.56) / 0.16, 0, 1),
+    // With the manta, and gone before the shark (its pass starts at 0.66).
+    visible: [0.55, 0.65],
+    pass: (p) => clamp((p - 0.56) / 0.09, 0, 1),
     // Yellowback fusilier: blue, the back yellow.
     colour: (y) => (y > 0.03 ? [0.9, 0.78, 0.3] : [0.4, 0.58, 0.85]),
     stripes: false,
@@ -178,9 +179,9 @@ const LOOKS: Record<SchoolSpec['id'], SchoolLook> = {
   },
   barracuda: {
     length: 0.75,
-    // Off in the east behind the shark's pass.
-    visible: [0.62, 0.78],
-    pass: (p) => p,
+    // Streaming by after the shark has gone, at 27–28 m.
+    visible: [0.725, 0.8],
+    pass: (p) => clamp((p - 0.73) / 0.06, 0, 1),
     // Dark silver: silhouettes against the light.
     colour: (y) => {
       const t = smoothstep(0.01, -0.03, y);

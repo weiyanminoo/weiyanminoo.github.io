@@ -1,24 +1,38 @@
 ---
 // The section pages (Work, School, Projects, Hobbies): static and easy to
 // read, for the visitor who came for the details rather than the film. No
-// canvas, no scroll effects, no ClientRouter. A still from the dive at the
-// section's own depth heads the page, so it still feels part of the same
-// water at no runtime cost.
+// canvas, no scroll effects, no ClientRouter. A band of plain open water
+// heads the page — the blue, a few bubbles rising, nothing else — so it
+// still feels part of the same water at no runtime cost. (A still of the
+// reef here fought the page's title, round 9.)
 import '@fontsource-variable/archivo';
 import '@fontsource-variable/spline-sans-mono';
 import '../styles/tokens.css';
 import '../styles/base.css';
 import SiteHeader from '../components/SiteHeader.astro';
 import SiteFooter from '../components/SiteFooter.astro';
-import type { SectionId } from '../scripts/dive/types';
 
 interface Props {
   title: string;
   description: string;
-  still: SectionId;
 }
 
-const { title, description, still } = Astro.props;
+const { title, description } = Astro.props;
+
+// The bubbles: a dozen, each with its own place, size, pace and sway,
+// seeded so every build draws the same water.
+const hash = (i: number, k: number) => {
+  const x = Math.sin(i * 127.1 + k * 311.7) * 43758.5453;
+  return x - Math.floor(x);
+};
+const BUBBLES = Array.from({ length: 12 }, (_, i) => ({
+  x: `${(4 + 92 * hash(i, 1)).toFixed(1)}%`,
+  y: `${(10 + 75 * hash(i, 5)).toFixed(1)}%`,
+  size: `${(5 + 13 * hash(i, 2) ** 2).toFixed(1)}px`,
+  duration: `${(7 + 7 * hash(i, 3)).toFixed(1)}s`,
+  delay: `${(-14 * hash(i, 4)).toFixed(1)}s`,
+  sway: `${((hash(i, 6) - 0.5) * 40).toFixed(0)}px`,
+}));
 
 const canonicalURL = new URL(Astro.url.pathname, Astro.site);
 const ogImageURL = new URL('/og.png', Astro.site);
@@ -58,7 +72,13 @@ const siteName = 'Wei Yan';
   <body>
     <a href="#main" class="skip-link">Skip to content</a>
     <SiteHeader variant="solid" />
-    <img class="still" src={`/dive/stills/${still}.jpg`} alt="" width="1440" height="900" decoding="async" />
+    <div class="water" aria-hidden="true">
+      {
+        BUBBLES.map((b) => (
+          <i style={`--x:${b.x};--y:${b.y};--size:${b.size};--duration:${b.duration};--delay:${b.delay};--sway:${b.sway}`} />
+        ))
+      }
+    </div>
     <main id="main" tabindex="-1">
       <div class="container">
         <slot />
@@ -81,12 +101,67 @@ const siteName = 'Wei Yan';
     color: var(--ink);
   }
 
-  .still {
-    display: block;
-    width: 100%;
+  /* Open water: lit from above, cobalt by the bottom, with two soft
+     shafts of light coming down through it. */
+  .water {
+    position: relative;
+    overflow: hidden;
     height: 32vh;
     min-height: 180px;
-    object-fit: cover;
+    background:
+      linear-gradient(105deg, transparent 38%, rgba(255, 255, 255, 0.07) 44%, transparent 50%),
+      linear-gradient(100deg, transparent 62%, rgba(255, 255, 255, 0.05) 70%, transparent 78%),
+      linear-gradient(to bottom, #4a97b8 0%, #2a6f8f 45%, var(--deep) 100%);
+  }
+
+  /* A bubble: a thin bright rim, a highlight up and to the left, the
+     water showing through the middle. */
+  .water i {
+    position: absolute;
+    left: var(--x);
+    bottom: -24px;
+    width: var(--size);
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: radial-gradient(
+      circle at 36% 32%,
+      rgba(255, 255, 255, 0.9) 0,
+      rgba(255, 255, 255, 0.35) 18%,
+      rgba(255, 255, 255, 0.04) 45%,
+      rgba(255, 255, 255, 0.02) 70%,
+      rgba(255, 255, 255, 0.4) 100%
+    );
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.3);
+    animation: rise var(--duration) linear var(--delay) infinite;
+  }
+
+  @keyframes rise {
+    0% {
+      transform: translate(0, 0);
+      opacity: 0;
+    }
+    8% {
+      opacity: 0.9;
+    }
+    50% {
+      transform: translate(var(--sway), calc(-16vh - 60px));
+    }
+    92% {
+      opacity: 0.7;
+    }
+    100% {
+      transform: translate(0, calc(-32vh - 120px));
+      opacity: 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .water i {
+      animation: none;
+      bottom: auto;
+      top: var(--y);
+      opacity: 0.6;
+    }
   }
 
   main {

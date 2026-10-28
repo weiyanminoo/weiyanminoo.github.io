@@ -12,7 +12,7 @@ const sorted = [...roles].sort((a, b) => b.data.start.getTime() - a.data.start.g
 const rendered = await Promise.all(sorted.map((entry) => render(entry)));
 ---
 
-<StaticLayout title={title} description={description} still="work">
+<StaticLayout title={title} description={description}>
   <section>
     <h1>Work</h1>
     <SectionHead label="DIVE LOG — WORK" />

@@ -179,9 +179,10 @@ const LOOKS: Record<SchoolSpec['id'], SchoolLook> = {
   },
   barracuda: {
     length: 0.75,
-    // Streaming by after the shark has gone, at 27–28 m.
-    visible: [0.725, 0.8],
-    pass: (p) => clamp((p - 0.73) / 0.06, 0, 1),
+    // In from the haze ahead well after the shark, at 27–30 m; gone
+    // behind and below before the window closes.
+    visible: [0.73, 0.86],
+    pass: (p) => clamp((p - 0.74) / 0.1, 0, 1),
     // Dark silver: silhouettes against the light.
     colour: (y) => {
       const t = smoothstep(0.01, -0.03, y);
@@ -203,7 +204,9 @@ const LOOKS: Record<SchoolSpec['id'], SchoolLook> = {
   },
   deepBand: {
     length: 0.5,
-    visible: [0.74, 1],
+    // From when the camera is turned to the wall, so the band is already
+    // there in the blue when the camera turns back out to it.
+    visible: [0.8, 1],
     pass: (p) => p,
     colour: () => [0.18, 0.24, 0.32],
     stripes: false,

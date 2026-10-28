@@ -76,7 +76,6 @@ const CLOWN_HOME = anemoneTop(ANEMONES[0]);
 // Where the camera is along the wall, for the fish that pass it there, and
 // in the deep.
 const WALL_START = positionAt(0.6);
-const AFTER_SHARK = positionAt(0.75);
 const DEEP_BAND = positionAt(0.84);
 const DEEP_RIVER = positionAt(0.92);
 
@@ -219,15 +218,21 @@ export const SCHOOLS: readonly SchoolSpec[] = [
     swim: [0, 0, 1.5],
   },
   {
-    // A column of chevron barracuda streaming across the blue ahead at
-    // 27 m, right to left, once the shark has gone (its pass ends at 0.72;
-    // the two are never in the water together): dark against the light.
+    // A column of chevron barracuda coming north up the wall to meet the
+    // camera, well after the shark has gone (its pass ends at 0.72): out
+    // of the haze far ahead — 45 m, where the fog all but hides them, so
+    // they come into being by degrees rather than switching on — growing
+    // over 0.74–0.79, then passing below on the right as the camera turns
+    // to the wall. Dark against the light.
     id: 'barracuda',
     count: 140,
-    radius: [7, 1.5, 3],
+    radius: [4, 1, 9],
     seed: 1717,
-    centre: (t, s) => [AFTER_SHARK[0] + lerp(17, -3, s), AFTER_SHARK[1] + 1 + 0.3 * Math.sin(0.1 * t), AFTER_SHARK[2] - 14 + lerp(2, -4, s)],
-    swim: [-1.2, 0, -0.4],
+    centre: (t, s) => {
+      const cam = positionAt(0.74 + 0.1 * s);
+      return [cam[0] + lerp(5, 2, s), cam[1] - 5 + 0.3 * Math.sin(0.1 * t), cam[2] + lerp(-45, 8, s)];
+    },
+    swim: [-0.05, 0, 1.0],
     wander: 0.08,
   },
   {

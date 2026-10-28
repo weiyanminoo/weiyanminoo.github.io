@@ -1,16 +1,17 @@
 ---
 // The section pages (Work, School, Projects, Hobbies): static and easy to
 // read, for the visitor who came for the details rather than the film. No
-// canvas, no scroll effects, no ClientRouter. A band of plain open water
-// heads the page — the blue, a few bubbles rising, nothing else — so it
-// still feels part of the same water at no runtime cost. (A still of the
-// reef here fought the page's title, round 9.)
+// canvas, no scroll effects, no ClientRouter. The whole page is under
+// water — the blue, lit a little from above, a few bubbles rising, nothing
+// else: no reef, no fish — so it is the same water as the landing at no
+// runtime cost. (A band of reef at the top fought the page's title, and a
+// light page under it broke the spell, round 9.) No footer: the page ends
+// where its content does.
 import '@fontsource-variable/archivo';
 import '@fontsource-variable/spline-sans-mono';
 import '../styles/tokens.css';
 import '../styles/base.css';
 import SiteHeader from '../components/SiteHeader.astro';
-import SiteFooter from '../components/SiteFooter.astro';
 
 interface Props {
   title: string;
@@ -19,19 +20,19 @@ interface Props {
 
 const { title, description } = Astro.props;
 
-// The bubbles: a dozen, each with its own place, size, pace and sway,
+// The bubbles: eighteen, each with its own place, size, pace and sway,
 // seeded so every build draws the same water.
 const hash = (i: number, k: number) => {
   const x = Math.sin(i * 127.1 + k * 311.7) * 43758.5453;
   return x - Math.floor(x);
 };
-const BUBBLES = Array.from({ length: 12 }, (_, i) => ({
-  x: `${(4 + 92 * hash(i, 1)).toFixed(1)}%`,
-  y: `${(10 + 75 * hash(i, 5)).toFixed(1)}%`,
-  size: `${(5 + 13 * hash(i, 2) ** 2).toFixed(1)}px`,
-  duration: `${(7 + 7 * hash(i, 3)).toFixed(1)}s`,
-  delay: `${(-14 * hash(i, 4)).toFixed(1)}s`,
-  sway: `${((hash(i, 6) - 0.5) * 40).toFixed(0)}px`,
+const BUBBLES = Array.from({ length: 18 }, (_, i) => ({
+  x: `${(3 + 94 * hash(i, 1)).toFixed(1)}%`,
+  y: `${(6 + 86 * hash(i, 5)).toFixed(1)}%`,
+  size: `${(4 + 12 * hash(i, 2) ** 2).toFixed(1)}px`,
+  duration: `${(10 + 10 * hash(i, 3)).toFixed(1)}s`,
+  delay: `${(-20 * hash(i, 4)).toFixed(1)}s`,
+  sway: `${((hash(i, 6) - 0.5) * 60).toFixed(0)}px`,
 }));
 
 const canonicalURL = new URL(Astro.url.pathname, Astro.site);
@@ -47,7 +48,7 @@ const siteName = 'Wei Yan';
     <title>{title}</title>
     <meta name="description" content={description} />
     <meta name="author" content={siteName} />
-    <meta name="theme-color" content="#E9F1F2" />
+    <meta name="theme-color" content="#1B4A5C" />
     <link rel="canonical" href={canonicalURL} />
 
     <meta property="og:title" content={title} />
@@ -71,7 +72,6 @@ const siteName = 'Wei Yan';
   </head>
   <body>
     <a href="#main" class="skip-link">Skip to content</a>
-    <SiteHeader variant="solid" />
     <div class="water" aria-hidden="true">
       {
         BUBBLES.map((b) => (
@@ -79,39 +79,52 @@ const siteName = 'Wei Yan';
         ))
       }
     </div>
+    <SiteHeader variant="overlay" />
     <main id="main" tabindex="-1">
       <div class="container">
         <slot />
       </div>
     </main>
-    <SiteFooter />
   </body>
 </html>
 
 <style>
-  /* Solid, still water: one light background and dark ink throughout, so
-     every block holds AA without depending on anything behind it. Global
-     and doubled up (html:root) to outrank tokens.css's :root — Astro's
-     scoped selectors are :where()-wrapped and would lose to it. */
+  /* Deep water throughout: light ink and hairlines, as the landing has
+     over its film, and cards as dark glass so the bubbles show through.
+     Global and doubled up (html:root) to outrank tokens.css's :root —
+     Astro's scoped selectors are :where()-wrapped and would lose to it. */
   :global(html:root) {
     --rail: 0px;
-    --bg: var(--shallow);
-    --card-tint: var(--foam);
+    --bg: var(--deep);
+    --ink: var(--on-deep);
+    --ink-2: var(--on-deep-2);
+    --ink-3: var(--on-deep-3);
+    --line: var(--line-deep);
+    --focus: var(--mark);
+    /* Each card mixes this at its own opacity (as low as 58%), so the
+       tint itself is solid: the running text on a card must hold AA over
+       the lit top of the water as well as the dark below. */
+    --card-tint: rgb(9, 36, 50);
+    --card-border: rgba(255, 255, 255, 0.14);
+    --card-shadow: rgba(2, 10, 18, 0.3);
+    --card-shadow-hover: rgba(2, 10, 18, 0.42);
     background: var(--bg);
     color: var(--ink);
   }
 
-  /* Open water: lit from above, cobalt by the bottom, with two soft
-     shafts of light coming down through it. */
+  /* The water, fixed to the viewport so the page scrolls through it: lit
+     from above (but no lighter than the small ink needs for AA), cobalt
+     through the middle, the dark below; two soft shafts coming down. */
   .water {
-    position: relative;
+    position: fixed;
+    inset: 0;
+    z-index: -1;
     overflow: hidden;
-    height: 32vh;
-    min-height: 180px;
+    pointer-events: none;
     background:
-      linear-gradient(105deg, transparent 38%, rgba(255, 255, 255, 0.07) 44%, transparent 50%),
-      linear-gradient(100deg, transparent 62%, rgba(255, 255, 255, 0.05) 70%, transparent 78%),
-      linear-gradient(to bottom, #4a97b8 0%, #2a6f8f 45%, var(--deep) 100%);
+      linear-gradient(105deg, transparent 30%, rgba(255, 255, 255, 0.05) 37%, transparent 44%),
+      linear-gradient(98deg, transparent 58%, rgba(255, 255, 255, 0.035) 67%, transparent 76%),
+      linear-gradient(to bottom, #185068 0%, var(--deep) 40%, var(--abyss) 100%);
   }
 
   /* A bubble: a thin bright rim, a highlight up and to the left, the
@@ -140,17 +153,17 @@ const siteName = 'Wei Yan';
       transform: translate(0, 0);
       opacity: 0;
     }
-    8% {
-      opacity: 0.9;
+    6% {
+      opacity: 0.85;
     }
     50% {
-      transform: translate(var(--sway), calc(-16vh - 60px));
+      transform: translate(var(--sway), calc(-50vh - 60px));
     }
-    92% {
-      opacity: 0.7;
+    94% {
+      opacity: 0.6;
     }
     100% {
-      transform: translate(0, calc(-32vh - 120px));
+      transform: translate(0, calc(-100vh - 140px));
       opacity: 0;
     }
   }
@@ -160,12 +173,15 @@ const siteName = 'Wei Yan';
       animation: none;
       bottom: auto;
       top: var(--y);
-      opacity: 0.6;
+      opacity: 0.55;
     }
   }
 
+  /* The header floats over the water; the page starts below it. */
   main {
     display: block;
+    padding-top: clamp(104px, 15vh, 160px);
+    padding-bottom: clamp(64px, 12vh, 140px);
   }
 
   main:focus-visible {
@@ -176,7 +192,7 @@ const siteName = 'Wei Yan';
     padding-block: 0;
   }
 
-  /* Cards sit on a solid page now, so no glass. */
+  /* Dark glass needs no blur to read; the bubbles pass behind it. */
   main :global(.glass-card) {
     backdrop-filter: none;
   }

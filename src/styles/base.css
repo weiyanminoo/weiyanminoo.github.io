@@ -109,8 +109,8 @@ svg {
 
 /* shared page container: horizontal rhythm + the reserved rail gutter.
    Kept on the container, not the body, so a sticky header's background
-   can still span the full viewport width (SiteHeader.astro/SiteFooter.astro
-   both nest this inside their own full-width element).
+   can still span the full viewport width (SiteHeader.astro nests this
+   inside its own full-width element).
 
    Mockup's equivalent is two nested elements — .shell (margin-left: rail,
    no width of its own, so it fills the remaining viewport) containing .wrap

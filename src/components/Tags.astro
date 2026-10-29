@@ -21,7 +21,7 @@ const { tags } = Astro.props;
      bubbles keep changing, so --ink-2 was not stable: the same pill measured
      4.40:1, 4.45:1 and 4.86:1 across runs, straddling the floor. --ink has
      real margin, but is NOT remapped by the deep zone the way --ink-2 is, so
-     this switches it the same way SiteFooter does. */
+     this switches it itself. */
   .tags {
     --tag-ink: var(--ink);
   }
@@ -44,6 +44,10 @@ const { tags } = Astro.props;
     font-size: 10px;
     letter-spacing: 0.08em;
     color: var(--tag-ink);
+    /* Its own fill of the card tint under the text: on the water pages the
+       card lets the bubbles through, and a bubble's highlight behind a
+       bare pill lifted its ground past AA (4.37:1). */
+    background: color-mix(in srgb, var(--card-tint) 55%, transparent);
     border: 1px solid var(--line);
     border-radius: 5px;
     padding: 4px 8px;

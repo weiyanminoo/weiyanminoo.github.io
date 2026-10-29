@@ -1,6 +1,5 @@
 ---
 import DiveLayout from '../layouts/DiveLayout.astro';
-import SiteFooter from '../components/SiteFooter.astro';
 import { formatProjectPeriod, formatRolePeriod } from '../lib/dates';
 import { HOBBIES } from '../lib/hobbies';
 import { SCHOOL_SLOTS, PROJECT_SLOTS } from '../lib/slots';
@@ -195,17 +194,28 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
 
   <div class="gap" style={`--gap: ${GAP_VH.afterHobbies}`} aria-hidden="true"></div>
 
+  <!-- The last station is the deep itself: the film's final stretch, with
+       nothing written over it. -->
   <section class="station contact" data-section="contact" id="contact">
     <img class="still" src={still('contact')} alt="" loading="lazy" decoding="async" />
-    <div class="content">
-      <SiteFooter />
-      <div class="container">
-        <a class="surface" href="#title">Surface</a>
-      </div>
-    </div>
   </section>
 
   <div class="gap" style={`--gap: ${GAP_VH.tail}`} aria-hidden="true"></div>
+
+  <!-- The seabed: the page's last line, at 40 m. The three ways to reach
+       Wei Yan on the left, the way back up on the right. -->
+  <div class="seabed">
+    <div class="container row">
+      <ul class="links">
+        <li><a href="mailto:weiyanminoo1@gmail.com">weiyanminoo1@gmail.com</a></li>
+        <li><a href="https://github.com/weiyanminoo" rel="noopener">github.com/weiyanminoo</a></li>
+        <li>
+          <a href="https://www.linkedin.com/in/wei-yan-min-oo/" rel="noopener">linkedin.com/in/wei-yan-min-oo</a>
+        </li>
+      </ul>
+      <a class="surface" href="#title">Surface</a>
+    </div>
+  </div>
 </DiveLayout>
 
 <script>
@@ -707,7 +717,79 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
     text-decoration-color: var(--mark);
   }
 
-  .contact :global(.site-footer) {
-    background: none;
+  /* Nothing is written over the deep, so nothing darkens it. */
+  .station.contact::before {
+    display: none;
+  }
+
+  /* The seabed bar: one row at the foot of the page, a soft darkening
+     under it so the pills hold AA against whatever passes behind. */
+  .seabed {
+    position: relative;
+    padding: 56px 0 40px;
+    background: linear-gradient(to top, rgba(4, 16, 28, 0.6), rgba(4, 16, 28, 0.3) 60%, transparent);
+  }
+
+  .seabed .row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px 24px;
+    padding-block: 0;
+  }
+
+  .seabed .links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .seabed .links a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 46px;
+    padding: 0 20px;
+    border: 1px solid rgba(234, 244, 246, 0.35);
+    border-radius: 24px;
+    background: rgba(4, 16, 28, 0.35);
+    color: var(--on-deep);
+    font-family: var(--mono);
+    font-size: 13px;
+    text-decoration: none;
+    transition: border-color 0.2s var(--ease);
+  }
+
+  .seabed .links a:hover {
+    border-color: var(--mark);
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+
+  .seabed .surface {
+    margin-top: 0;
+    margin-left: auto;
+  }
+
+  @media (max-width: 860px) {
+    .seabed {
+      padding: 40px 0 32px;
+    }
+
+    .seabed .links {
+      width: 100%;
+    }
+
+    .seabed .links li,
+    .seabed .links a {
+      width: 100%;
+    }
+
+    .seabed .links a {
+      justify-content: center;
+    }
   }
 </style>

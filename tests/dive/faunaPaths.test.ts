@@ -3,14 +3,17 @@ import {
   projectedHeightFraction,
   mantaPath,
   sharkPath,
+  turtlePath,
   MANTA_SPAN_M,
   SHARK_LENGTH_M,
+  TURTLE_LENGTH_M,
 } from '../../src/scripts/dive/faunaPaths';
 import { CAMERA_FOV_Y_DEG, diveStateAt } from '../../src/scripts/dive/timeline';
 import { EDGE_X, REEF_TOP_DEPTH_M } from '../../src/scripts/dive/world';
 import type { Vec3 } from '../../src/scripts/dive/types';
 
 // Each animal's pass s runs over its shot (timeline.ts events).
+const turtleP = (s: number) => 0.14 + 0.11 * s;
 const mantaP = (s: number) => 0.58 + 0.08 * s;
 const sharkP = (s: number) => 0.66 + 0.06 * s;
 
@@ -32,6 +35,32 @@ function offAxis(p: number, at: Vec3): number {
 describe('projectedHeightFraction', () => {
   it('projects a 1 m object at 1 m through a 90° lens to half the frame', () => {
     expect(projectedHeightFraction(1, 1, 90)).toBeCloseTo(0.5);
+  });
+});
+
+describe('turtlePath', () => {
+  it('is near enough to read, never a close-up', () => {
+    for (let s = 0; s <= 1; s += 0.01) {
+      const d = Math.hypot(...from(turtleP(s), turtlePath(s).position));
+      const share = projectedHeightFraction(TURTLE_LENGTH_M, d, CAMERA_FOV_Y_DEG);
+      expect(share).toBeGreaterThan(0.06);
+      expect(share).toBeLessThanOrEqual(0.25);
+    }
+  });
+
+  it('crosses the view below the camera, well above the reef top', () => {
+    for (let s = 0; s <= 1; s += 0.05) {
+      const at = turtlePath(s).position;
+      expect(from(turtleP(s), at)[1]).toBeLessThan(-2);
+      // Clear of the tallest mound on the reef top.
+      expect(-at[1] - 3).toBeLessThan(REEF_TOP_DEPTH_M - 3);
+    }
+    // Right to left across the look.
+    expect(turtlePath(0.1).position[0]).toBeGreaterThan(turtlePath(0.9).position[0] + 6);
+  });
+
+  it('holds the frame for the whole middle of its pass', () => {
+    for (const s of [0.2, 0.35, 0.5, 0.65, 0.8]) expect(offAxis(turtleP(s), turtlePath(s).position)).toBeLessThan(22);
   });
 });
 

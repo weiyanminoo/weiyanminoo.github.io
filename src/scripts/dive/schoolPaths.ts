@@ -29,7 +29,8 @@ export type SchoolId =
   | 'fusiliers'
   | 'barracuda'
   | 'deepRiver'
-  | 'deepBand';
+  | 'deepBand'
+  | 'batfish';
 
 export interface SchoolSpec {
   id: SchoolId;
@@ -76,6 +77,11 @@ const CLOWN_HOME = anemoneTop(ANEMONES[0]);
 // Where the camera is along the wall, for the fish that pass it there, and
 // in the deep.
 const WALL_START = positionAt(0.6);
+// The batfish hang off the wall 8 m ahead of where the camera is when it
+// turns to the wall (0.8, timeline.ts CAMERA_KEYS): it finds them in the
+// haze ahead as it swings back from following the shark (0.745, 27 m),
+// closes on them, and slides past as it sinks.
+const BATFISH_Z = positionAt(0.8)[2] - 8;
 const DEEP_BAND = positionAt(0.84);
 const DEEP_RIVER = positionAt(0.92);
 
@@ -216,6 +222,24 @@ export const SCHOOLS: readonly SchoolSpec[] = [
     seed: 1616,
     centre: (t, s) => [WALL_START[0] + 8 + 1.5 * Math.sin(0.15 * t), WALL_START[1] + 6 + 0.5 * Math.sin(0.1 * t), lerp(-112, -84, s)],
     swim: [0, 0, 1.5],
+  },
+  {
+    // Batfish hanging in a loose group a few metres off the wall at 31 m,
+    // side-on, drifting a little, as they do on any current-swept wall.
+    // Fixed to the rock: the camera turns onto them after the shark and
+    // drifts past them on its way down — nothing arrives from nowhere.
+    id: 'batfish',
+    count: 48,
+    // Close in to the rock, a metre under the camera's line where it looks
+    // down at them, which passes just outside them.
+    radius: [1.0, 1.4, 3.0],
+    seed: 2020,
+    centre: (t) => [2.2 + 0.3 * Math.sin(0.12 * t), worldY(31.5) + 0.4 * Math.sin(0.09 * t), BATFISH_Z + 0.5 * Math.sin(0.07 * t)],
+    // Facing the wall, into the eddy: broadside to a camera looking along
+    // it.
+    swim: [-0.25, 0, 0.08],
+    wander: [0.25, 0.15, 0.1],
+    hug: (z, depthM) => faceX(z, depthM),
   },
   {
     // A column of chevron barracuda coming north up the wall to meet the

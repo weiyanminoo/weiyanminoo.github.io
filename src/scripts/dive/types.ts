@@ -31,6 +31,7 @@ export interface CameraPose {
 /** Scroll-driven moments, each 0..1. */
 export interface DiveEvents {
   snapperCross: number;
+  turtle: number;
   manta: number;
   shark: number;
   thermocline: number;

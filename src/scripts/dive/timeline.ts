@@ -252,13 +252,16 @@ function ramp(p: number, from: number, to: number): number {
   return clamp((p - from) / (to - from), 0, 1);
 }
 
-/** [from, to] progress of each big animal's pass (events.manta, .shark). */
+/** [from, to] progress of each big animal's pass (events.turtle, .manta,
+ *  .shark). */
+export const TURTLE_PASS: readonly [number, number] = [0.14, 0.25];
 export const MANTA_PASS: readonly [number, number] = [0.58, 0.66];
 export const SHARK_PASS: readonly [number, number] = [0.66, 0.72];
 
 function eventsAt(p: number): DiveEvents {
   return {
     snapperCross: triangle(p, 0.42, 0.015),
+    turtle: ramp(p, ...TURTLE_PASS),
     manta: ramp(p, ...MANTA_PASS),
     shark: ramp(p, ...SHARK_PASS),
     thermocline: ramp(p, 0.72, 0.76),

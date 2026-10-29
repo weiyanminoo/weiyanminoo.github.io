@@ -202,6 +202,21 @@ const LOOKS: Record<SchoolSpec['id'], SchoolLook> = {
     keepColour: 0.2,
     height: 1.3,
   },
+  batfish: {
+    // Tall and thin: a disc of a fish, silver with three dark bands.
+    length: 0.45,
+    visible: [0.7, 0.88],
+    pass: (p) => p,
+    colour: (y) => {
+      const t = smoothstep(0.05, -0.05, y);
+      return [lerp(0.6, 0.86, t), lerp(0.64, 0.88, t), lerp(0.68, 0.9, t)];
+    },
+    stripes: false,
+    keepColour: 0.75,
+    height: 2.0,
+    width: 0.4,
+    bars: [0.16, 0.17, 0.2],
+  },
   deepBand: {
     length: 0.5,
     // From when the camera is turned to the wall, so the band is already

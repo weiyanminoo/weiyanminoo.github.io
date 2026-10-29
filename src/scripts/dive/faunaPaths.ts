@@ -5,11 +5,13 @@
 // in the haze. Neither is ever allowed close enough to become a close-up.
 
 import { lerp } from './math';
-import { MANTA_PASS, SHARK_PASS, positionAt } from './timeline';
+import { MANTA_PASS, SHARK_PASS, TURTLE_PASS, positionAt } from './timeline';
 import type { Vec3 } from './types';
 
 export const MANTA_SPAN_M = 4;
 export const SHARK_LENGTH_M = 2.2;
+/** A grown green turtle: carapace about a metre, flippers out past it. */
+export const TURTLE_LENGTH_M = 1.1;
 
 /** Share of the frame's height an object of `sizeM` fills at `distanceM`
  *  through a lens with vertical field of view `fovYDeg`. */
@@ -52,8 +54,26 @@ const shark = (s: number): Vec3 => {
   return [cam[0] + 14, cam[1] + lerp(-1, 0, s), cam[2] + lerp(-26, -14, s) + 26 * s * s];
 };
 
+// A green turtle on the descent, where the camera looks down and left at
+// the reef rising out of the haze (timeline.ts CAMERA_KEYS 0.15–0.24):
+// crossing the view below from right to left, 8–9 m off, heading in over
+// the reef top, so the shell is seen from above. Set against the look line
+// itself (pitch −0.37, yaw 0.2 at mid-pass), so it holds the frame while
+// the camera drifts; its drop below the camera closes as the camera sinks
+// 7 m through the pass, so the turtle itself only eases down.
+const turtle = (s: number): Vec3 => {
+  const cam = positionAt(passP(TURTLE_PASS, s));
+  // 8.5 m along the look line, then across it, right to left.
+  const across = lerp(4.6, -4.6, s);
+  return [cam[0] - 1.6 + 0.98 * across, cam[1] - lerp(4.2, 2.1, s), cam[2] - 7.8 - 0.2 * across];
+};
+
 export function mantaPath(s: number): { position: Vec3; heading: Vec3 } {
   return along(manta, s);
+}
+
+export function turtlePath(s: number): { position: Vec3; heading: Vec3 } {
+  return along(turtle, s);
 }
 
 export function sharkPath(s: number): { position: Vec3; heading: Vec3 } {

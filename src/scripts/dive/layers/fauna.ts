@@ -86,27 +86,24 @@ function ellipsoid(rx: number, ry: number, rz: number, detail: number): THREE.Bu
   return g;
 }
 
-/** A flipper: a flat, rounded blade from (0,0,0) out along +x, swept back
- *  (−z) towards its tip, `len` long and `width` wide at its root. Mirrored
- *  with a negative `side`. */
-function flipper(len: number, width: number, sweep: number, side: number): THREE.BufferGeometry {
-  const g = new THREE.PlaneGeometry(len, width, 8, 2);
-  g.deleteAttribute('uv');
-  g.deleteAttribute('normal');
-  // Lie flat (in xz), root at the origin, narrowing and sweeping back
-  // towards the tip.
-  g.rotateX(-Math.PI / 2);
+/** A flipper: a flattened, rounded blade with real thickness — a paddle,
+ *  not a plane, so its edge catches the light and it shades across its
+ *  width — from (0,0,0) out along +x, swept back (−z) and tapering
+ *  towards its tip, `len` long and `width` wide at its root. Mirrored with
+ *  a negative `side`. */
+function flipper(len: number, width: number, thick: number, sweep: number, side: number): THREE.BufferGeometry {
+  const g = ellipsoid(len / 2, thick / 2, width / 2, 2);
   g.translate(len / 2, 0, 0);
   const pos = g.getAttribute('position');
   for (let i = 0; i < pos.count; i++) {
     const t = pos.getX(i) / len;
-    const taper = Math.sqrt(Math.max(0, 1 - t * t * 0.85)) * (1 - 0.35 * t);
-    pos.setZ(i, pos.getZ(i) * taper - sweep * t * t);
+    pos.setZ(i, pos.getZ(i) * (1 - 0.4 * t) - sweep * t * t);
+    pos.setY(i, pos.getY(i) * (1 - 0.5 * t));
   }
   g.scale(side, 1, 1);
   if (side < 0) {
     // Mirroring turns the triangles inside out; turn them back, or the
-    // blade's normals point down and it is lit as underside.
+    // blade's normals point in and it is lit as underside.
     const index = g.getIndex()!;
     for (let i = 0; i < index.count; i += 3) {
       const b = index.getX(i + 1);
@@ -121,10 +118,24 @@ function flipper(len: number, width: number, sweep: number, side: number): THREE
  *  of it), flippers out past the sides. */
 function turtleGeometry(): THREE.BufferGeometry {
   const L = TURTLE_LENGTH_M;
-  const shell = ellipsoid(0.36 * L, 0.17 * L, 0.42 * L, 3);
-  // The underside flat: a plastron, not a second dome.
+  // A high dome — a flat one read as a disc (round 10) — with a low keel
+  // along its length and the marginal scutes standing out as a rim.
+  const shell = ellipsoid(0.36 * L, 0.27 * L, 0.42 * L, 3);
   const sp = shell.getAttribute('position');
-  for (let i = 0; i < sp.count; i++) if (sp.getY(i) < 0) sp.setY(i, sp.getY(i) * 0.35);
+  for (let i = 0; i < sp.count; i++) {
+    const x = sp.getX(i);
+    const y = sp.getY(i);
+    const z = sp.getZ(i);
+    if (y < 0) {
+      // The underside flat: a plastron, not a second dome.
+      sp.setY(i, y * 0.22);
+      continue;
+    }
+    const keel = 0.03 * L * Math.max(0, 1 - Math.abs(x) / (0.2 * L)) * (y / (0.27 * L));
+    // The rim: the equator pushed out a little.
+    const rim = 1 + 0.05 * Math.max(0, 1 - Math.abs(y) / (0.06 * L));
+    sp.setXYZ(i, x * rim, y + keel, z * rim);
+  }
   const head = ellipsoid(0.085 * L, 0.07 * L, 0.11 * L, 2);
   head.translate(0, 0.01 * L, 0.5 * L);
   const neck = new THREE.CylinderGeometry(0.06 * L, 0.075 * L, 0.14 * L, 8, 1);
@@ -139,12 +150,12 @@ function turtleGeometry(): THREE.BufferGeometry {
   tail.translate(0, -0.02 * L, -0.46 * L);
   const parts = [shell, head, neck, tail];
   for (const side of [-1, 1]) {
-    const front = flipper(0.5 * L, 0.17 * L, 0.22 * L, side);
-    front.translate(side * TURTLE_HINGE * L, 0.0, 0.2 * L);
+    const front = flipper(0.52 * L, 0.18 * L, 0.05 * L, 0.24 * L, side);
+    front.translate(side * TURTLE_HINGE * L, -0.01 * L, 0.2 * L);
     parts.push(front);
-    const rear = flipper(0.22 * L, 0.14 * L, 0.1 * L, side);
+    const rear = flipper(0.24 * L, 0.15 * L, 0.04 * L, 0.1 * L, side);
     rear.rotateY(side * 0.5);
-    rear.translate(side * 0.3 * L, -0.01 * L, -0.3 * L);
+    rear.translate(side * 0.3 * L, -0.02 * L, -0.3 * L);
     parts.push(rear);
   }
   const g = mergeGeometries(parts)!;
@@ -156,7 +167,7 @@ function turtleGeometry(): THREE.BufferGeometry {
     const x = pos.getX(i) / L;
     const y = pos.getY(i) / L;
     const z = pos.getZ(i) / L;
-    const onShell = Math.abs(x) < 0.37 && Math.abs(z) < 0.43 && Math.abs(y) > 0.005;
+    const onShell = Math.abs(x) < 0.39 && Math.abs(z) < 0.45 && Math.abs(y) > 0.005;
     let c: [number, number, number];
     if (onShell && y > 0) {
       // Scutes: olive-brown, each plate a shade of its own, the seams
@@ -168,7 +179,11 @@ function turtleGeometry(): THREE.BufferGeometry {
       const seam = Math.min(Math.abs(u - cellU - 0.5), Math.abs(v - cellV - 0.5));
       const plate = 0.78 + 0.34 * hash1(cellU * 31 + cellV, 606);
       const mottle = 0.9 + 0.2 * vnoise2(x * 20, z * 20, 7);
-      const base: [number, number, number] = [0.46 * plate * mottle, 0.4 * plate * mottle, 0.2 * plate];
+      // The dome's own shading, baked: bright at the apex, falling off
+      // down the sides to the rim, so it reads as a dome under the flat
+      // light of 10 m, where the lighting alone could not say so.
+      const dome = lerp(0.42, 1.2, smoothstep(0.0, 0.26, y));
+      const base: [number, number, number] = [0.5 * plate * mottle * dome, 0.43 * plate * mottle * dome, 0.2 * plate * dome];
       const edge = smoothstep(0.34, 0.47, seam);
       c = [base[0] * (1 - 0.55 * edge), base[1] * (1 - 0.55 * edge), base[2] * (1 - 0.5 * edge)];
     } else if (onShell) {
@@ -304,9 +319,11 @@ export default function createFaunaLayer(): Layer {
       });
       withSway(sharkMaterial, { uTime: time });
       shark = new THREE.Mesh(sharkGeometry(), sharkMaterial);
+      // A wet shell: glossy enough for the sun to put a highlight on the
+      // dome, the strongest cue that it is round.
       const turtleMaterial = new THREE.MeshStandardMaterial({
         vertexColors: true,
-        roughness: 0.7,
+        roughness: 0.42,
         side: THREE.DoubleSide,
       });
       withFlipperStroke(turtleMaterial, { uTime: time });

@@ -254,7 +254,7 @@ function ramp(p: number, from: number, to: number): number {
 
 /** [from, to] progress of each big animal's pass (events.turtle, .manta,
  *  .shark). */
-export const TURTLE_PASS: readonly [number, number] = [0.14, 0.25];
+export const TURTLE_PASS: readonly [number, number] = [0.14, 0.28];
 export const MANTA_PASS: readonly [number, number] = [0.58, 0.66];
 export const SHARK_PASS: readonly [number, number] = [0.66, 0.72];
 

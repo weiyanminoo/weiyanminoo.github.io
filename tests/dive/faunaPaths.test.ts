@@ -13,7 +13,7 @@ import { EDGE_X, REEF_TOP_DEPTH_M } from '../../src/scripts/dive/world';
 import type { Vec3 } from '../../src/scripts/dive/types';
 
 // Each animal's pass s runs over its shot (timeline.ts events).
-const turtleP = (s: number) => 0.14 + 0.11 * s;
+const turtleP = (s: number) => 0.14 + 0.14 * s;
 const mantaP = (s: number) => 0.58 + 0.08 * s;
 const sharkP = (s: number) => 0.66 + 0.06 * s;
 
@@ -59,8 +59,14 @@ describe('turtlePath', () => {
     expect(turtlePath(0.1).position[0]).toBeGreaterThan(turtlePath(0.9).position[0] + 6);
   });
 
-  it('holds the frame for the whole middle of its pass', () => {
-    for (const s of [0.2, 0.35, 0.5, 0.65, 0.8]) expect(offAxis(turtleP(s), turtlePath(s).position)).toBeLessThan(22);
+  it('holds the frame through the middle of its pass', () => {
+    for (const s of [0.2, 0.3, 0.4, 0.5]) expect(offAxis(turtleP(s), turtlePath(s).position)).toBeLessThan(22);
+  });
+
+  // Out past a 16:10 lens's 43° half-width — so past a phone's too —
+  // before its pass ends, so the cut is never seen.
+  it('swims out of the left of the frame before it is gone', () => {
+    expect(offAxis(turtleP(0.95), turtlePath(0.95).position)).toBeGreaterThan(46);
   });
 });
 

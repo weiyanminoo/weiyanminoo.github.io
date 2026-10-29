@@ -296,7 +296,7 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
     z-index: -1;
     pointer-events: none;
     background:
-      radial-gradient(ellipse 70% 65% at 38% 50%, rgba(5, 20, 35, var(--scrim, 0.6)), transparent 72%),
+      radial-gradient(ellipse 70% 65% at var(--scrim-x, 38%) 50%, rgba(5, 20, 35, var(--scrim, 0.6)), transparent 72%),
       linear-gradient(
         to bottom,
         transparent,
@@ -370,6 +370,33 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
     min-height: 92vh;
     display: flex;
     align-items: center;
+  }
+
+  /* The station is a flex row (for the vertical centring), so this
+     shrink-wraps to the name's own width: the block stays in the left
+     column where it was, Dive in at its left edge, and only the line under
+     the name spans the name and centres to it (round 11). */
+  .title .content {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  /* The line takes no part in the column's width (width 0), then spans
+     exactly the name (min-width 100%) and centres on it: wider than the
+     name, it overhangs it equally both sides; where the name is narrower
+     than the line can be, it wraps within the name's width instead. */
+  .title .meta {
+    width: 0;
+    min-width: 100%;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 1100px) {
+    .title .meta {
+      white-space: normal;
+    }
   }
 
   .title-h1 {
@@ -792,4 +819,5 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
       justify-content: center;
     }
   }
+
 </style>

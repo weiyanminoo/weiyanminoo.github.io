@@ -24,5 +24,8 @@ jobs:
       # before every ship on a machine with a GPU (scripts/audit), where
       # every check passes; here its output is kept for reading.
       - run: npx playwright install --with-deps chromium
+      # Bounded: under software WebGL the audit can grind for the better
+      # part of an hour, and the job (and so the badge) would wait for it.
       - run: node scripts/audit/index.mjs
         continue-on-error: true
+        timeout-minutes: 10

@@ -1,6 +1,6 @@
 ---
 org: Bank of America
-role: Application, Production and Services Engineer
+role: Global Technology Summer Analyst Intern
 team: Global Technology
 discipline: Production Engineering
 start: 2026-06-01
@@ -11,6 +11,6 @@ summary: Production support for high-availability real-time payment systems.
 tags: [Splunk, Oracle, Shell, Payments]
 ---
 
-- Provided critical application production support for high-availability real-time payment systems, using Splunk, Toad for Oracle and shell scripting for rapid issue identification and resolution.
-- Designed and developed a centralised automation portal, giving the support team a streamlined daily operational toolkit.
-- Accelerated incident response by deploying automation scripts that streamlined diagnostic workflows, reducing manual effort during critical outages and improving overall system reliability.
+- Delivered a centralized **Python** automation portal for daily system health checks and reconciliation, scoping requirements from operations pain points; it saves the team **900+ hours** a year.
+- Supported the operational lifecycle of high-availability **real-time payment systems** for global transactions, acting as the central point of coordination between technical and operations teams.
+- Improved system reliability using **performance insights**, deploying **automation scripts** that reduced manual effort during outage recovery.

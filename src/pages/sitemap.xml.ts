@@ -4,7 +4,7 @@ import type { APIRoute } from 'astro';
 // package is a dependency and a config change to produce twenty lines of
 // XML for a URL set this small and this fixed.
 // Trailing slashes are included to match the pages' canonical URLs.
-const pages = ['/', '/work/', '/school/', '/projects/', '/hobbies/'];
+const pages = ['/', '/work/', '/school/', '/projects/'];
 
 export const GET: APIRoute = ({ site }) => {
   const urls = pages

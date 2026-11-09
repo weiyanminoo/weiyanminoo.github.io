@@ -97,7 +97,6 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
               </div>
               <p class="log-meta">
                 <span>{formatRolePeriod(entry.data.start, entry.data.end, entry.data.current)}</span>
-                <span>{entry.data.discipline}</span>
               </p>
             </li>
           ))
@@ -183,12 +182,10 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
           HOBBIES.map((hobby) => (
             <li class="pursuit">
               <h3 class="pursuit-name">{hobby.title}</h3>
-              {hobby.line && <p class="pursuit-line">{hobby.line}</p>}
             </li>
           ))
         }
       </ul>
-      <p class="more"><a href="/hobbies">More outside the work</a></p>
     </div>
   </section>
 
@@ -691,7 +688,7 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
     color: var(--on-deep-3);
   }
 
-  /* Hobbies: the four pursuits, large, each with its one line. */
+  /* Hobbies: the four pursuits, large, titles alone. */
   .pursuits {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -708,14 +705,6 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
     font-size: clamp(2rem, 4.2vw, 3.5rem);
     line-height: 0.95;
     letter-spacing: -0.03em;
-  }
-
-  .pursuit-line {
-    max-width: 34ch;
-    margin: 0.6rem 0 0;
-    font-size: clamp(1rem, 1.3vw, 1.15rem);
-    line-height: 1.45;
-    color: var(--on-deep-2);
   }
 
   @media (max-width: 700px) {

@@ -2,7 +2,7 @@
 // check needs to agree on.
 
 // The site's five pages. Order matters only for report readability.
-export const PAGES = ['/', '/work', '/school', '/projects'];
+export const PAGES = ['/', '/work', '/school', '/projects', '/projects/seon', '/projects/productivity-suite'];
 
 // Port for the audit's own `astro preview` instance. Deliberately not 4321
 // (the port `.claude/launch.json`'s interactive preview uses) so this

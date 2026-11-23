@@ -1,8 +1,8 @@
 ---
 name: Seon
 kind: Product
-start: 2026-04-01
-end: 2026-07-01
+start: 2026-03-01
+end: 2026-06-01
 ongoing: false
 url: https://t.me/seon_sg_bot
 summary: A Telegram bot for serious daters, combining modern dating with traditional matchmaking.

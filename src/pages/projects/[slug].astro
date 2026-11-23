@@ -1,0 +1,162 @@
+---
+// A project's longer write-up, at /projects/<the project's id>: the thinking
+// behind it and what was done, for the reader curious enough to go past the
+// card. One page per entry in the stories collection.
+import StaticLayout from '../../layouts/StaticLayout.astro';
+import { getCollection, getEntry, render } from 'astro:content';
+import { formatProjectPeriod } from '../../lib/dates';
+
+export async function getStaticPaths() {
+  const stories = await getCollection('stories');
+  return stories.map((story) => ({ params: { slug: story.data.project.id }, props: { story } }));
+}
+
+const { story } = Astro.props;
+const project = (await getEntry(story.data.project))!;
+const { Content } = await render(story);
+
+// The kind and the dates, read as a sentence: "Telegram bot · Apr to Jul
+// 2026".
+const period = formatProjectPeriod(project.data.start, project.data.end, project.data.ongoing).replace(' — ', ' to ');
+const meta = [project.data.kind, period].filter(Boolean).join(' · ');
+---
+
+<StaticLayout title={`${story.data.title} — Wei Yan`} description={story.data.dek}>
+  <article class="story">
+    <p class="back"><a href="/projects">&larr; All projects</a></p>
+    <header>
+      <p class="meta">{meta}</p>
+      <h1>{story.data.title}</h1>
+    </header>
+    <div class="body glass-card">
+      <p class="dek">{story.data.dek}</p>
+      <Content />
+      {
+        project.data.url && (
+          <p class="visit">
+            <a href={project.data.url}>Visit {project.data.name} &rarr;</a>
+          </p>
+        )
+      }
+    </div>
+  </article>
+</StaticLayout>
+
+<style>
+  .story {
+    max-width: 46rem;
+  }
+
+  .back {
+    margin: 0 0 28px;
+    font-family: var(--mono);
+    font-size: 13px;
+  }
+
+  /* The back link and the meta line are small text over open water, where
+     the bubbles and light pass behind them. Like SectionHead's label, each
+     gets a tight tint of its own to hold contrast. Only the h1 is large
+     enough to sit on the water bare. */
+  .back a,
+  .meta {
+    display: inline-block;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--card-tint) 62%, transparent);
+  }
+
+  .back a {
+    padding: 6px 10px;
+    color: var(--ink-2);
+    text-decoration: none;
+  }
+
+  .back a:hover {
+    color: var(--ink);
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+
+  .meta {
+    margin: 0 0 16px;
+    padding: 3px 7px;
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+  }
+
+  h1 {
+    margin: 0 0 36px;
+    font-size: clamp(2.4rem, 6vw, 4rem);
+    line-height: 1;
+    letter-spacing: -0.03em;
+  }
+
+  /* The standfirst opens the panel, ruled off from the story under it. */
+  .body .dek {
+    margin: 0 0 1.6em;
+    padding-bottom: 1.4em;
+    border-bottom: 1px solid var(--line);
+    font-size: clamp(1.15rem, 1.8vw, 1.3rem);
+    line-height: 1.5;
+    color: var(--ink);
+  }
+
+  .body .dek + :global(h2) {
+    margin-top: 0;
+  }
+
+  /* The story itself, on dark glass so it reads over the water, set for
+     reading rather than scanning. */
+  .body {
+    padding: clamp(24px, 4vw, 44px);
+    background: color-mix(in srgb, var(--card-tint) 62%, transparent);
+    font-size: 1.05rem;
+    line-height: 1.7;
+  }
+
+  .body :global(h2) {
+    margin: 2.2em 0 0.6em;
+    font-size: 1.45rem;
+    line-height: 1.25;
+  }
+
+  .body :global(h2:first-child) {
+    margin-top: 0;
+  }
+
+  .body :global(p) {
+    margin: 0 0 1.1em;
+    color: var(--ink-2);
+  }
+
+  .body :global(ul) {
+    margin: 0 0 1.1em;
+    padding-left: 1.2em;
+    color: var(--ink-2);
+  }
+
+  .body :global(li) {
+    margin-bottom: 0.5em;
+  }
+
+  .body :global(strong) {
+    color: var(--ink);
+  }
+
+  .visit {
+    margin: 2em 0 0;
+  }
+
+  .visit a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    color: var(--ink);
+    font-weight: 700;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 6px;
+  }
+</style>

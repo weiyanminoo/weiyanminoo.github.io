@@ -11,6 +11,8 @@ const title = 'Projects — Wei Yan';
 const description = "Wei Yan's personal and side projects.";
 
 const projects = await getCollection('projects');
+// Projects with a longer write-up get a link to it on their card.
+const storied = new Set((await getCollection('stories')).map((s) => s.data.project.id));
 const sorted = [...projects].sort((a, b) => byProjectRecency(a.data, b.data));
 const rendered = await Promise.all(sorted.map((entry) => render(entry)));
 
@@ -33,6 +35,7 @@ const blanks = Math.max(0, PROJECT_SLOTS - sorted.length);
               end={entry.data.end}
               ongoing={entry.data.ongoing}
               url={entry.data.url}
+              story={storied.has(entry.id) ? `/projects/${entry.id}` : undefined}
               summary={entry.data.summary}
               outcome={entry.data.outcome}
               tags={entry.data.tags}

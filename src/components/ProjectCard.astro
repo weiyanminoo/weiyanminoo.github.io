@@ -9,6 +9,8 @@ interface Props {
   end: Date | null;
   ongoing: boolean;
   url?: string;
+  /** Where its longer write-up lives, when it has one (/projects/<id>). */
+  story?: string;
   summary: string;
   outcome: string;
   tags: string[];
@@ -18,7 +20,7 @@ interface Props {
   detailed?: boolean;
 }
 
-const { name, kind, start, end, ongoing, url, summary, outcome, tags, detailed = false } = Astro.props;
+const { name, kind, start, end, ongoing, url, story, summary, outcome, tags, detailed = false } = Astro.props;
 
 const period = formatProjectPeriod(start, end, ongoing);
 // A project not built yet may have no kind, summary or link: each shows
@@ -51,10 +53,19 @@ const brief = !summary && !url && !outcome && tags.length === 0;
             <Tags tags={tags} />
           </div>
         )}
-        {url && (
-          <a class="link" href={url}>
-            Visit {name} &rarr;
-          </a>
+        {(story || url) && (
+          <p class="links">
+            {story && (
+              <a class="link" href={story}>
+                Read the story &rarr;
+              </a>
+            )}
+            {url && (
+              <a class="link" href={url}>
+                Visit {name} &rarr;
+              </a>
+            )}
+          </p>
         )}
       </>
     )
@@ -110,6 +121,13 @@ const brief = !summary && !url && !outcome && tags.length === 0;
 
   .tags-wrap {
     margin: 20px 0;
+  }
+
+  .links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 28px;
+    margin: 0;
   }
 
   .link {

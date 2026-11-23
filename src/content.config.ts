@@ -1,4 +1,4 @@
-import { defineCollection, z } from 'astro:content';
+import { defineCollection, reference, z } from 'astro:content';
 import { glob } from 'astro/loaders';
 
 const roles = defineCollection({
@@ -56,4 +56,16 @@ const projects = defineCollection({
   }),
 });
 
-export const collections = { roles, school, projects };
+// The longer write-ups some projects have, each at /projects/<its project's
+// id>, linked from that project's card. The body is the story itself.
+const stories = defineCollection({
+  loader: glob({ pattern: '**/*.md', base: './src/content/stories' }),
+  schema: z.object({
+    project: reference('projects'),
+    title: z.string(),
+    // The line under the title, and the page's description.
+    dek: z.string(),
+  }),
+});
+
+export const collections = { roles, school, projects, stories };

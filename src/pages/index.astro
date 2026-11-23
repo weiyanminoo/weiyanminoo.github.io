@@ -1,6 +1,6 @@
 ---
 import DiveLayout from '../layouts/DiveLayout.astro';
-import { formatProjectPeriod, formatRolePeriod } from '../lib/dates';
+import { byProjectRecency, formatProjectPeriod, formatRolePeriod } from '../lib/dates';
 import { HOBBIES } from '../lib/hobbies';
 import { SCHOOL_SLOTS, PROJECT_SLOTS } from '../lib/slots';
 import { SECTION_PROGRESS, diveStateAt } from '../scripts/dive/timeline';
@@ -21,7 +21,7 @@ const school = await getCollection('school');
 const allSchool = [...school].sort((a, b) => a.data.order - b.data.order);
 
 const projects = await getCollection('projects');
-const allProjects = [...projects].sort((a, b) => b.data.start.getTime() - a.data.start.getTime());
+const allProjects = [...projects].sort((a, b) => byProjectRecency(a.data, b.data));
 
 const schoolBlanks = Math.max(0, SCHOOL_SLOTS - allSchool.length);
 const projectBlanks = Math.max(0, PROJECT_SLOTS - allProjects.length);
@@ -151,9 +151,11 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
             <article class="entry">
               <h3 class="entry-name">{entry.data.name}</h3>
               <p class="entry-meta">
-                {entry.data.kind} &middot; {formatProjectPeriod(entry.data.start, entry.data.ongoing)}
+                {[entry.data.kind, formatProjectPeriod(entry.data.start, entry.data.end, entry.data.ongoing)]
+                  .filter(Boolean)
+                  .join(' · ')}
               </p>
-              <p class="entry-line">{entry.data.summary}</p>
+              {entry.data.summary && <p class="entry-line">{entry.data.summary}</p>}
             </article>
           ))
         }

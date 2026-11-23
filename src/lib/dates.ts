@@ -43,7 +43,19 @@ export function formatRolePeriod(start: Date, end: Date | null, current: boolean
   return `${monthYear(start)} — ${monthYear(end)}`;
 }
 
-/** "Feb 2025 — ongoing" for an ongoing project, "Feb 2025" otherwise. */
-export function formatProjectPeriod(start: Date, ongoing: boolean): string {
-  return ongoing ? `${monthYear(start)} — ongoing` : monthYear(start);
+/** As a role's: "Oct 2025 — present", "Feb — Apr 2025", "Nov 2025 — Jan
+ *  2026"; a finished project with no end month written, its start alone. */
+export function formatProjectPeriod(start: Date, end: Date | null, ongoing: boolean): string {
+  if (!ongoing && end === null) return monthYear(start);
+  return formatRolePeriod(start, end, ongoing);
+}
+
+/** Newest first by start; projects started the same month, the one that
+ *  ran later first (an ongoing one runs to now). */
+export function byProjectRecency(
+  a: { start: Date; end: Date | null; ongoing: boolean },
+  b: { start: Date; end: Date | null; ongoing: boolean },
+): number {
+  const last = (p: typeof a) => (p.ongoing || p.end === null ? Date.now() : p.end.getTime());
+  return b.start.getTime() - a.start.getTime() || last(b) - last(a);
 }

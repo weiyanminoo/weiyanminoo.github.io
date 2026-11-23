@@ -6,8 +6,9 @@ interface Props {
   name: string;
   kind: string;
   start: Date;
+  end: Date | null;
   ongoing: boolean;
-  url: string;
+  url?: string;
   summary: string;
   outcome: string;
   tags: string[];
@@ -17,17 +18,23 @@ interface Props {
   detailed?: boolean;
 }
 
-const { name, kind, start, ongoing, url, summary, outcome, tags, detailed = false } = Astro.props;
+const { name, kind, start, end, ongoing, url, summary, outcome, tags, detailed = false } = Astro.props;
 
-const period = formatProjectPeriod(start, ongoing);
+const period = formatProjectPeriod(start, end, ongoing);
+// A project not built yet may have no kind, summary or link: each shows
+// only when written.
+const meta = [kind, period].filter(Boolean).join(' · ');
+// Nothing written beyond its name and dates: the card sizes to that, not
+// to the full card beside it in the grid row (a tall empty box otherwise).
+const brief = !summary && !url && !outcome && tags.length === 0;
 ---
 
-<article class="project glass-card">
+<article class:list={['project', 'glass-card', brief && 'is-brief']}>
   <header>
     <h2>{name}</h2>
-    <p class="meta">{kind} &middot; {period}</p>
+    <p class="meta">{meta}</p>
   </header>
-  <p class="summary">{summary}</p>
+  {summary && <p class="summary">{summary}</p>}
   {
     detailed && (
       <>
@@ -39,12 +46,16 @@ const period = formatProjectPeriod(start, ongoing);
             <strong>Outcome.</strong> {outcome}
           </p>
         )}
-        <div class="tags-wrap">
-          <Tags tags={tags} />
-        </div>
-        <a class="link" href={url}>
-          Visit {name} &rarr;
-        </a>
+        {tags.length > 0 && (
+          <div class="tags-wrap">
+            <Tags tags={tags} />
+          </div>
+        )}
+        {url && (
+          <a class="link" href={url}>
+            Visit {name} &rarr;
+          </a>
+        )}
       </>
     )
   }
@@ -58,6 +69,10 @@ const period = formatProjectPeriod(start, ongoing);
   .project {
     padding: 30px;
     background: color-mix(in srgb, var(--card-tint) 58%, transparent);
+  }
+
+  .project.is-brief {
+    align-self: start;
   }
 
   h2 {

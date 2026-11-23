@@ -2,7 +2,8 @@
 name: Seon
 kind: Product
 start: 2026-04-01
-ongoing: true
+end: 2026-07-01
+ongoing: false
 url: https://t.me/seon_sg_bot
 summary: A Telegram bot for serious daters, combining modern dating with traditional matchmaking.
 outcome: A mandatory Telegram bubble, added after twenty user interviews, cost 30% of profile completions but raised the rate of successful matches by 50%, improving user ratings.

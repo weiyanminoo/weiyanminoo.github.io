@@ -5,12 +5,13 @@ import PlaceholderCard from '../components/PlaceholderCard.astro';
 import SectionHead from '../components/SectionHead.astro';
 import { PROJECT_SLOTS } from '../lib/slots';
 import { getCollection, render } from 'astro:content';
+import { byProjectRecency } from '../lib/dates';
 
 const title = 'Projects — Wei Yan';
 const description = "Wei Yan's personal and side projects.";
 
 const projects = await getCollection('projects');
-const sorted = [...projects].sort((a, b) => b.data.start.getTime() - a.data.start.getTime());
+const sorted = [...projects].sort((a, b) => byProjectRecency(a.data, b.data));
 const rendered = await Promise.all(sorted.map((entry) => render(entry)));
 
 const blanks = Math.max(0, PROJECT_SLOTS - sorted.length);
@@ -29,6 +30,7 @@ const blanks = Math.max(0, PROJECT_SLOTS - sorted.length);
               name={entry.data.name}
               kind={entry.data.kind}
               start={entry.data.start}
+              end={entry.data.end}
               ongoing={entry.data.ongoing}
               url={entry.data.url}
               summary={entry.data.summary}

@@ -37,11 +37,15 @@ const projects = defineCollection({
   loader: glob({ pattern: '**/*.md', base: './src/content/projects' }),
   schema: z.object({
     name: z.string(),
-    kind: z.string(),
+    // Kind, summary and link are optional for a project not built yet: it
+    // shows its name and dates and claims nothing else.
+    kind: z.string().default(''),
     start: z.coerce.date(),
+    // The last month worked on; null while ongoing.
+    end: z.coerce.date().nullable().default(null),
     ongoing: z.boolean().default(true),
-    url: z.string().url(),
-    summary: z.string(),
+    url: z.string().url().optional(),
+    summary: z.string().default(''),
     // Optional: not every project has a measured result worth stating, and
     // an empty one renders nothing rather than a bare "Outcome." label.
     // Write it as `outcome: ''`, never as a bare `-` — an unquoted dash is

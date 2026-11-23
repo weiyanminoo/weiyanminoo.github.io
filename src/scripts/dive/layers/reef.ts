@@ -513,18 +513,70 @@ function octopus(seed: number): THREE.BufferGeometry {
   return g;
 }
 
+// The reef is built while the surface already shows (index.ts), so the
+// builders give the film a frame back through `pace` (scene.ts) as they
+// go: it returns at once until they have held the thread for a frame's
+// worth, so it is cheap to call often. Unpaced, the reef top alone froze
+// the opening for over a second (round 12).
+type Pace = () => Promise<void>;
+
+/** fn(i) for every index below count, pausing for the film as it goes. */
+async function eachPaced(count: number, pace: Pace, fn: (i: number) => void) {
+  for (let i = 0; i < count; i++) {
+    fn(i);
+    if ((i & 511) === 511) await pace();
+  }
+}
+
+/** setColour, paced, for the two large surfaces. */
+async function setColourPaced(
+  geometry: THREE.BufferGeometry,
+  colourAt: (x: number, y: number, z: number) => RGBTuple,
+  pace: Pace,
+) {
+  const pos = geometry.getAttribute('position');
+  const colours = new Float32Array(pos.count * 3);
+  await eachPaced(pos.count, pace, (i) => {
+    const [r, g, b] = colourAt(pos.getX(i), pos.getY(i), pos.getZ(i));
+    colours[i * 3] = r;
+    colours[i * 3 + 1] = g;
+    colours[i * 3 + 2] = b;
+  });
+  geometry.setAttribute('color', new THREE.BufferAttribute(colours, 3));
+}
+
+/** mergeGeometries, a batch of parts at a time, then the batches. */
+async function mergePaced(parts: THREE.BufferGeometry[], pace: Pace): Promise<THREE.BufferGeometry> {
+  const batches: THREE.BufferGeometry[] = [];
+  for (let i = 0; i < parts.length; i += 120) {
+    batches.push(mergeGeometries(parts.slice(i, i + 120))!);
+    await pace();
+  }
+  return batches.length === 1 ? batches[0] : mergeGeometries(batches)!;
+}
+
 /** The face, built in its own frame (see wallRelief): the layer turns it to
  *  run north–south along the crest, facing east into the blue. */
-function buildWall(): { rock: THREE.BufferGeometry; fans: FanPlacement[]; bushes: FanPlacement[]; height: number } {
+async function buildWall(pace: Pace): Promise<{
+  rock: THREE.BufferGeometry;
+  fans: FanPlacement[];
+  bushes: FanPlacement[];
+  height: number;
+}> {
   const height = WALL_BOTTOM_DEPTH_M - WALL_TOP_DEPTH_M;
   // Two vertices a metre: the rock grain in the shader carries the rest.
   const face = new THREE.PlaneGeometry(REEF_LENGTH_M, height, REEF_LENGTH_M * 2, Math.round(height * 2));
   face.deleteAttribute('uv');
   const top = height / 2;
   const pos = face.getAttribute('position');
-  for (let i = 0; i < pos.count; i++) pos.setZ(i, wallZ(pos.getX(i), pos.getY(i), top));
+  await eachPaced(pos.count, pace, (i) => pos.setZ(i, wallZ(pos.getX(i), pos.getY(i), top)));
   face.computeVertexNormals();
-  setColour(face, (x, y) => scale3(reefColour(x, y, SEED + 30), occlusion(wallRelief(x, y, top).detail, 0.5, 0.45)));
+  await pace();
+  await setColourPaced(
+    face,
+    (x, y) => scale3(reefColour(x, y, SEED + 30), occlusion(wallRelief(x, y, top).detail, 0.5, 0.45)),
+    pace,
+  );
   setShare(face, 'life', 1);
   setShare(face, 'rock', 1);
 
@@ -557,6 +609,7 @@ function buildWall(): { rock: THREE.BufferGeometry; fans: FanPlacement[]; bushes
   // Plate corals in tiers of two to four, stacking out of the face down the
   // camera's line of descent, as on the reference wall (clip 4).
   for (let i = 0; i < 80; i++) {
+    await pace();
     const z = lerp(PATH_NORTH_Z - 50, PATH_SOUTH_Z, hash1(i, SEED + 100));
     const x = REEF_MID_Z - z;
     let y = top - 2 - hash1(i, SEED + 101) ** 1.2 * 24;
@@ -578,6 +631,7 @@ function buildWall(): { rock: THREE.BufferGeometry; fans: FanPlacement[]; bushes
   // Sponges down the dive's line: barrels growing out from the rock,
   // tipped up, and clusters of tubes.
   for (let i = 0; i < 26; i++) {
+    await pace();
     const z = lerp(PATH_NORTH_Z - 45, PATH_SOUTH_Z, hash1(i, SEED + 140));
     const x = REEF_MID_Z - z;
     const y = top - 2 - hash1(i, SEED + 141) ** 1.2 * 26;
@@ -590,6 +644,7 @@ function buildWall(): { rock: THREE.BufferGeometry; fans: FanPlacement[]; bushes
     parts.push(barrel);
   }
   for (let i = 0; i < 70; i++) {
+    await pace();
     const z = lerp(PATH_NORTH_Z - 45, PATH_SOUTH_Z, hash1(i, SEED + 150));
     const x = REEF_MID_Z - z;
     const y = top - 1.5 - hash1(i, SEED + 151) ** 1.2 * 27;
@@ -607,6 +662,7 @@ function buildWall(): { rock: THREE.BufferGeometry; fans: FanPlacement[]; bushes
   // reversed: x = REEF_MID_Z − z).
   const fans: FanPlacement[] = [];
   for (let i = 0; i < 1100; i++) {
+    await pace();
     const onPath = i % 5 < 3;
     const z = onPath
       ? lerp(PATH_NORTH_Z - 40, PATH_SOUTH_Z, hash1(i, SEED + 40))
@@ -634,6 +690,7 @@ function buildWall(): { rock: THREE.BufferGeometry; fans: FanPlacement[]; bushes
   // they grow on a current-swept wall; two crossed quads each, for body.
   const bushes: FanPlacement[] = [];
   for (let i = 0; i < 320; i++) {
+    await pace();
     const z = lerp(PATH_NORTH_Z - 45, PATH_SOUTH_Z, hash1(i, SEED + 110));
     const x = REEF_MID_Z - z;
     const y = top - 1.5 - hash1(i, SEED + 111) ** 1.2 * 28;
@@ -647,18 +704,18 @@ function buildWall(): { rock: THREE.BufferGeometry; fans: FanPlacement[]; bushes
     bushes.push({ position, width, yaw, tilt, colour });
     bushes.push({ position: position.clone(), width: width * 0.92, yaw: yaw + Math.PI / 2, tilt, colour });
   }
-  return { rock: mergeGeometries(parts)!, fans, bushes, height };
+  return { rock: await mergePaced(parts, pace), fans, bushes, height };
 }
 
 // Sand in the channels.
 const SAND: RGBTuple = [0.8, 0.76, 0.64];
 
-function buildReefTop(): {
+async function buildReefTop(pace: Pace): Promise<{
   rock: THREE.BufferGeometry;
   fans: FanPlacement[];
   bushes: FanPlacement[];
   anemones: FanPlacement[];
-} {
+}> {
   const width = REEF_TOP_EAST_U - REEF_WEST_X;
   const ground = new THREE.PlaneGeometry(width, REEF_LENGTH_M, Math.round(width * 1.6), Math.round(REEF_LENGTH_M * 1.6));
   ground.deleteAttribute('uv');
@@ -666,19 +723,25 @@ function buildReefTop(): {
   ground.translate((REEF_TOP_EAST_U + REEF_WEST_X) / 2, 0, REEF_MID_Z);
   // Colours are set from (u, z) below, before the vertices move to x.
   const pos = ground.getAttribute('position');
-  for (let i = 0; i < pos.count; i++) pos.setY(i, reefTopY(pos.getX(i), pos.getZ(i)));
+  await eachPaced(pos.count, pace, (i) => pos.setY(i, reefTopY(pos.getX(i), pos.getZ(i))));
   // Dark clumps of living coral among paler rubble, as reference 2's reef
   // tops are (7:16, 7:40), and pale sand in the channels.
-  setColour(ground, (u, _y, z) => {
+  await setColourPaced(
+    ground,
+    (u, _y, z) => {
     const clump = smoothstep(0.0, 0.3, fbm2(u * 0.5, z * 0.5, SEED + 61, 3));
     const shade = occlusion(reefTopRelief(u, z).detail, 0.9, 0.55) * (1 - 0.5 * clump);
     return mix3(scale3(reefColour(u, z, SEED + 60), shade), SAND, 0.8 * channel(u, z));
-  });
+    },
+    pace,
+  );
   // Living cover on the spurs; the sand channels stay sand, with less of
   // the rubble in them.
+  await pace();
   setShare(ground, 'life', (u, _y, z) => 1 - channel(u, z));
+  await pace();
   setShare(ground, 'rock', (u, _y, z) => 1 - 0.4 * channel(u, z));
-  for (let i = 0; i < pos.count; i++) pos.setX(i, crestX(pos.getX(i), pos.getZ(i)));
+  await eachPaced(pos.count, pace, (i) => pos.setX(i, crestX(pos.getX(i), pos.getZ(i))));
   ground.computeVertexNormals();
 
   // Where the camera swims over the reef top: u −25..−5, z −10..−90 (u as
@@ -698,6 +761,7 @@ function buildReefTop(): {
   // sand channels.
   const parts: THREE.BufferGeometry[] = [ground];
   for (let i = 0; i < 760; i++) {
+    await pace();
     const [u, z] = i % 10 < 7 ? near(i, SEED + 70) : anywhere(i, SEED + 70);
     if (channel(u, z) > 0.4) continue;
     const r = 0.3 + 1.7 * hash1(i, SEED + 72) ** 2;
@@ -711,7 +775,8 @@ function buildReefTop(): {
   // along the dive's line, each crowned with a table coral and skirted
   // with plates — the foreground the reef top was missing, close enough
   // to the camera for the torch to reach (round 8).
-  BOMMIES.forEach((b, i) => {
+  for (const [i, b] of BOMMIES.entries()) {
+    await pace();
     const squash = b.h / b.r;
     const tint = CORALS[Math.floor(hash1(i, SEED + 160) * CORALS.length)];
     const head = coralHead(b.r, squash, 'y', 2000 + i, mix3(reefColour(b.u, b.z, SEED + 60), tint, 0.3));
@@ -730,7 +795,7 @@ function buildReefTop(): {
       plate.translate(x + Math.cos(a) * b.r * 0.85, ground + b.h * (0.3 + 0.4 * hash1(i * 3 + k, SEED + 168)), b.z + Math.sin(a) * b.r * 0.85);
       parts.push(plate);
     }
-  });
+  }
   // Anemones beside the line (reefShape.ts): a low disc under four crossed
   // quads of tentacles.
   const anemones: FanPlacement[] = [];
@@ -757,6 +822,7 @@ function buildReefTop(): {
   }
   // Sponges on the spurs: barrels upright, tube clusters among them.
   for (let i = 0; i < 14; i++) {
+    await pace();
     const [u, z] = near(i, SEED + 170);
     if (channel(u, z) > 0.3) continue;
     const r = 0.3 + 0.4 * hash1(i, SEED + 172);
@@ -766,6 +832,7 @@ function buildReefTop(): {
     parts.push(barrel);
   }
   for (let i = 0; i < 30; i++) {
+    await pace();
     const [u, z] = near(i, SEED + 180);
     if (channel(u, z) > 0.3) continue;
     const tubes = tubeSponges(400 + i, TUBES[Math.floor(hash1(i, SEED + 182) * TUBES.length)]);
@@ -774,6 +841,7 @@ function buildReefTop(): {
     parts.push(tubes);
   }
   for (let i = 0; i < 44; i++) {
+    await pace();
     const [u, z] = i % 4 < 3 ? near(i, SEED + 80) : anywhere(i, SEED + 80);
     if (channel(u, z) > 0.3 || u > REEF_TOP_EAST_U - 3) continue;
     const colour = mix3(reefColour(u, z, SEED + 60), TABLES[Math.floor(hash1(i, SEED + 82) * TABLES.length)], 0.9);
@@ -786,6 +854,7 @@ function buildReefTop(): {
 
   const fans: FanPlacement[] = [];
   for (let i = 0; i < 110; i++) {
+    await pace();
     const [u, z] = i % 4 < 3 ? near(i, SEED + 90) : anywhere(i, SEED + 90);
     if (channel(u, z) > 0.4) continue;
     fans.push({
@@ -799,6 +868,7 @@ function buildReefTop(): {
   }
   const bushes: FanPlacement[] = [];
   for (let i = 0; i < 60; i++) {
+    await pace();
     const [u, z] = near(i, SEED + 120);
     if (channel(u, z) > 0.3) continue;
     const position = new THREE.Vector3(crestX(u, z), reefTopY(u, z) - 0.05, z);
@@ -809,7 +879,7 @@ function buildReefTop(): {
     bushes.push({ position, width, yaw, tilt, colour });
     bushes.push({ position: position.clone(), width: width * 0.92, yaw: yaw + Math.PI / 2, tilt, colour });
   }
-  return { rock: mergeGeometries(parts)!, fans, bushes, anemones };
+  return { rock: await mergePaced(parts, pace), fans, bushes, anemones };
 }
 
 // Photographs of real rock (Poly Haven, CC0): mossy_rock, lichen crust on
@@ -823,31 +893,62 @@ const PHOTOS_WAIT_MS = 8000;
 // its brightest rock would clip, so it is turned down there.
 const TORCH_LEVEL = 7;
 
+// Colour maps first, then normal maps (whose values are data: no colour
+// management at decode).
+const PHOTO_FILES = [
+  ['crust.webp', true],
+  ['crust-normal.jpg', false],
+  ['rubble.webp', true],
+  ['rubble-normal.jpg', false],
+] as const;
+let photoImages: Promise<ImageBitmap[]> | null = null;
+
+/** Starts the photographs downloading. Called as the dive mounts, so they
+ *  arrive while the surface is built rather than after it (they used to
+ *  start only when the reef did, round 12). Decoded as ImageBitmaps, which
+ *  the browser decodes off the main thread: as plain images each was
+ *  decoded on upload, ~70 ms of frozen film apiece. Flipped at decode, as
+ *  WebGL cannot flip a bitmap on upload. Idempotent. */
+export function prefetchReefPhotos() {
+  if (photoImages) return;
+  const loader = (colour: boolean) =>
+    new THREE.ImageBitmapLoader().setCrossOrigin('anonymous').setOptions({
+      imageOrientation: 'flipY',
+      premultiplyAlpha: 'none',
+      colorSpaceConversion: colour ? 'default' : 'none',
+    });
+  const colourLoader = loader(true);
+  const dataLoader = loader(false);
+  photoImages = Promise.all(
+    PHOTO_FILES.map(([f, colour]) => (colour ? colourLoader : dataLoader).loadAsync(`${PHOTOS_URL}/${f}`)),
+  );
+  // Handled where it is awaited; this only keeps an early failure from
+  // reporting as unhandled before then.
+  photoImages.catch(() => {});
+}
+
 async function loadPhotos(renderer: THREE.WebGLRenderer): Promise<ReefPhotos | null> {
-  const loader = new THREE.TextureLoader();
+  prefetchReefPhotos();
   const anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
-  const load = async (file: string, colour: boolean) => {
-    const t = await loader.loadAsync(`${PHOTOS_URL}/${file}`);
+  const texture = (image: ImageBitmap, colour: boolean) => {
+    const t = new THREE.Texture(image);
+    t.flipY = false;
+    t.needsUpdate = true;
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.anisotropy = anisotropy;
     if (colour) t.colorSpace = THREE.SRGBColorSpace;
     return t;
   };
-  const all = Promise.all([
-    load('crust.webp', true),
-    load('crust-normal.jpg', false),
-    load('rubble.webp', true),
-    load('rubble-normal.jpg', false),
-  ]);
   const late = new Promise<null>((r) => setTimeout(() => r(null), PHOTOS_WAIT_MS));
   try {
-    const got = await Promise.race([all, late]);
-    if (!got) {
-      // Too late to use: let them go when they do arrive.
-      all.then((ts) => ts.forEach((t) => t.dispose())).catch(() => {});
-      return null;
-    }
-    const [crust, crustNormal, rubble, rubbleNormal] = got;
+    const images = await Promise.race([photoImages!, late]);
+    if (!images) return null;
+    const [crust, crustNormal, rubble, rubbleNormal] = [
+      texture(images[0], true),
+      texture(images[1], false),
+      texture(images[2], true),
+      texture(images[3], false),
+    ];
     return {
       // The crust keeps half its hue (grey rock against yellow-green lichen
       // is what makes it read as encrusted); the rubble's sandy orange,
@@ -873,21 +974,23 @@ export default function createReefLayer(): Layer {
   let wall: THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
   let reefTop: THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
   const fanMeshes: THREE.Mesh[] = [];
-  let sun: THREE.DirectionalLight;
-  let sky: THREE.HemisphereLight;
   const uniforms = { uCausticTime: { value: 0 }, uCamY: { value: 0 } };
 
   return {
     id: 'reef',
+    // Built while the surface is already showing (index.ts): each heavy
+    // step gives the film a frame back (ctx.pace) rather than freezing it
+    // for the whole build.
     async init(c) {
       ctx = c;
       TORCH.uTorch.value = TORCH_LEVEL * (ctx.settings.post ? 1 : 0.7);
       photos = await loadPhotos(ctx.renderer);
       rockMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 });
       withReefShading(rockMaterial, uniforms, { grain: true, mosaic: true, photos: photos ?? undefined });
-      lace = fanTexture(SEED);
+      lace = await fanTexture(SEED, ctx.pace);
       fansMaterial = fanMaterial(lace);
       withReefShading(fansMaterial, uniforms);
+      await ctx.pace();
       softTexture = softCoralTexture(SEED + 7);
       softMaterial = fanMaterial(softTexture);
       softMaterial.roughness = 0.75;
@@ -896,8 +999,11 @@ export default function createReefLayer(): Layer {
       anemoneMaterial = fanMaterial(anemoneTex);
       anemoneMaterial.roughness = 0.8;
       withReefShading(anemoneMaterial, uniforms, { polyps: ANEMONE_STALK });
-      const w = buildWall();
-      const t = buildReefTop();
+      await ctx.pace();
+      const w = await buildWall(ctx.pace);
+      await ctx.pace();
+      const t = await buildReefTop(ctx.pace);
+      await ctx.pace();
       wall = new THREE.Mesh(w.rock, rockMaterial);
       // Its own frame turned so the face runs north–south along the crest,
       // facing east (wall-local +z → world +x, wall-local x → world −z).
@@ -917,10 +1023,7 @@ export default function createReefLayer(): Layer {
         parent.add(mesh);
         fanMeshes.push(mesh);
       }
-      sun = new THREE.DirectionalLight(0xffffff, 1);
-      sun.position.set(0.3, 1, 0.2);
-      sky = new THREE.HemisphereLight(0xffffff, 0x000000, 1);
-      ctx.scene.add(wall, reefTop, sun, sky);
+      ctx.scene.add(wall, reefTop);
     },
     update(frame: DiveFrame) {
       const { water } = frame;
@@ -939,20 +1042,6 @@ export default function createReefLayer(): Layer {
       cast(0.82, fansMaterial);
       cast(0.88, softMaterial);
       cast(0.88, anemoneMaterial);
-
-      // Underwater light is mostly scattered, arriving from everywhere: a
-      // gentle sun from above and a strong hemisphere whose "ground" is
-      // still lit water, so vertical faces are not left in the dark. Both
-      // all but neutral: the camera white-balances, and the blue is the
-      // water's — per metre of view (absorb.ts) and in the fog. Blue light
-      // on top of that left even the nearest rock teal (round 8).
-      sun.color.setRGB(0.92 + 0.08 * t[0], 0.97, 1, THREE.SRGBColorSpace);
-      // A diving camera auto-exposes: lit things stay readable at depth
-      // while the water itself (the fog) darkens.
-      sun.intensity = 3.0 * water.ambient;
-      sky.color.setRGB(0.92, 0.96, 1, THREE.SRGBColorSpace);
-      sky.groundColor.setRGB(0.44, 0.49, 0.54, THREE.SRGBColorSpace);
-      sky.intensity = 1.9 + 2.8 * water.ambient;
     },
     dispose() {
       wall.geometry.dispose();
@@ -971,7 +1060,7 @@ export default function createReefLayer(): Layer {
           p.normal.dispose();
         }
       }
-      ctx.scene.remove(wall, reefTop, sun, sky);
+      ctx.scene.remove(wall, reefTop);
     },
   };
 }

@@ -247,6 +247,12 @@ export async function runFrameCostCheck(browser) {
     await settle(controlPage, 5);
 
     await sitePage.goto(`${BASE_URL}/`, { waitUntil: 'load' });
+    // The running dive, not its first seconds: the deep set builds behind
+    // the showing surface (index.ts), and its frames are slow for a reason
+    // that ends.
+    await sitePage.waitForFunction(() => document.documentElement.classList.contains('dive-ready'), null, {
+      timeout: 60000,
+    });
     await settle(sitePage, 10); // let the loop warm up before measuring
 
     // Interleaved: control, site-idle, site-scrolling, repeated, so no

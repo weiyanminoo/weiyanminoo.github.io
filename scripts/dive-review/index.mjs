@@ -196,7 +196,7 @@ async function determinism(browser) {
 async function resizeCheck(browser) {
   // Review Focus 1, in live mode: rotate a phone with #work on screen.
   const { context, page, errors } = await openPage(browser, MOBILE, '');
-  await page.waitForFunction(() => document.documentElement.classList.contains('has-dive'));
+  await page.waitForFunction(() => document.documentElement.classList.contains('dive-ready'), null, { timeout: 60000 });
   const expected = await (async () => {
     const r = await openReview(browser, DESKTOP);
     const d = await r.page.evaluate(() => window.__dive.stateAt(window.__dive.sections.work).depth);
@@ -331,7 +331,7 @@ async function flashCheck(browser) {
 // Dive in and Surface from the keyboard (plan Task 16).
 async function keyboardCheck(browser) {
   const { context, page, errors } = await openPage(browser, DESKTOP, '');
-  await page.waitForFunction(() => document.documentElement.classList.contains('has-dive'));
+  await page.waitForFunction(() => document.documentElement.classList.contains('dive-ready'), null, { timeout: 60000 });
   let reached = false;
   for (let i = 0; i < 15 && !reached; i++) {
     await page.keyboard.press('Tab');
@@ -506,7 +506,7 @@ async function noWebglCheck() {
 // after a warm-up pass.
 async function stallCheck(browser) {
   const { context, page, errors } = await openPage(browser, DESKTOP, '');
-  await page.waitForFunction(() => document.documentElement.classList.contains('has-dive'));
+  await page.waitForFunction(() => document.documentElement.classList.contains('dive-ready'), null, { timeout: 60000 });
   let lo = 0;
   let hi = await page.evaluate(() => document.documentElement.scrollHeight - innerHeight);
   for (let i = 0; i < 18; i++) {

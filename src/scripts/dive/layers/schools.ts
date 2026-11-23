@@ -270,16 +270,22 @@ function fishGeometry(length: number, colour: SchoolLook['colour'], height = 1, 
 }
 
 /** The tail wave: a travelling sine, stronger towards the tail, phase-
- *  offset per fish so a school never beats in unison. With `stripes`, four
- *  thin blue lengthwise stripes, antialiased per pixel, on the body; with
- *  `bars`, three bars across it. */
+ *  offset per fish so a school never beats in unison. Four thin blue
+ *  lengthwise stripes on the body where `uStripes` is 1; three bars across
+ *  it, in `uBarColour`, where `uBars` is 1. One program for every school:
+ *  the patterns are switched by uniform, not compiled in, since each
+ *  variant was a program of its own to compile while the visitor waited
+ *  (five of them, round 12). */
 function withTailWave(material: THREE.MeshStandardMaterial, uniforms: Record<string, THREE.IUniform>, look: SchoolLook) {
   const { stripes, bars } = look;
-  // Three caches programs by the hook's source text, which is the same for
-  // every school; without a key the snapper reused the unstriped program.
-  material.customProgramCacheKey = () => `fish-${+stripes}-${bars ? bars.join(',') : 0}`;
+  const pattern = {
+    uStripes: { value: stripes ? 1 : 0 },
+    uBars: { value: bars ? 1 : 0 },
+    uBarColour: { value: new THREE.Vector3(...(bars ?? [0, 0, 0])) },
+  };
+  material.customProgramCacheKey = () => 'fish';
   material.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, uniforms);
+    Object.assign(shader.uniforms, uniforms, pattern);
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nuniform float uTime;\nuniform float uLength;\nvarying vec3 vFish;')
       .replace(
@@ -292,9 +298,15 @@ function withTailWave(material: THREE.MeshStandardMaterial, uniforms: Record<str
       );
     // Colour lost over the water to the lens, as on the reef (absorb.ts).
     withWaterOptics(shader);
-    if (!stripes && !bars) return;
-    const pattern = stripes
-      ? `{
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        '#include <common>\nvarying vec3 vFish;\nuniform float uStripes;\nuniform float uBars;\nuniform vec3 uBarColour;',
+      )
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+        {
           // Stripes 4 cm apart (in body lengths) from the belly line up,
           // a quarter of the spacing wide, on the body only (not the tail).
           float k = (vFish.y + 0.05) / 0.038;
@@ -302,9 +314,9 @@ function withTailWave(material: THREE.MeshStandardMaterial, uniforms: Record<str
           float aa = fwidth(k);
           float line = 1.0 - smoothstep(0.12 - aa, 0.12 + aa, d);
           line *= step(0.0, k) * step(k, 4.0) * smoothstep(-0.42, -0.3, vFish.z);
-          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.12, 0.32, 0.85), line);
-        }`
-      : `{
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.12, 0.32, 0.85), line * uStripes);
+        }
+        {
           // Three bars across the body: behind the head, the middle, the
           // tail stalk (in body lengths from the centre, nose at +0.5).
           float bar = 0.0;
@@ -314,11 +326,9 @@ function withTailWave(material: THREE.MeshStandardMaterial, uniforms: Record<str
             bar = max(bar, 1.0 - smoothstep(0.035 - aa, 0.035 + aa, abs(vFish.z - c)));
           }
           bar *= smoothstep(-0.42, -0.36, vFish.z);
-          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(${bars!.map((v) => v.toFixed(3)).join(', ')}), bar);
-        }`;
-    shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vFish;')
-      .replace('#include <color_fragment>', `#include <color_fragment>\n${pattern}`);
+          diffuseColor.rgb = mix(diffuseColor.rgb, uBarColour, bar * uBars);
+        }`,
+      );
   };
 }
 

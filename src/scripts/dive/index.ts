@@ -3,6 +3,15 @@
 // render loop, and reports depth to the page. Everything it renders comes
 // from diveStateAt/waterAt, so a frame depends on (progress, time) alone.
 //
+// It mounts in two steps (round 12: the page used to sit on a still blue
+// screen for 10–13 s while every shader compiled). The surface — water,
+// light, snow, bubbles, all small shaders — is built, compiled and shown
+// first, in a second or two; the deep set — reef, fish, the big animals —
+// is then built behind it and attached when its programs are compiled.
+// Until then the film waits just above the reef (HOLD_PROGRESS) however far
+// the page is scrolled, and eases forward when the deep set arrives, so the
+// reef never shows half-built. html.dive-ready marks it complete.
+//
 // Returns null — and leaves the page on its poster stills — when the film
 // should not run: reduced motion, no WebGL2, or a scene that fails to start.
 
@@ -15,10 +24,11 @@ import { createScene, type DiveScene, type Layer } from './scene';
 import { SECTION_PROGRESS, SHOTS, diveStateAt } from './timeline';
 import type { DiveFrame, DiveState, SectionId } from './types';
 import { waterAt } from './water';
+import createLightsLayer from './layers/lights';
 import createVolumeLayer from './layers/volume';
 import createSurfaceLayer from './layers/surface';
 import createShaftsLayer from './layers/shafts';
-import createReefLayer from './layers/reef';
+import createReefLayer, { prefetchReefPhotos } from './layers/reef';
 import createSchoolsLayer from './layers/schools';
 import createFaunaLayer from './layers/fauna';
 import createSnowLayer from './layers/snow';
@@ -71,19 +81,32 @@ const TIER_WARMUP_FRAMES = 10;
 const TIER_SAMPLE_FRAMES = 120;
 const SLOW_FRAME_MS = 19;
 
-// Back to front: volume, surface, shafts, reef, schools, fauna, snow,
-// bubbles.
-function buildLayers(): Layer[] {
+// Until the deep set is in, the film goes no further than this: the
+// descent, in open blue, before the reef rises out of the haze.
+const HOLD_PROGRESS = 0.08;
+// How fast the film catches up with the page once it is (per second, as a
+// share of the remaining gap), and how close counts as caught up.
+const CATCH_UP_RATE = 3;
+const CATCH_UP_EPSILON = 0.002;
+
+// The surface set: unlit shaders, small and quick to compile, enough for
+// the opening shots. The lights come first, so everything compiled later
+// is compiled against them (layers/lights.ts).
+function surfaceLayers(): Layer[] {
   return [
+    createLightsLayer(),
     createVolumeLayer(),
     createSurfaceLayer(),
     createShaftsLayer(),
-    createReefLayer(),
-    createSchoolsLayer(),
-    createFaunaLayer(),
     createSnowLayer(),
     createBubblesLayer(),
   ];
+}
+
+// The deep set: the reef and everything that lives on it, the bulk of the
+// build and of the shader compiling.
+function deepLayers(): Layer[] {
+  return [createReefLayer(), createSchoolsLayer(), createFaunaLayer()];
 }
 
 function hasWebGL2(): boolean {
@@ -125,6 +148,8 @@ export async function mountDive(root: HTMLElement, opts: MountOptions = {}): Pro
     fallBack(true);
     return null;
   }
+  // The reef's photographs download while the surface is built.
+  prefetchReefPhotos();
 
   const isMobile = window.matchMedia('(pointer: coarse)').matches;
   let tier: Tier = pickTier({
@@ -144,7 +169,7 @@ export async function mountDive(root: HTMLElement, opts: MountOptions = {}): Pro
 
   let scene: DiveScene;
   try {
-    scene = await createScene(canvas, settings, buildLayers());
+    scene = await createScene(canvas, settings, surfaceLayers());
   } catch {
     canvas.removeEventListener('webglcontextlost', onEarlyLoss);
     fallBack(true);
@@ -189,10 +214,20 @@ export async function mountDive(root: HTMLElement, opts: MountOptions = {}): Pro
   resize();
   // Pre-roll: one frame of every shot, before the film is shown, so the
   // dive never stalls on a first draw mid-scroll (frame-cost audit).
+  const warmFrames = SHOTS.map((s) => frameAt((s.from + s.to) / 2, 0, 1));
   try {
-    await scene.warm(SHOTS.map((s) => frameAt((s.from + s.to) / 2, 0, 1)));
+    await scene.warm(warmFrames);
   } catch {
     // A failed warm-up is only a slower first pass, not a broken dive.
+  }
+  // Review renders exact frames of the whole dive at once: it waits for
+  // the deep set here, before anything is shown or handed over.
+  if (review && !lostEarly && !scene.isLost()) {
+    try {
+      await scene.extend(deepLayers(), warmFrames, false);
+    } catch {
+      lostEarly = true;
+    }
   }
   canvas.removeEventListener('webglcontextlost', onEarlyLoss);
   if (lostEarly || scene.isLost()) {
@@ -201,6 +236,7 @@ export async function mountDive(root: HTMLElement, opts: MountOptions = {}): Pro
     return null;
   }
   html.classList.add('has-dive');
+  if (review) html.classList.add('dive-ready');
   if (params.has('notext')) html.classList.add('review-notext');
 
   if (review) {
@@ -241,17 +277,24 @@ export async function mountDive(root: HTMLElement, opts: MountOptions = {}): Pro
   let frames = 0;
   let rebuilding = false;
   let tierChecked = tier === 'low';
+  // The deep set, built behind the showing surface (see the header).
+  let deepReady = false;
+  // The progress the film is drawn at: the page's own, except while held.
+  let filmProgress = 0;
+  let catchingUp = false;
 
   // One tier down, keeping the scroll position; the loop skips rendering
-  // while the new scene is built.
+  // while the new scene is built, both sets at once.
   const rebuild = async () => {
     rebuilding = true;
     tier = downgrade(tier);
     settings = settingsFor(tier);
     scene.dispose();
     try {
-      scene = await createScene(canvas, settings, buildLayers());
+      scene = await createScene(canvas, settings, surfaceLayers());
       resize();
+      await scene.warm(warmFrames);
+      await scene.extend(deepLayers(), warmFrames, false);
       // Measure the new tier from scratch; the lowest is as far as it goes.
       frames = 0;
       frameMs.length = 0;
@@ -282,13 +325,20 @@ export async function mountDive(root: HTMLElement, opts: MountOptions = {}): Pro
       rafId = requestAnimationFrame(tick);
       return;
     }
-    // Only frames the visitor is actually watching count towards the tier.
-    if (!tierChecked && !document.hidden) checkTier(dtMs);
+    // Only frames the visitor is actually watching, of the whole dive, count
+    // towards the tier: while the deep set is built, frames are slow for a
+    // reason that ends.
+    if (!tierChecked && deepReady && !document.hidden) checkTier(dtMs);
 
     const scrollY = lenis.scroll;
     const progress = progressFromScroll(scrollY, anchors);
+    if (!deepReady) filmProgress = Math.min(progress, HOLD_PROGRESS);
+    else if (catchingUp) {
+      filmProgress += (progress - filmProgress) * (1 - Math.exp((-CATCH_UP_RATE * clamp(dtMs, 0, 100)) / 1000));
+      if (Math.abs(progress - filmProgress) < CATCH_UP_EPSILON) catchingUp = false;
+    } else filmProgress = progress;
     const entry = clamp((timeS - entryStartS) / ENTRY_S, 0, 1);
-    const frame = frameAt(progress, timeS, entry);
+    const frame = frameAt(filmProgress, timeS, entry);
     scene.render(frame);
     opts.onFrame?.(frame);
 
@@ -333,8 +383,10 @@ export async function mountDive(root: HTMLElement, opts: MountOptions = {}): Pro
   };
 
   // The film stops for good: the stills, in the film's layout, with no
-  // leftover focus blur.
+  // leftover focus blur. Once: a lost context can arrive both as the event
+  // and as the deep set's build failing.
   const toStills = () => {
+    if (!running) return;
     stop();
     for (const el of stations) el.style.removeProperty('--pull');
     fallBack(false);
@@ -345,6 +397,19 @@ export async function mountDive(root: HTMLElement, opts: MountOptions = {}): Pro
   canvas.addEventListener('webglcontextlost', toStills);
 
   rafId = requestAnimationFrame(tick);
+
+  // The deep set, behind the showing surface. A tier rebuild cannot start
+  // before it is in (the tier is only checked after), so `scene` is still
+  // the one it extends.
+  scene.extend(deepLayers(), warmFrames, true).then(
+    () => {
+      if (!running) return;
+      deepReady = true;
+      catchingUp = true;
+      html.classList.add('dive-ready');
+    },
+    toStills,
+  );
 
   return {
     get lenis() {

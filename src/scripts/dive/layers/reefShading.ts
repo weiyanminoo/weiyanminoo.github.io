@@ -28,7 +28,7 @@
 //   distance  colour absorbed over the water between surface and lens
 //             (absorb.ts): vivid up close, blue-green beyond.
 
-import type * as THREE from 'three';
+import * as THREE from 'three';
 import { SURFACE_CLEARANCE_M } from '../world';
 import { withWaterOptics } from './absorb';
 
@@ -266,10 +266,18 @@ const MOSAIC_GLSL = /* glsl */ `
 `;
 
 // The tree's stalks are one colour for the whole mesh; the vertex colour
-// is in its polyps.
-const polypsGlsl = (stalk: readonly number[]) => /* glsl */ `
+// is in its polyps. Switched by uniform, not compiled in, so sea fans,
+// soft corals and anemones share one program: each variant was a program
+// of its own to compile while the visitor waited (round 12).
+const POLYPS_HEAD_GLSL = /* glsl */ `
   #ifdef USE_ALPHAMAP
-    diffuseColor.rgb = mix(diffuse * ${glslVec3(stalk)}, diffuseColor.rgb, texture2D(alphaMap, vAlphaMapUv).r);
+    uniform float uPolyps;
+    uniform vec3 uStalk;
+  #endif
+`;
+const POLYPS_GLSL = /* glsl */ `
+  #ifdef USE_ALPHAMAP
+    diffuseColor.rgb = mix(diffuseColor.rgb, diffuse * uStalk, uPolyps * (1.0 - texture2D(alphaMap, vAlphaMapUv).r));
   #endif
 `;
 const PALE_STALK = [0.93, 0.88, 0.86] as const;
@@ -319,12 +327,16 @@ export function withReefShading(
   opts: ReefShadingOptions = {},
 ) {
   const { grain = false, mosaic = false, polyps = false, photos } = opts;
-  const stalk = polyps === true ? PALE_STALK : polyps || null;
+  const stalk = polyps === true ? PALE_STALK : polyps || PALE_STALK;
+  const polypUniforms = {
+    uPolyps: { value: polyps ? 1 : 0 },
+    uStalk: { value: new THREE.Vector3(...stalk) },
+  };
   // Three caches programs by the hook's source text, the same for every
   // variant; the key keeps them apart.
-  material.customProgramCacheKey = () => `reef-${+grain}${+mosaic}${stalk ? stalk.join(',') : 0}${+!!photos}`;
+  material.customProgramCacheKey = () => `reef-${+grain}${+mosaic}${+!!photos}`;
   material.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, uniforms);
+    Object.assign(shader.uniforms, uniforms, polypUniforms);
     if (photos) {
       Object.assign(shader.uniforms, {
         uCrustMap: { value: photos.crust.map },
@@ -346,14 +358,17 @@ export function withReefShading(
         vRock = ${photos ? 'rock' : '0.0'};`,
       );
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', `#include <common>\n${FRAGMENT_GLSL}${photos ? photoHeadGlsl(photos) : ''}`)
+      .replace(
+        '#include <common>',
+        `#include <common>\n${FRAGMENT_GLSL}${POLYPS_HEAD_GLSL}${photos ? photoHeadGlsl(photos) : ''}`,
+      )
       .replace(
         '#include <color_fragment>',
         `#include <color_fragment>
         float reefH = 0.0;
         float reefLift = 0.0;
         vec2 reefPhotoDh = vec2(0.0);
-        ${stalk ? polypsGlsl(stalk) : ''}${grain ? GRAIN_GLSL : ''}${mosaic ? MOSAIC_GLSL : ''}${photos ? PHOTO_GLSL : ''}${DEPTH_GLSL}`,
+        ${POLYPS_GLSL}${grain ? GRAIN_GLSL : ''}${mosaic ? MOSAIC_GLSL : ''}${photos ? PHOTO_GLSL : ''}${DEPTH_GLSL}`,
       );
     withWaterOptics(shader);
     if (grain || photos) {

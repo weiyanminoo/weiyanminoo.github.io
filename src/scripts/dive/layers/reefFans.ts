@@ -19,7 +19,7 @@ export const FAN_VARIANTS = 2;
  *  fork where the points spread, and thin outwards — the venation of a
  *  real fan rather than a drawn tree. Widths follow the pipe model: each
  *  branch as thick as what it carries. */
-function growFan(g: CanvasRenderingContext2D, ox: number, seed: number) {
+async function growFan(g: CanvasRenderingContext2D, ox: number, seed: number, pace: () => Promise<void>) {
   let n = 0;
   const rand = (k: number) => hash1(n++, seed + k);
   const baseX = ox + LACE_PX / 2;
@@ -57,6 +57,8 @@ function growFan(g: CanvasRenderingContext2D, ox: number, seed: number) {
   for (let i = 1; i <= 4; i++) addNode(baseX, baseY - i * STEP, i - 1);
 
   for (let iteration = 0; iteration < 500; iteration++) {
+    // Grown while the film shows: a frame back now and then (reef.ts).
+    if (iteration % 20 === 19) await pace();
     const pull = new Map<number, [number, number]>();
     for (const a of attractors) {
       if (!a.alive) continue;
@@ -125,14 +127,14 @@ function growFan(g: CanvasRenderingContext2D, ox: number, seed: number) {
 /** White fans on black, FAN_VARIANTS side by side, for use as an alphaMap
  *  (its green channel is the coverage, so mipmaps average it correctly —
  *  no dark fringes). */
-export function fanTexture(seed: number): THREE.CanvasTexture {
+export async function fanTexture(seed: number, pace: () => Promise<void>): Promise<THREE.CanvasTexture> {
   const canvas = document.createElement('canvas');
   canvas.width = LACE_PX * FAN_VARIANTS;
   canvas.height = LACE_PX;
   const g = canvas.getContext('2d')!;
   g.fillStyle = '#000';
   g.fillRect(0, 0, canvas.width, canvas.height);
-  for (let v = 0; v < FAN_VARIANTS; v++) growFan(g, v * LACE_PX, seed + v * 101);
+  for (let v = 0; v < FAN_VARIANTS; v++) await growFan(g, v * LACE_PX, seed + v * 101, pace);
   const texture = new THREE.CanvasTexture(canvas);
   texture.anisotropy = 4;
   return texture;

@@ -114,6 +114,13 @@ async function measurePage(browser, path, injectFailure) {
   try {
     await page.goto(`${BASE_URL}${path}`, { waitUntil: 'load' });
     await page.evaluate(() => document.fonts.ready);
+    // On the landing, the text over the whole film: until the deep set is
+    // in, the film waits above the reef whatever the scroll (index.ts).
+    if (path === '/') {
+      await page.waitForFunction(() => document.documentElement.classList.contains('dive-ready'), null, {
+        timeout: 60000,
+      });
+    }
     await settle(page, 4);
 
     if (injectFailure) {

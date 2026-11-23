@@ -11,6 +11,13 @@ import type { DiveFrame } from './types';
 export interface DivePost {
   render(scene: THREE.Scene, camera: THREE.Camera, frame: DiveFrame): void;
   resize(w: number, h: number): void;
+  /** Where the scene is drawn. A program's output colour space is part of
+   *  its key, and this target's is linear, not the canvas's sRGB: shaders
+   *  compiled ahead of time must be compiled against it, or the first real
+   *  draw compiles a second, different set (round 12: 4 s of freeze). */
+  readonly target: THREE.WebGLRenderTarget;
+  /** Starts the lens pass's own program compiling, against the canvas. */
+  compile(): Set<THREE.Material>;
   dispose(): void;
 }
 
@@ -130,6 +137,14 @@ export function createPost(renderer: THREE.WebGLRenderer, w: number, h: number):
   resize(w, h);
 
   return {
+    target,
+    compile() {
+      const previous = renderer.getRenderTarget();
+      renderer.setRenderTarget(null);
+      const pending = renderer.compile(screen, screenCamera);
+      renderer.setRenderTarget(previous);
+      return pending;
+    },
     render(scene, camera, frame) {
       renderer.setRenderTarget(target);
       renderer.render(scene, camera);

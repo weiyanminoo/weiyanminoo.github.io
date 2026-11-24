@@ -11,7 +11,6 @@ const roles = defineCollection({
     start: z.coerce.date(),
     end: z.coerce.date().nullable().default(null),
     current: z.boolean().default(false),
-    depth: z.number().int().positive(),
     summary: z.string(),
     tags: z.array(z.string()).default([]),
   }),

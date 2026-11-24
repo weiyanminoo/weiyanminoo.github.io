@@ -6,7 +6,6 @@ discipline: Mobile Engineering
 start: 2025-05-01
 end: 2025-12-31
 current: false
-depth: 15
 summary: Built frontend for a mobile app serving around 100,000 public service officers.
 tags: [React Native, Kotlin, Swift, Redux]
 ---

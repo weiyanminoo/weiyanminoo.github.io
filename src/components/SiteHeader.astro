@@ -104,6 +104,13 @@ const isCurrent = (href: string) =>
     background: linear-gradient(to bottom, rgba(4, 16, 28, 0.62), rgba(4, 16, 28, 0.38) 45%, transparent);
   }
 
+  /* Over the intro's sunset sky (the landing's first screen on a first
+     visit), brighter than any water, the shade goes deeper: the links held
+     only 4.48:1 there on a phone. */
+  :global(html.intro) .site-header.is-overlay::before {
+    background: linear-gradient(to bottom, rgba(4, 16, 28, 0.74), rgba(4, 16, 28, 0.46) 45%, transparent);
+  }
+
   /* On the static pages the text scrolls up beneath the links. The page
      fades out behind the menu instead: darker and blurred at the very top,
      clear again by the bottom of the strip. Still no bar and no hard edge. */

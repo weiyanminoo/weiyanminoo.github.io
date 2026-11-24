@@ -6,7 +6,6 @@ discipline: Production Engineering
 start: 2026-06-01
 end: 2026-08-31
 current: false
-depth: 9
 summary: Production support for high-availability real-time payment systems.
 tags: [Splunk, Oracle, Shell, Payments]
 ---

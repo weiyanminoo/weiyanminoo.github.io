@@ -3,7 +3,6 @@ import DiveLayout from '../layouts/DiveLayout.astro';
 import { byProjectRecency, formatProjectPeriod, formatRolePeriod } from '../lib/dates';
 import { HOBBIES } from '../lib/hobbies';
 import { SCHOOL_SLOTS, PROJECT_SLOTS } from '../lib/slots';
-import { SECTION_PROGRESS, diveStateAt } from '../scripts/dive/timeline';
 import type { SectionId } from '../scripts/dive/types';
 import { getCollection } from 'astro:content';
 
@@ -25,11 +24,6 @@ const allProjects = [...projects].sort((a, b) => byProjectRecency(a.data, b.data
 
 const schoolBlanks = Math.max(0, SCHOOL_SLOTS - allSchool.length);
 const projectBlanks = Math.max(0, PROJECT_SLOTS - allProjects.length);
-
-// Each section's depth label is the film's own depth at that section, read
-// from the same timeline the scene renders — so the label, the depth gauge
-// and the water behind the text always agree.
-const depthLabel = (id: SectionId) => `${Math.round(diveStateAt(SECTION_PROGRESS[id]).depth)} M`;
 
 // Scroll room between stations, in viewport heights, so the film has time
 // between summaries (spec §6). Only applied when the film runs.
@@ -101,17 +95,14 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
     <div class="content container">
       <header class="chapter">
         <h2 class="chapter-title" id="work-title">Work</h2>
-        <p class="chapter-depth">{depthLabel('work')}</p>
       </header>
       <ol class="log">
         {
           allRoles.map((entry) => (
             <li class="log-row">
-              <p class="log-depth">
-                <span class="log-mark" aria-hidden="true" />
-                <span class="visually-hidden">Logged at </span>
-                {entry.data.depth} m
-              </p>
+              <span class="log-stop" aria-hidden="true">
+                <span class="log-mark" />
+              </span>
               <div class="log-main">
                 <h3 class="log-org">
                   {entry.data.org}
@@ -137,7 +128,6 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
     <div class="content container">
       <header class="chapter">
         <h2 class="chapter-title" id="school-title">School</h2>
-        <p class="chapter-depth">{depthLabel('school')}</p>
       </header>
       <div class="pair">
         {
@@ -166,7 +156,6 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
     <div class="content container">
       <header class="chapter">
         <h2 class="chapter-title" id="projects-title">Projects</h2>
-        <p class="chapter-depth">{depthLabel('projects')}</p>
       </header>
       <p class="chapter-dek">Built on my own time.</p>
       <div class="pair">
@@ -200,7 +189,6 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
     <div class="content container">
       <header class="chapter">
         <h2 class="chapter-title" id="hobbies-title">Hobbies</h2>
-        <p class="chapter-depth">{depthLabel('hobbies')}</p>
       </header>
       <p class="chapter-dek">Outside the work.</p>
       <ul class="pursuits">
@@ -580,8 +568,8 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
   }
 
   /* Every other section opens on a chapter card: its name set wide, in the
-     title's own face, and its depth read off the dive (a measurement, so
-     the mono). */
+     title's own face. No depth beside it: the gauge in the corner already
+     reads the dive's depth, and a bare "9 m" read as months. */
   .chapter {
     display: flex;
     flex-wrap: wrap;
@@ -600,25 +588,15 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
     color: var(--on-deep);
   }
 
-  .chapter-depth {
-    margin: 0;
-    font-family: var(--mono);
-    font-size: clamp(0.95rem, 1.3vw, 1.15rem);
-    letter-spacing: 0.08em;
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-    color: var(--on-deep-2);
-  }
-
   .chapter-dek {
     margin: calc(-1 * clamp(14px, 2.4vw, 32px)) 0 clamp(28px, 4vw, 48px);
     font-size: clamp(1.1rem, 1.6vw, 1.35rem);
     color: var(--on-deep-2);
   }
 
-  /* Work: the dive log. One line runs down through each role's logged
-     depth, each role a stop on the way down; the current one is the page's
-     one lit thing. */
+  /* Work: the dive log. One line runs down through a mark per role, each
+     role a stop on the way down; the current one is the page's one lit
+     thing. The marks carry no depths (they read as months). */
   .log {
     max-width: 62rem;
     margin: 0;
@@ -629,7 +607,7 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
   .log-row {
     position: relative;
     display: grid;
-    grid-template-columns: clamp(4.5rem, 8vw, 6.5rem) minmax(0, 1fr) auto;
+    grid-template-columns: 0.6rem minmax(0, 1fr) auto;
     align-items: center;
     gap: 0 clamp(16px, 3vw, 40px);
     padding: clamp(12px, 1.5vw, 18px) 0;
@@ -659,14 +637,9 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
     bottom: 50%;
   }
 
-  .log-depth {
+  .log-stop {
     position: relative;
-    margin: 0;
-    padding-left: 1.4rem;
-    font-family: var(--mono);
-    font-size: 0.9rem;
-    font-variant-numeric: tabular-nums;
-    color: var(--on-deep-2);
+    align-self: stretch;
   }
 
   .log-mark {
@@ -731,7 +704,7 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
 
   @media (max-width: 700px) {
     .log-row {
-      grid-template-columns: 3.9rem minmax(0, 1fr);
+      grid-template-columns: 0.6rem minmax(0, 1fr);
       align-items: start;
     }
 
@@ -740,22 +713,19 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
       bottom: 0;
     }
 
+    /* The marks sit level with the first line of each name (0.75rem down),
+       and the line starts and ends on them. */
     .log-row:first-child::before {
-      top: calc(clamp(12px, 1.5vw, 18px) + 0.6em);
+      top: calc(clamp(12px, 1.5vw, 18px) + 0.75rem);
     }
 
     .log-row:last-child::before {
       bottom: auto;
-      height: calc(clamp(12px, 1.5vw, 18px) + 0.6em);
-    }
-
-    .log-depth {
-      padding-top: 0.35rem;
+      height: calc(clamp(12px, 1.5vw, 18px) + 0.75rem);
     }
 
     .log-mark {
-      top: 0.35rem;
-      margin-top: 0.3rem;
+      top: 0.75rem;
     }
 
     .log-meta {

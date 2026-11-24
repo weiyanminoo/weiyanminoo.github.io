@@ -5,7 +5,6 @@ discipline: Product Management
 start: 2026-01-01
 end: 2026-05-31
 current: false
-depth: 12
 summary: Led user segmentation and bot detection end to end.
 tags: [SQL, Segmentation, UAT]
 ---

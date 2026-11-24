@@ -29,7 +29,6 @@ const rendered = await Promise.all(sorted.map((entry) => render(entry)));
               start={entry.data.start}
               end={entry.data.end}
               current={entry.data.current}
-              depth={entry.data.depth}
               tags={entry.data.tags}
               open={i === 0}
             >

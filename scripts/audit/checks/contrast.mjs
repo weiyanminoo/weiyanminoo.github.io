@@ -106,14 +106,31 @@ async function injectLowContrastElement(page) {
   });
 }
 
-async function measurePage(browser, path, injectFailure) {
-  const context = await browser.newContext({ viewport: DESKTOP_VIEWPORT, deviceScaleFactor: 1 });
+// The intro's first screen (scripts/dive/intro.ts): an automated browser
+// never gets it, but ?intro shows it regardless. It sits over a photograph,
+// not the film, and only at the top: a scroll would start the clip and
+// fade its copy, so it is measured at the one stop.
+const INTRO_PATH = '/?intro';
+const PHONE_VIEWPORT = { width: 390, height: 844 };
+
+async function measurePage(browser, path, injectFailure, { introOnly = false, viewport = DESKTOP_VIEWPORT } = {}) {
+  const context = await browser.newContext({ viewport, deviceScaleFactor: 1 });
   const page = await context.newPage();
   await installDepthListener(page);
 
   try {
     await page.goto(`${BASE_URL}${path}`, { waitUntil: 'load' });
     await page.evaluate(() => document.fonts.ready);
+    if (introOnly) {
+      // Its still is a CSS background: measure once it has arrived.
+      await page.waitForFunction(
+        () =>
+          document.documentElement.classList.contains('intro') &&
+          performance.getEntriesByType('resource').some((e) => e.name.includes('/intro/') && e.name.endsWith('.jpg') && e.responseEnd > 0),
+        null,
+        { timeout: 20000 }
+      );
+    }
     // On the landing, the text over the whole film: until the deep set is
     // in, the film waits above the reef whatever the scroll (index.ts).
     if (path === '/') {
@@ -134,7 +151,7 @@ async function measurePage(browser, path, injectFailure) {
     // was already captured (per-element, via getComputedStyle) above.
     await hideElementGlyphs(page, elements.map((el) => el.id));
 
-    const viewportHeight = DESKTOP_VIEWPORT.height;
+    const viewportHeight = viewport.height;
     const documentHeight = await page.evaluate(() => document.documentElement.scrollHeight);
     const maxScroll = Math.max(0, documentHeight - viewportHeight);
 
@@ -144,6 +161,7 @@ async function measurePage(browser, path, injectFailure) {
     const stops = [];
     for (let y = 0; y <= maxScroll; y += step) stops.push(y);
     if (stops[stops.length - 1] !== maxScroll) stops.push(maxScroll);
+    if (introOnly) stops.splice(1);
 
     let worst = null;
     let samplePoints = 0;
@@ -188,7 +206,11 @@ async function measurePage(browser, path, injectFailure) {
             samplePoints += 1;
             const bg = pixelAt(frame, x, y);
             const ratio = contrastRatio(fg, bg);
-            if (!worst || ratio < worst.ratio) {
+            // Worst against its own bar, not the lowest ratio outright: a
+            // small label at 4:1 (needs 4.5) fails while large text at
+            // 3.6:1 (needs 3) passes, and the lowest ratio would report
+            // only the passing one.
+            if (!worst || ratio / required < worst.ratio / worst.required) {
               worst = {
                 ratio,
                 required,
@@ -222,10 +244,18 @@ export async function runContrastCheck(browser, { injectFailure = false } = {}) 
   }
   let allPassed = true;
 
-  for (const path of PAGES) {
-    const { worst, elementCount, samplePoints } = await measurePage(browser, path, injectFailure);
+  // Every page at desktop size; the intro's first screen at a phone's too,
+  // which shows a taller crop of the photograph with more sky behind the
+  // name.
+  const runs = [
+    ...PAGES.map((path) => ({ path, label: path })),
+    { path: INTRO_PATH, label: `${INTRO_PATH} (desktop)`, introOnly: true },
+    { path: INTRO_PATH, label: `${INTRO_PATH} (phone)`, introOnly: true, viewport: PHONE_VIEWPORT },
+  ];
+  for (const { path, label, introOnly, viewport } of runs) {
+    const { worst, elementCount, samplePoints } = await measurePage(browser, path, injectFailure, { introOnly, viewport });
     if (!worst) {
-      lines.push(`${path}: no text-bearing elements found (${elementCount} candidates) — FAIL`);
+      lines.push(`${label}: no text-bearing elements found (${elementCount} candidates) — FAIL`);
       allPassed = false;
       continue;
     }
@@ -233,7 +263,7 @@ export async function runContrastCheck(browser, { injectFailure = false } = {}) 
     if (!passed) allPassed = false;
     const depthLabel = worst.depth === null || worst.depth === undefined ? 'unknown' : `${worst.depth.toFixed(1)}m`;
     lines.push(
-      `${path}: worst ${worst.ratio.toFixed(2)}:1 (need ${worst.required}:1${worst.large ? ', large text' : ''}) ` +
+      `${label}: worst ${worst.ratio.toFixed(2)}:1 (need ${worst.required}:1${worst.large ? ', large text' : ''}) ` +
         `on <${worst.tag}> "${worst.text}" at ~${depthLabel} — fg rgb(${worst.fg.join(', ')}) vs rendered bg rgb(${worst.bg.join(', ')}) ` +
         `[${elementCount} elements, ${samplePoints} sample points checked] — ${passed ? 'OK' : 'FAIL'}`
     );

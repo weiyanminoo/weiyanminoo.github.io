@@ -6,7 +6,6 @@ discipline: Process Automation
 start: 2025-01-01
 end: 2025-04-30
 current: false
-depth: 18
 summary: Turned legacy manual processes into automation specifications.
 tags: [Automation, Stakeholders, SOPs]
 ---

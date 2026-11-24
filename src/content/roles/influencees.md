@@ -5,7 +5,6 @@ discipline: Product and AI
 start: 2026-09-01
 end: null
 current: true
-depth: 6
 summary: Leading product for a platform connecting creators and brands.
 tags: [Product, AI, Roadmap]
 ---

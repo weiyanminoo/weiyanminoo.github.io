@@ -10,7 +10,6 @@ interface Props {
   start: Date;
   end: Date | null;
   current: boolean;
-  depth: number;
   tags: string[];
   open?: boolean;
   // Home shows the log row only — no bullets, no chevron, nothing to open,
@@ -29,7 +28,6 @@ const {
   start,
   end,
   current,
-  depth,
   tags,
   open = false,
   expandable = true,
@@ -40,7 +38,7 @@ const period = formatRolePeriod(start, end, current);
 // Built as an array and joined so every separator gets a space on both
 // sides regardless of which optional fields are present — avoids relying
 // on JSX whitespace, which collapses newline-plus-indent between siblings.
-const meta = [discipline, team, `${depth}m`].filter(Boolean).join(' · ');
+const meta = [discipline, team].filter(Boolean).join(' · ');
 ---
 
 {
@@ -217,7 +215,7 @@ const meta = [discipline, team, `${depth}m`].filter(Boolean).join(' · ');
     font-size: 15px;
   }
 
-  /* Column 3 — the mockup's .entry__right: the depth/meta text and the
+  /* Column 3 — the mockup's .entry__right: the meta text and the
      chevron on one row. */
   .right {
     display: flex;

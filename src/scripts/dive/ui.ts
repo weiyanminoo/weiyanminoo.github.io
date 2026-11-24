@@ -30,7 +30,16 @@ function centreOn(el: HTMLElement): number {
   return Math.max(0, el.offsetTop + el.offsetHeight / 2 - window.innerHeight / 2);
 }
 
-export function wireUi(opts: UiOptions): () => void {
+export interface UiHandle {
+  /** Dive in's descent without its sound: the entry burst, then the glide
+   *  down to About. The intro hands over to the film with it. */
+  descend(): void;
+  /** Shows the sound toggle (hidden until the visitor has dived in). */
+  revealSound(): void;
+  dispose(): void;
+}
+
+export function wireUi(opts: UiOptions): UiHandle {
   const { reducedMotion } = opts;
   // In-page links (so they work without JavaScript); handled here instead.
   const diveIn = document.querySelector<HTMLAnchorElement>('.dive-in');
@@ -46,16 +55,23 @@ export function wireUi(opts: UiOptions): () => void {
 
   const showSoundState = () => toggle?.setAttribute('aria-pressed', String(!opts.audio.muted));
 
+  const revealSound = () => {
+    if (!toggle) return;
+    toggle.hidden = false;
+    showSoundState();
+  };
+
   const onDiveIn = (e: Event) => {
     e.preventDefault();
-    opts.onDiveIn();
     // Synchronously inside the click, so the browser counts it as the
     // gesture that may start sound.
     void opts.audio.start().then(() => opts.audio.cue('splash'));
-    if (toggle) {
-      toggle.hidden = false;
-      showSoundState();
-    }
+    revealSound();
+    descend();
+  };
+
+  const descend = () => {
+    opts.onDiveIn();
     if (!about) return;
     const land = () => about.focus({ preventScroll: true });
     if (smoothScroller()) {
@@ -101,6 +117,9 @@ export function wireUi(opts: UiOptions): () => void {
   const onToggle = () => {
     opts.audio.setMuted(!opts.audio.muted);
     writeMuted(opts.storage, opts.audio.muted);
+    // Turning sound on is a press, so it may start sound that never could
+    // (an intro begun by scrolling, which browsers do not count).
+    if (!opts.audio.muted) void opts.audio.start();
     showSoundState();
   };
 
@@ -109,11 +128,15 @@ export function wireUi(opts: UiOptions): () => void {
   toggle?.addEventListener('click', onToggle);
   window.addEventListener('dive:depth', onDepth);
 
-  return () => {
-    for (const t of timers) window.clearTimeout(t);
-    diveIn?.removeEventListener('click', onDiveIn);
-    surface?.removeEventListener('click', onSurface);
-    toggle?.removeEventListener('click', onToggle);
-    window.removeEventListener('dive:depth', onDepth);
+  return {
+    descend,
+    revealSound,
+    dispose() {
+      for (const t of timers) window.clearTimeout(t);
+      diveIn?.removeEventListener('click', onDiveIn);
+      surface?.removeEventListener('click', onSurface);
+      toggle?.removeEventListener('click', onToggle);
+      window.removeEventListener('dive:depth', onDepth);
+    },
   };
 }

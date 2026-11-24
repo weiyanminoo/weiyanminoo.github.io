@@ -27,6 +27,9 @@ export interface DiveAudio {
   setDepth(m: number): void;
   cue(name: Cue): void;
   setMuted(m: boolean): void;
+  /** Silences the dive's sound for a while (the intro clip plays its own)
+   *  without touching the visitor's mute choice. */
+  hold(on: boolean): void;
   readonly muted: boolean;
   readonly context: AudioContext | null;
   dispose(): void;
@@ -268,6 +271,8 @@ export function createAudio(opts: { clock(): number; muted: boolean }): DiveAudi
   let ctx: AudioContext | null = null;
   let g: Graph | null = null;
   let muted = opts.muted;
+  let held = false;
+  const level = () => (muted || held ? 0 : MASTER);
   let offset = 0;
   // Breaths are booked up to this audio-context time. Kept in context time,
   // not film time, so re-syncing the offset (a second Dive in, a return to
@@ -303,7 +308,7 @@ export function createAudio(opts: { clock(): number; muted: boolean }): DiveAudi
         if (!ctx) {
           ctx = new AudioContext();
           g = buildGraph(ctx);
-          g.master.gain.value = muted ? 0 : MASTER;
+          g.master.gain.value = level();
           document.addEventListener('visibilitychange', onVisibility);
           timer = window.setInterval(schedule, SCHEDULE_EVERY_MS);
         }
@@ -331,7 +336,12 @@ export function createAudio(opts: { clock(): number; muted: boolean }): DiveAudi
     },
     setMuted(m) {
       muted = m;
-      if (ctx && g) g.master.gain.setTargetAtTime(m ? 0 : MASTER, ctx.currentTime, 0.05);
+      if (ctx && g) g.master.gain.setTargetAtTime(level(), ctx.currentTime, 0.05);
+    },
+    hold(on) {
+      held = on;
+      // Back in over most of a second: the bed fades up under the crossfade.
+      if (ctx && g) g.master.gain.setTargetAtTime(level(), ctx.currentTime, on ? 0.05 : 0.3);
     },
     get muted() {
       return muted;

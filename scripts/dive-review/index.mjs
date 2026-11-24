@@ -11,9 +11,12 @@
 //   resize        rotating a phone mid-dive keeps sections on their depth
 //   context-loss  a lost WebGL context drops back to the stills
 //   early-context-loss  one lost during the warm-up still ends the mount
+//   intro         who gets the first screen; its name sits on the title's;
+//                 Dive in, a scroll and Skip intro each hand over properly
 //
 // Flags: --round N  --strips  --stills (write public/dive/stills/*.jpg)
 //        --flash (entry-burst flash check, added with the bubbles)
+//        --intro-only (just the intro's checks)
 //
 // Assumes `npm run build` has already produced dist/.
 
@@ -541,6 +544,206 @@ async function stallCheck(browser) {
   await context.close();
 }
 
+// The intro (scripts/dive/intro.ts): a first visit's first screen, then
+// Wei Yan's clip of the giant stride, handing over to the film. Every other
+// check starts past it: an automated browser never gets it. These pages
+// pass as a person's browser, so they do.
+//
+// Playwright's own Chromium has no H.264, so these run in an installed Edge
+// or Chrome when there is one; with only the bundled browser they check the
+// other path, a clip that cannot play, which must still hand over.
+async function launchForIntro() {
+  const args = ['--use-angle=default', '--enable-gpu', '--ignore-gpu-blocklist'];
+  for (const channel of ['msedge', 'chrome']) {
+    try {
+      return { browser: await chromium.launch({ channel, headless: true, args }), h264: true, name: channel };
+    } catch {
+      // Not installed here.
+    }
+  }
+  return { browser: await chromium.launch({ headless: true, args }), h264: false, name: 'bundled Chromium' };
+}
+
+async function introPage(browser, viewport, url, { returning = false, automated = false, reducedMotion = false } = {}) {
+  const context = await browser.newContext({
+    viewport,
+    deviceScaleFactor: 1,
+    ...(reducedMotion ? { reducedMotion: 'reduce' } : {}),
+  });
+  await context.addInitScript(
+    ([seen, bot]) => {
+      if (!bot) Object.defineProperty(Navigator.prototype, 'webdriver', { get: () => false });
+      if (seen) localStorage.setItem('dive:intro-seen', '1');
+    },
+    [returning, automated],
+  );
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  page.on('console', (m) => {
+    if (m.type() === 'error' && !m.text().startsWith('Failed to load resource')) errors.push(m.text());
+  });
+  page.on('response', (r) => {
+    if (r.status() >= 400) errors.push(`${r.status()} ${r.url()}`);
+  });
+  await page.goto(`${BASE}${url}`, { waitUntil: 'load' });
+  return { context, page, errors };
+}
+
+const introShown = (page) =>
+  page.evaluate(
+    () =>
+      document.documentElement.classList.contains('intro') &&
+      getComputedStyle(document.querySelector('.intro-gate')).display !== 'none',
+  );
+
+async function introChecks() {
+  const { browser, h264, name } = await launchForIntro();
+  const where = `(${name})`;
+  try {
+    // Who gets it.
+    const cases = [
+      ['a first visit', '/', {}, true],
+      ['a returning visitor', '/', { returning: true }, false],
+      ['a link into a section', '/#work', {}, false],
+      ['reduced motion, even with ?intro', '/?intro', { reducedMotion: true }, false],
+      ['an automated browser', '/', { automated: true }, false],
+      ['?intro, for a returning visitor', '/?intro', { returning: true }, true],
+    ];
+    const wrong = [];
+    for (const [label, url, opts, want] of cases) {
+      const { context, page, errors } = await introPage(browser, DESKTOP, url, opts);
+      const shown = await introShown(page);
+      if (shown !== want) wrong.push(`${label}: ${shown ? 'shown' : 'not shown'}`);
+      if (errors.length) fail(`intro: page errors for ${label}: ${errors.join(' | ')}`);
+      await context.close();
+    }
+    if (wrong.length) fail(`intro: wrong audience: ${wrong.join('; ')}`);
+    else ok('intro: shown to a first visit only (not a return, #work, reduced motion or a test browser)');
+
+    // The name sits exactly on the title's, so it stays put through the
+    // crossfade; on a phone the lines under them wrap differently.
+    for (const [label, viewport] of [
+      ['desktop', DESKTOP],
+      ['phone', MOBILE],
+    ]) {
+      const { context, page } = await introPage(browser, viewport, '/?intro');
+      await page.evaluate(() => document.fonts.ready);
+      await page.waitForTimeout(300);
+      const d = await page.evaluate(() => {
+        const a = document.querySelector('.intro-name').getBoundingClientRect();
+        const b = document.querySelector('.title-h1').getBoundingClientRect();
+        return { dx: a.left - b.left, dy: a.top - b.top, dw: a.width - b.width };
+      });
+      if (Math.abs(d.dx) <= 2 && Math.abs(d.dy) <= 2 && Math.abs(d.dw) <= 2) ok(`intro: name on the title's at ${label} size`);
+      else fail(`intro: name off the title's at ${label} size by x ${d.dx.toFixed(1)}, y ${d.dy.toFixed(1)}, width ${d.dw.toFixed(1)}`);
+      await context.close();
+    }
+
+    // Dive in: the clip, with sound, the page held at the top under it,
+    // then the handover and the descent into About; the film still
+    // finishes building.
+    {
+      const { context, page, errors } = await introPage(browser, DESKTOP, '/?intro');
+      const t0 = Date.now();
+      await page.waitForFunction(() => document.documentElement.classList.contains('has-dive'), null, { timeout: 30000 });
+      await page.click('.intro-dive');
+      const played = await page
+        .waitForFunction(() => document.querySelector('.intro-clip').currentTime > 0.3, null, { timeout: 8000 })
+        .then(
+          () => true,
+          () => false,
+        );
+      const sound = await page.evaluate(() => !document.querySelector('.intro-clip').muted);
+      await page.mouse.move(700, 450);
+      await page.mouse.wheel(0, 800);
+      await page.waitForTimeout(250);
+      const heldAtTop = await page.evaluate(() => window.scrollY === 0);
+      const handedOver = await page
+        .waitForFunction(() => !document.documentElement.classList.contains('intro'), null, { timeout: 15000 })
+        .then(
+          () => true,
+          () => false,
+        );
+      await page.waitForFunction(() => document.activeElement?.id === 'about', null, { timeout: 10000 }).catch(() => {});
+      const after = await page.evaluate(() => ({
+        focus: document.activeElement?.id,
+        seen: localStorage.getItem('dive:intro-seen') === '1',
+        toggle: !document.querySelector('.sound-toggle').hidden,
+        inert: [...document.querySelectorAll('main > *')].some((el) => el.inert),
+      }));
+      const ready = await page
+        .waitForFunction(() => document.documentElement.classList.contains('dive-ready'), null, { timeout: 60000 })
+        .then(
+          () => true,
+          () => false,
+        );
+      const readyS = ((Date.now() - t0) / 1000).toFixed(1);
+      const clipOk = h264 ? played && sound : !played;
+      if (clipOk && heldAtTop && handedOver && after.focus === 'about' && after.seen && after.toggle && !after.inert && ready) {
+        ok(
+          `intro: Dive in ${h264 ? 'played the clip with sound' : 'went on without the clip (no H.264 here)'}, held the page, handed over to About; film ready at ${readyS} s ${where}`,
+        );
+      } else {
+        fail(
+          `intro: Dive in: played=${played} sound=${sound} heldAtTop=${heldAtTop} handedOver=${handedOver} focus=${after.focus} seen=${after.seen} toggle=${after.toggle} inert=${after.inert} ready=${ready} ${where}`,
+        );
+      }
+      if (errors.length) fail(`intro: Dive in: page errors: ${errors.join(' | ')}`);
+      await context.close();
+    }
+
+    // Scrolling on the first screen starts the clip too, silently, and says
+    // so on the toggle without storing it.
+    {
+      const { context, page, errors } = await introPage(browser, DESKTOP, '/?intro');
+      await page.waitForFunction(() => document.documentElement.classList.contains('has-dive'), null, { timeout: 30000 });
+      await page.mouse.move(700, 450);
+      await page.mouse.wheel(0, 400);
+      await page.waitForTimeout(400);
+      const s = await page.evaluate(() => ({
+        started: document.querySelector('.intro-gate').classList.contains('is-playing'),
+        muted: document.querySelector('.intro-clip').muted,
+        y: window.scrollY,
+        toggleOff: document.querySelector('.sound-toggle').getAttribute('aria-pressed') === 'false',
+        stored: localStorage.getItem('dive:muted'),
+      }));
+      const handedOver = await page
+        .waitForFunction(() => !document.documentElement.classList.contains('intro'), null, { timeout: 15000 })
+        .then(
+          () => true,
+          () => false,
+        );
+      if (s.started && s.muted && s.y === 0 && s.toggleOff && s.stored === null && handedOver) {
+        ok(`intro: a scroll started the clip silently, sound shown off, nothing stored ${where}`);
+      } else {
+        fail(`intro: scroll start: ${JSON.stringify(s)} handedOver=${handedOver} ${where}`);
+      }
+      if (errors.length) fail(`intro: scroll start: page errors: ${errors.join(' | ')}`);
+      await context.close();
+    }
+
+    // Skip intro, from the first screen: straight to the title, remembered.
+    {
+      const { context, page, errors } = await introPage(browser, DESKTOP, '/?intro');
+      await page.click('.intro-skip');
+      await page.waitForTimeout(1200);
+      const s = await page.evaluate(() => ({
+        gone: !document.documentElement.classList.contains('intro'),
+        focus: document.activeElement?.className ?? '',
+        y: window.scrollY,
+        seen: localStorage.getItem('dive:intro-seen') === '1',
+      }));
+      if (s.gone && s.focus.includes('title-h1') && s.y === 0 && s.seen) ok('intro: Skip intro landed on the title, and is remembered');
+      else fail(`intro: Skip intro: ${JSON.stringify(s)}`);
+      if (errors.length) fail(`intro: Skip intro: page errors: ${errors.join(' | ')}`);
+      await context.close();
+    }
+  } finally {
+    await browser.close();
+  }
+}
+
 async function exportStills(browser) {
   const dir = path.join(repoRoot, 'public', 'dive', 'stills');
   await fs.mkdir(dir, { recursive: true });
@@ -562,6 +765,10 @@ async function main() {
     args: ['--use-angle=default', '--enable-gpu', '--ignore-gpu-blocklist'],
   });
   try {
+    if (flag('intro-only')) {
+      await introChecks();
+      return;
+    }
     await contactSheets(browser);
     if (flag('strips')) await strips(browser);
     if (flag('stills')) await exportStills(browser);
@@ -575,6 +782,7 @@ async function main() {
     await reducedMotionCheck(browser);
     await noWebglCheck();
     await stallCheck(browser);
+    await introChecks();
     if (flag('loudness')) await loudness(browser);
   } finally {
     await browser.close();

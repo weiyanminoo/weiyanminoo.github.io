@@ -47,6 +47,30 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
 ---
 
 <DiveLayout title={title} description={description}>
+  {/* The intro (scripts/dive/intro.ts): a first visit's first screen, on
+      the boat before the dive. Shown only under html.intro, which
+      DiveLayout's inline script sets before first paint, so without
+      JavaScript it never appears. Its copy sits exactly where the title's
+      does, so the name stays put through the crossfade into the film. */}
+  <div class="intro-gate" role="region" aria-label="Intro">
+    <video
+      class="intro-clip"
+      muted
+      playsinline
+      preload="none"
+      disablepictureinpicture
+      disableremoteplayback
+      aria-hidden="true"></video>
+    <div class="intro-inner">
+      <div class="intro-copy container">
+        <p class="intro-name">Wei Yan</p>
+        <p class="meta">PERSONAL PORTFOLIO</p>
+        <button class="intro-dive" type="button">Dive in</button>
+      </div>
+    </div>
+    <button class="intro-skip" type="button">Skip intro</button>
+  </div>
+
   <section class="station title" data-section="title" id="title">
     <img class="still" src={still('title')} alt="" loading="lazy" decoding="async" />
     <div class="content container">
@@ -220,6 +244,7 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
 <script>
   import { createAudio, frameSync, renderPreview } from '../scripts/dive/audio';
   import { readMuted } from '../scripts/dive/audioMath';
+  import { runIntro } from '../scripts/dive/intro';
   import { mountDive, type DiveHandle } from '../scripts/dive/index';
   import { wireUi } from '../scripts/dive/ui';
 
@@ -242,13 +267,15 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
     });
     // Wired before the film mounts, which can take a while (scene build,
     // shader warm-up): until it is up, the controls work without it.
-    wireUi({
+    const ui = wireUi({
       getLenis: () => dive?.lenis ?? null,
       onDiveIn: () => dive?.startEntry(),
       reducedMotion,
       audio,
       storage,
     });
+    // Before the mount too: the first screen is up from first paint.
+    runIntro({ audio, ui, storage });
     dive = await mountDive(root, { onFrame: frameSync(audio) });
     if (new URLSearchParams(location.search).has('review')) {
       Object.assign(window, {
@@ -375,7 +402,8 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
      shrink-wraps to the name's own width: the block stays in the left
      column where it was, Dive in at its left edge, and only the line under
      the name spans the name and centres to it (round 11). */
-  .title .content {
+  .title .content,
+  .intro-copy {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
@@ -385,7 +413,8 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
      exactly the name (min-width 100%) and centres on it: wider than the
      name, it overhangs it equally both sides; where the name is narrower
      than the line can be, it wraps within the name's width instead. */
-  .title .meta {
+  .title .meta,
+  .intro-copy .meta {
     width: 0;
     min-width: 100%;
     text-align: center;
@@ -398,7 +427,8 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
     }
   }
 
-  .title-h1 {
+  .title-h1,
+  .intro-name {
     font-stretch: 125%;
     font-size: clamp(64px, 11vw, 168px);
     line-height: 0.88;
@@ -416,7 +446,8 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
   /* Links, not buttons: without JavaScript they still jump to About and
      back to the top; with it, ui.ts takes over the click. */
   .dive-in,
-  .surface {
+  .surface,
+  .intro-dive {
     display: inline-flex;
     align-items: center;
     text-decoration: none;
@@ -439,8 +470,101 @@ const still = (id: SectionId) => `/dive/stills/${id}.jpg`;
   }
 
   .dive-in:hover,
-  .surface:hover {
+  .surface:hover,
+  .intro-dive:hover {
     background: rgba(4, 16, 28, 0.68);
+  }
+
+  /* The intro's first screen: fixed over the film and the page, under the
+     menu (50) and the sound toggle (40). The still is the clip's own first
+     frame, so the clip takes over from it without a seam. */
+  .intro-gate {
+    display: none;
+  }
+
+  :global(html.intro) .intro-gate {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    background: #0a2135 url('/intro/wide.jpg') center / cover no-repeat;
+    transition: opacity 0.8s ease;
+  }
+
+  @media (orientation: portrait) {
+    :global(html.intro) .intro-gate {
+      background-image: url('/intro/tall.jpg');
+    }
+  }
+
+  .intro-gate.is-leaving {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .intro-clip {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  /* The title station's own box (92vh, the section padding, centred), so
+     the name lands exactly where the title's will be. */
+  .intro-inner {
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 92vh;
+    padding-block: 112px;
+    display: flex;
+    align-items: center;
+    isolation: isolate;
+    transition: opacity 0.5s ease;
+  }
+
+  /* The title's scrim, over the darker sea under the horizon. */
+  .intro-inner::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: radial-gradient(ellipse 70% 65% at 38% 50%, rgba(5, 20, 35, 0.6), transparent 72%);
+  }
+
+  /* The clip plays clean: the copy and its scrim go as it starts. */
+  .intro-gate.is-playing .intro-inner {
+    opacity: 0;
+  }
+
+  /* A paragraph, not a second h1 (the title's is the page's heading), so
+     it takes the h1's weight by hand. */
+  .intro-name {
+    font-weight: 800;
+  }
+
+  /* Bottom left, where the depth gauge will be (bottom right is the sound
+     toggle's). */
+  .intro-skip {
+    position: absolute;
+    left: max(16px, (100% - 1180px) / 2);
+    bottom: 14px;
+    min-height: 44px;
+    padding: 0 14px;
+    border: 1px solid rgba(234, 244, 246, 0.4);
+    border-radius: 999px;
+    background: rgba(4, 16, 28, 0.45);
+    color: var(--on-deep);
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+
+  .intro-skip:hover {
+    background: rgba(4, 16, 28, 0.62);
   }
 
   /* About: one statement, at the scale of the film's own title cards. */

@@ -58,9 +58,43 @@ const siteName = 'Wei Yan';
         the page stays compact — the spacers only exist to give the film
         room. index.ts removes the class again if the scene cannot start. */}
     <script is:inline>
-      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        document.documentElement.classList.add('dive-js');
-      }
+      (function () {
+        var html = document.documentElement;
+        var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (!reduced) html.classList.add('dive-js');
+        // The intro (scripts/dive/intro.ts), decided here so a visitor who
+        // will not get it never sees it flash. A first visit only: not a
+        // returning visitor (dive:intro-seen, intro.ts's INTRO_SEEN_KEY), a
+        // link into a section (#work), Save-Data, the review stills, or an
+        // automated browser (the audit and harness start past it, as a
+        // returning visitor does). ?intro shows it regardless, to check it;
+        // reduced motion never.
+        try {
+          var q = new URLSearchParams(location.search);
+          var conn = navigator.connection;
+          var first =
+            localStorage.getItem('dive:intro-seen') !== '1' &&
+            !location.hash &&
+            !q.has('review') &&
+            !(conn && conn.saveData) &&
+            !navigator.webdriver;
+          if (!reduced && (q.has('intro') || first)) {
+            html.classList.add('intro');
+            var still = document.createElement('link');
+            still.rel = 'preload';
+            still.as = 'image';
+            still.href = window.matchMedia('(orientation: portrait)').matches ? '/intro/tall.jpg' : '/intro/wide.jpg';
+            document.head.appendChild(still);
+            // If the page's script never runs (a failed download), the first
+            // screen must not trap the page behind a dead button.
+            setTimeout(function () {
+              if (!window.__introReady) html.classList.remove('intro');
+            }, 10000);
+          }
+        } catch (e) {
+          // Storage blocked: no way to show it only once, so not at all.
+        }
+      })();
     </script>
   </head>
   <body>
@@ -158,6 +192,11 @@ const siteName = 'Wei Yan';
      context) its last reading would hang over the stills. */
   :global(html:not(.has-dive)) .depth-gauge {
     display: none;
+  }
+
+  /* Nothing has dived yet under the intro's first screen and clip. */
+  :global(html.intro) .depth-gauge {
+    visibility: hidden;
   }
 
   .depth-gauge {

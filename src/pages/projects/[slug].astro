@@ -43,8 +43,11 @@ const meta = [project.data.kind, period].filter(Boolean).join(' · ');
 </StaticLayout>
 
 <style>
+  /* A reading column, capped for line length and centred on the page so
+     the margins either side match at every width. */
   .story {
-    max-width: 46rem;
+    max-width: 48rem;
+    margin-inline: auto;
   }
 
   .back {
@@ -124,6 +127,13 @@ const meta = [project.data.kind, period].filter(Boolean).join(' · ');
 
   .body :global(h2:first-child) {
     margin-top: 0;
+  }
+
+  /* The panel already sets the measure, so the text fills it evenly rather
+     than stopping at the layout's 68ch and leaving the right side empty. */
+  .body :global(p),
+  .body :global(li) {
+    max-width: none;
   }
 
   .body :global(p) {
